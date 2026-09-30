@@ -1,5 +1,6 @@
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
+import { useAuth } from '@/features/auth/AuthContext';
 import { useApiHealth } from '@/features/health/useApiHealth';
 
 import styles from './HomePage.module.css';
@@ -69,7 +70,11 @@ const foundations = [
   },
   {
     title: 'MySQL through EF Core',
-    text: 'The data layer is configured and ready for the first migration once MySQL 8 is installed.',
+    text: 'MySQL 8.4 runs on its own port and the first migration creates the users, roles, provinces and districts tables.',
+  },
+  {
+    title: 'Real accounts',
+    text: 'Registration, sign-in, lockout and role-based access are handled by ASP.NET Core Identity with a secure cookie.',
   },
   {
     title: 'Secrets stay on the server',
@@ -82,19 +87,42 @@ const foundations = [
 ];
 
 export function HomePage() {
+  const { status, user } = useAuth();
+
   return (
     <>
       <section className={styles.hero}>
         <Container className={styles.heroGrid}>
           <div>
-            <span className={styles.eyebrow}>Phase 1 · Foundation only</span>
+            <span className={styles.eyebrow}>Phase 2 — accounts and data</span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
               Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and
-              events into one place. This build is the foundation those features will sit on — no
-              features are live yet.
+              events into one place. Accounts and the real database are now in place — the modules
+              themselves are still to come.
             </p>
+
+            <div className={styles.heroActions}>
+              {status === 'authenticated' && user ? (
+                <>
+                  <p className={styles.signedInAs}>Signed in as {user.fullName}.</p>
+                  <a className={styles.primaryLink} href="/account">
+                    Go to your account
+                  </a>
+                </>
+              ) : (
+                <>
+                  <a className={styles.primaryLink} href="/register">
+                    Create an account
+                  </a>
+                  <a className={styles.secondaryLink} href="/login">
+                    Sign in
+                  </a>
+                </>
+              )}
+            </div>
           </div>
+
 
           <div>
             <StatusCard />
@@ -106,7 +134,7 @@ export function HomePage() {
         <Container>
           <h2 className={styles.sectionTitle}>What is already in place</h2>
           <p className={styles.sectionText}>
-            Four decisions that every future module depends on.
+            The decisions that every future module depends on.
           </p>
 
           <div className={styles.grid}>

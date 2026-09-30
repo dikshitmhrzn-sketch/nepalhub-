@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NepalHub.Api.Common;
@@ -8,6 +9,7 @@ namespace NepalHub.Api.Features.Health;
 [ApiController]
 [Route("api/health")]
 [Produces("application/json")]
+[AllowAnonymous]
 public sealed class HealthController(IServiceProvider services, ILogger<HealthController> logger)
     : ControllerBase
 {

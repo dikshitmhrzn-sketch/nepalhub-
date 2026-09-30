@@ -1,10 +1,16 @@
-import { NavLink, Outlet } from 'react-router';
+import { useState } from 'react';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 
+import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
+import { useAuth } from '@/features/auth/AuthContext';
 
 import styles from './AppShell.module.css';
 
-const navigation = [{ label: 'Home', to: '/' }];
+const navigation = [
+  { label: 'Home', to: '/' },
+  { label: 'Account', to: '/account', requiresAuth: true },
+];
 
 const plannedModules = [
   'Tools',
@@ -17,7 +23,56 @@ const plannedModules = [
   'Search',
 ];
 
+function AccountActions() {
+  const { status, user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  if (status === 'loading') {
+    return null;
+  }
+
+  if (status === 'anonymous') {
+    return (
+      <div className={styles.authArea}>
+        <NavLink
+          to="/login"
+          className={({ isActive }) =>
+            isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
+          }
+        >
+          Sign in
+        </NavLink>
+        <NavLink to="/register" className={styles.signUpLink}>
+          Create account
+        </NavLink>
+      </div>
+    );
+  }
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate('/', { replace: true });
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
+  return (
+    <div className={styles.authArea}>
+      <span className={styles.greeting}>{user?.fullName}</span>
+      <Button size="small" variant="ghost" onClick={() => void handleSignOut()} disabled={isSigningOut}>
+        {isSigningOut ? 'Signing out…' : 'Sign out'}
+      </Button>
+    </div>
+  );
+}
+
 export function AppShell() {
+  const { status } = useAuth();
+
   return (
     <div className={styles.shell}>
       <a className={styles.skipLink} href="#main-content">
@@ -35,21 +90,25 @@ export function AppShell() {
 
           <nav aria-label="Primary">
             <ul className={styles.navList}>
-              {navigation.map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end
-                    className={({ isActive }) =>
-                      isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
-                    }
-                  >
-                    {item.label}
-                  </NavLink>
-                </li>
-              ))}
+              {navigation
+                .filter((item) => !item.requiresAuth || status === 'authenticated')
+                .map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end
+                      className={({ isActive }) =>
+                        isActive ? `${styles.navLink} ${styles.navLinkActive}` : styles.navLink
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
             </ul>
           </nav>
+
+          <AccountActions />
         </Container>
       </header>
 
@@ -61,7 +120,7 @@ export function AppShell() {
         <Container className={styles.footerInner}>
           <div>
             <p>Nepal Hub — one useful website for everyday Nepal.</p>
-            <p>Phase 1 scaffolding. No modules are live yet.</p>
+            <p>Phase 2: accounts are live. Modules arrive in later phases.</p>
           </div>
 
           <div>

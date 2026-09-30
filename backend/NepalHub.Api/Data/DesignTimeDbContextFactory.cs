@@ -9,13 +9,17 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
     {
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__Default")
-            ?? "Server=localhost;Port=3306;Database=nepalhub;User=root;Password=;";
+            ?? "Server=127.0.0.1;Port=3307;Database=nepalhub;User=nepalhub_app;Password=;";
         var serverVersionText =
             Environment.GetEnvironmentVariable("Database__ServerVersion")
             ?? "8.4.0-mysql";
 
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseMySql(connectionString, ServerVersion.Parse(serverVersionText))
+            .UseMySql(
+                connectionString,
+                ServerVersion.Parse(serverVersionText),
+                mySql => mySql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+            .UseSnakeCaseNamingConvention()
             .Options;
 
         return new AppDbContext(options);

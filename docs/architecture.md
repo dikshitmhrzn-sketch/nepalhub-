@@ -121,20 +121,33 @@ never leaves a stale response to overwrite fresh state.
 - Pagination, sorting and filtering follow one convention across all list endpoints so the global
   search feature can reuse them.
 
-## 6. Authentication and security (design only, not implemented yet)
+## 6. Authentication and security (implemented for Phase 1)
 
 - **Passwords:** ASP.NET Core Identity — PBKDF2 hashing, lockout, security-stamp invalidation. No
   hand-rolled crypto.
-- **Tokens:** short-lived JWT access token + rotating refresh token, issued as `Secure`,
-  `HttpOnly`, `SameSite=Lax` cookies. This works identically for the SPA and a native Flutter app.
-- **Authorisation:** role-based policies (`user`, `business`, `admin`, `moderator`) enforced in
-  controllers via `[Authorize]`, with resource-level ownership checks in services. Business accounts
-  can only edit their own listings.
-- **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations
-  or a validator of choice; file uploads are validated by content type and size and stored outside
-  the web root.
-- **Rate limiting and abuse protection** will be added before any public write endpoint (quiz
-  answers, sign-up, business claims).
+- **Session:** a server-side Identity authentication cookie, `Secure`, `HttpOnly`,
+  `SameSite=Lax`, issued under the `Identity.Application` scheme. **No JWT and no token in
+  `localStorage`**, so an XSS bug cannot read the session. A native Flutter app uses the same cookie
+  jar, so the contract stays identical for both clients.
+- **CSRF:** every unsafe request (`POST`, `PUT`, `PATCH`, `DELETE`) to `/api` is validated by
+  `AntiforgeryMiddleware` against the `X-CSRF-TOKEN` header and the `.NepalHub.Csrf` cookie, and a
+  mismatch is `400 csrf_failed`. `GET /api/auth/csrf` issues the token. The token is bound to the
+  current identity, so the frontend discards it after sign-in and sign-out.
+- **Authorisation:** role-based policies (`user`, `business`, `moderator`, `admin`) enforced by
+  `[Authorize(Policy = ...)]` with `admin-only` and `staff-only` policies, plus resource-level
+  ownership checks in services. Business accounts can only edit their own listings.
+- **Default deny:** a fallback authorisation policy means every endpoint requires a signed-in user
+  unless it opts out with `[AllowAnonymous]`, so a new controller is protected the moment it is added.
+- **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations;
+  file uploads are validated by content type and size and stored outside the web root.
+- **Rate limiting:** a fixed-window limiter on the auth endpoints (20 requests/minute/IP,
+  `Auth:RateLimit:PermitLimit`), returning `429 rate_limited`. Read-only endpoints are not limited.
+  Public write endpoints (quiz answers, business claims) reuse the same mechanism.
+- **Errors:** Identity failures are translated into stable field codes (`email_taken`,
+  `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.
+  A wrong password and an unknown account return the same `401 invalid_credentials`.
+- **Email:** accounts are created already confirmed because no mail provider is connected yet.
+  Verification and password-reset emails arrive with the notifications work.
 - **Admin actions** that change other users' data are written to an audit log.
 
 ## 7. Deployment target

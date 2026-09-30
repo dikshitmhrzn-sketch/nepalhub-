@@ -65,6 +65,65 @@ function buildUrl(path: string, query?: QueryParams): string {
   return `${env.apiBaseUrl}${normalisedPath}${queryString ? `?${queryString}` : ''}`;
 }
 
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+const CSRF_PATH = '/auth/csrf';
+const CSRF_PATH_FALLBACK = 'X-CSRF-TOKEN';
+
+interface CsrfToken {
+  headerName: string;
+  token: string;
+}
+
+let cachedCsrfToken: CsrfToken | null = null;
+let pendingCsrfToken: Promise<CsrfToken> | null = null;
+
+/**
+ * The API protects every unsafe request with antiforgery validation, and the
+ * token is bound to the current identity. It is therefore fetched on demand and
+ * thrown away whenever the session changes.
+ */
+export function clearCsrfToken(): void {
+  cachedCsrfToken = null;
+  pendingCsrfToken = null;
+}
+
+async function fetchCsrfToken(): Promise<CsrfToken> {
+  const response = await fetch(buildUrl(CSRF_PATH), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, 'csrf_unavailable', 'Could not start a secure session.');
+  }
+
+  const payload = (await parseBody(response)) as
+    | { success?: boolean; data?: CsrfToken | null }
+    | null;
+  const token = payload?.data;
+
+  if (!payload?.success || !token?.token) {
+    throw new ApiError(response.status, 'csrf_unavailable', 'Could not start a secure session.');
+  }
+
+  return { headerName: token.headerName || CSRF_PATH_FALLBACK, token: token.token };
+}
+
+async function ensureCsrfToken(): Promise<CsrfToken> {
+  if (cachedCsrfToken) {
+    return cachedCsrfToken;
+  }
+
+  pendingCsrfToken ??= fetchCsrfToken().finally(() => {
+    pendingCsrfToken = null;
+  });
+  cachedCsrfToken = await pendingCsrfToken;
+
+  return cachedCsrfToken;
+}
+
 function linkAbortSignals(timeoutController: AbortController, signal?: AbortSignal): void {
   if (!signal) {
     return;
@@ -111,7 +170,7 @@ function toApiError(status: number, payload: unknown, fallbackMessage: string): 
   return new ApiError(status, 'unexpected_error', fallbackMessage);
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function send<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, query, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
 
   const timeoutController = new AbortController();
@@ -121,6 +180,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
+  }
+
+  if (!SAFE_METHODS.has(method)) {
+    const csrf = await ensureCsrfToken();
+    headers[csrf.headerName] = csrf.token;
   }
 
   let response: Response;
@@ -164,6 +228,22 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return payload as T;
+}
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  try {
+    return await send<T>(path, options);
+  } catch (error) {
+    // The token is tied to the current identity, so one that predates a sign-in
+    // or sign-out is stale. Drop it and try the request once more.
+    const method = options.method ?? 'GET';
+    if (error instanceof ApiError && error.code === 'csrf_failed' && !SAFE_METHODS.has(method)) {
+      clearCsrfToken();
+      return send<T>(path, options);
+    }
+
+    throw error;
+  }
 }
 
 export const apiClient = {

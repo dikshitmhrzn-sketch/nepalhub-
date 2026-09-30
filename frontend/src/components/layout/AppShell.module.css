@@ -97,6 +97,38 @@
   color: var(--nh-primary);
 }
 
+.authArea {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.greeting {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.signUpLink {
+  display: inline-block;
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-primary);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-primary);
+  color: var(--nh-text-inverse);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  text-decoration: none;
+}
+
+.signUpLink:hover {
+  background-color: var(--nh-primary-hover);
+  color: var(--nh-text-inverse);
+}
+
 .main {
   flex: 1;
 }

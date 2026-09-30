@@ -1,9 +1,9 @@
-# Roadmap
+﻿# Roadmap
 
 Each phase is built, reviewed and approved before the next one starts. A phase is not "done" until
 it is verified end to end against a real MySQL database — no mocked persistence.
 
-## Phase 0 — Foundation ✅ current
+## Phase 0 — Foundation ✅
 
 - [x] Environment audit (Node 22.16.0, .NET SDK 8.0.425, Git)
 - [x] Repository, `frontend/`, `backend/`, `docs/`
@@ -13,17 +13,28 @@ it is verified end to end against a real MySQL database — no mocked persistenc
 - [x] Response envelope and typed `apiClient`
 - [x] Secrets via user-secrets, zero tables, zero features
 
-## Phase 1 — Database and identity
+## Phase 1 — Database and identity ✅ complete
 
-- [ ] Install MySQL 8.4 LTS (`winget install Oracle.MySQL`), create `nepalhub` database and a
-      least-privilege application user
-- [ ] First migration: `users` + ASP.NET Core Identity tables + `provinces`/`districts`
-- [ ] `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`
-- [ ] Secure `HttpOnly` cookie JWT, lockout, email verification
-- [ ] Sign-up / sign-in UI with validation, loading, error and success states
-- [ ] Route protection on the frontend and authorisation policies on the API
+- [x] MySQL 8.4.9 installed as `MySQLNepalHub84` on `127.0.0.1:3307`, alongside an untouched XAMPP
+- [x] `nepalhub` and `nepalhub_test` databases, least-privilege `nepalhub_app` user
+- [x] `20260930092534_InitialCreate`: Identity tables (`users`, `roles`, `user_roles`, `user_claims`,
+      `user_logins`, `user_tokens`, `role_claims`) plus `provinces` / `districts`
+- [x] 7 provinces and 77 districts seeded with deterministic ids
+- [x] ASP.NET Core Identity with `HttpOnly` cookie, lockout, password policy, no password stored in
+      the browser
+- [x] `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`,
+      `GET /api/auth/session`
+- [x] Antiforgery validation on every unsafe `/api` request (`X-CSRF-TOKEN`)
+- [x] Rate limiting on auth endpoints (20/minute/IP) and `admin-only` / `staff-only` policies
+- [x] Sign-up / sign-in / account UI with validation, loading, error and success states
+- [x] Frontend route protection and a CSRF-aware `apiClient`
+- [x] 22 integration tests against the real `nepalhub_test` database
 
-## Phase 2 — First real module (tools and calculators)
+Deliberately deferred to a later phase: email verification and a `refresh` endpoint. There is no mail
+provider yet, so accounts are created already confirmed, and the cookie is a session that the browser
+keeps until it expires — there is no access token to refresh.
+
+## Phase 2 — First real module (tools and calculators) — not started
 
 Smallest end-to-end feature that proves calculators can be added one by one.
 
@@ -60,7 +71,8 @@ Smallest end-to-end feature that proves calculators can be added one by one.
 ## Phase 7 — Global search and admin
 
 - [ ] Cross-module search index
-- [ ] Admin and moderator roles, reports queue, audit log
+- [ ] Admin screens, reports queue and audit log (the `admin` and `moderator` roles and the
+      `admin-only` / `staff-only` policies already exist)
 - [ ] Rate limiting and abuse protection across public writes
 
 ## Phase 8 — Mobile
@@ -73,4 +85,4 @@ Smallest end-to-end feature that proves calculators can be added one by one.
 - No feature is built before its data model and API contract are agreed.
 - No mocked persistence: features use real MySQL through EF Core.
 - New packages are justified in one sentence before being added.
-- `npm run typecheck`, `npm run build` and `dotnet build` must pass before any phase is reported done.
+- `npm run typecheck`, `npm run build`, `dotnet build` and `dotnet test` must pass before any phase is reported done.
