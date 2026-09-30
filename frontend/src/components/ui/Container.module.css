@@ -1,0 +1,12 @@
+.container {
+  width: 100%;
+  max-width: var(--nh-container-width);
+  margin-inline: auto;
+  padding-inline: var(--nh-container-padding);
+}
+
+@media (min-width: 48rem) {
+  .container {
+    padding-inline: var(--nh-space-6);
+  }
+}

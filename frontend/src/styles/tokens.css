@@ -1,0 +1,138 @@
+/*
+ * Design tokens for Nepal Hub.
+ * Every colour, space, radius, shadow and duration used by the UI is declared
+ * here once. Components must reference these variables, never raw values,
+ * so theming (including dark mode) stays a single-file change.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* Brand palette (inspired by the Nepalese flag, not a copy of any website) */
+  --nh-crimson-50: #fef2f3;
+  --nh-crimson-100: #fde4e6;
+  --nh-crimson-200: #fbcbd0;
+  --nh-crimson-500: #dc143c;
+  --nh-crimson-600: #c01033;
+  --nh-crimson-700: #a10c2a;
+  --nh-navy-50: #f2f5fb;
+  --nh-navy-100: #e2e9f6;
+  --nh-navy-200: #c3d0e9;
+  --nh-navy-500: #002472;
+  --nh-navy-600: #001c58;
+  --nh-green-50: #edfdf3;
+  --nh-green-500: #128a4c;
+  --nh-green-700: #0b5c32;
+  --nh-amber-50: #fffaeb;
+  --nh-amber-500: #b45309;
+  --nh-slate-0: #ffffff;
+  --nh-slate-50: #f7f8fa;
+  --nh-slate-100: #eef0f4;
+  --nh-slate-200: #dfe3ea;
+  --nh-slate-400: #9aa3b2;
+  --nh-slate-600: #55606f;
+  --nh-slate-800: #232a35;
+  --nh-slate-900: #12171f;
+  --nh-slate-950: #0b0e13;
+
+  /* Semantic colours — light theme */
+  --nh-bg: var(--nh-slate-50);
+  --nh-surface: var(--nh-slate-0);
+  --nh-surface-muted: var(--nh-slate-100);
+  --nh-border: var(--nh-slate-200);
+  --nh-border-strong: var(--nh-slate-400);
+  --nh-text: var(--nh-slate-900);
+  --nh-text-muted: var(--nh-slate-600);
+  --nh-text-inverse: var(--nh-slate-0);
+  --nh-primary: var(--nh-crimson-500);
+  --nh-primary-hover: var(--nh-crimson-600);
+  --nh-primary-soft: var(--nh-crimson-50);
+  --nh-accent: var(--nh-navy-500);
+  --nh-accent-soft: var(--nh-navy-50);
+  --nh-success: var(--nh-green-500);
+  --nh-success-soft: var(--nh-green-50);
+  --nh-success-text: var(--nh-green-700);
+  --nh-warning: var(--nh-amber-500);
+  --nh-warning-soft: var(--nh-amber-50);
+  --nh-danger: var(--nh-crimson-600);
+  --nh-danger-soft: var(--nh-crimson-50);
+  --nh-focus-ring: var(--nh-navy-500);
+
+  /* Typography */
+  --nh-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', 'Noto Sans Devanagari', sans-serif;
+  --nh-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --nh-font-size-xs: 0.75rem;
+  --nh-font-size-sm: 0.875rem;
+  --nh-font-size-md: 1rem;
+  --nh-font-size-lg: 1.125rem;
+  --nh-font-size-xl: 1.375rem;
+  --nh-font-size-2xl: clamp(1.5rem, 1.2rem + 1.4vw, 2rem);
+  --nh-font-size-3xl: clamp(1.875rem, 1.4rem + 2.2vw, 2.75rem);
+  --nh-line-height: 1.6;
+  --nh-line-height-tight: 1.25;
+  --nh-font-weight-regular: 400;
+  --nh-font-weight-medium: 500;
+  --nh-font-weight-bold: 700;
+
+  /* Spacing scale (4px base) */
+  --nh-space-0: 0;
+  --nh-space-1: 0.25rem;
+  --nh-space-2: 0.5rem;
+  --nh-space-3: 0.75rem;
+  --nh-space-4: 1rem;
+  --nh-space-5: 1.5rem;
+  --nh-space-6: 2rem;
+  --nh-space-7: 3rem;
+  --nh-space-8: 4rem;
+
+  /* Radii, borders, shadows */
+  --nh-radius-sm: 6px;
+  --nh-radius-md: 10px;
+  --nh-radius-lg: 16px;
+  --nh-radius-pill: 999px;
+  --nh-border-width: 1px;
+  --nh-shadow-sm: 0 1px 2px rgb(11 14 19 / 6%);
+  --nh-shadow-md: 0 6px 16px -8px rgb(11 14 19 / 18%);
+  --nh-shadow-lg: 0 18px 40px -20px rgb(11 14 19 / 28%);
+
+  /* Layout */
+  --nh-container-width: 72rem;
+  --nh-container-padding: var(--nh-space-4);
+  --nh-header-height: 3.5rem;
+
+  /* Motion: short and functional only */
+  --nh-duration-fast: 120ms;
+  --nh-duration-base: 180ms;
+  --nh-easing: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* Status text colours are exposed separately for badges/labels */
+  --nh-status-success-text: var(--nh-success-text);
+  --nh-status-warning-text: var(--nh-warning);
+  --nh-status-danger-text: var(--nh-danger);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nh-bg: var(--nh-slate-950);
+    --nh-surface: var(--nh-slate-900);
+    --nh-surface-muted: var(--nh-slate-800);
+    --nh-border: #2a323d;
+    --nh-border-strong: #3c4655;
+    --nh-text: #eef1f6;
+    --nh-text-muted: #a3adbd;
+    --nh-primary: #ff5c78;
+    --nh-primary-hover: #ff8095;
+    --nh-primary-soft: #2b1119;
+    --nh-accent: #8fa9e8;
+    --nh-accent-soft: #131c30;
+    --nh-success: #35c07a;
+    --nh-success-soft: #0d2a1c;
+    --nh-success-text: #7ee2ab;
+    --nh-warning: #eab308;
+    --nh-warning-soft: #2a1f08;
+    --nh-danger: #ff6b83;
+    --nh-danger-soft: #2c1219;
+    --nh-focus-ring: #8fa9e8;
+  }
+}

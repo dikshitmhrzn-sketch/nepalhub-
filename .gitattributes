@@ -1,0 +1,4 @@
+# Keep line endings consistent no matter which machine the repo is cloned on.
+# C# follows .editorconfig (crlf); everything else follows each editor's default.
+* text=auto
+*.cs text eol=crlf

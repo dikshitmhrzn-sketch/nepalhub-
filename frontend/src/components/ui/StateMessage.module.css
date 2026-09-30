@@ -1,0 +1,43 @@
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-6) var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-lg);
+  background-color: var(--nh-surface);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--nh-font-size-lg);
+}
+
+.description {
+  max-width: 42ch;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--nh-border);
+  border-top-color: var(--nh-primary);
+  border-radius: 50%;
+  animation: state-spin 700ms linear infinite;
+}
+
+@keyframes state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--nh-border);
+  }
+}

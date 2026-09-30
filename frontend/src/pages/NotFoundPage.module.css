@@ -1,0 +1,20 @@
+.section {
+  display: grid;
+  place-items: center;
+  padding-block: var(--nh-space-8);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--nh-font-size-3xl);
+}
+
+.text {
+  margin-top: var(--nh-space-3);
+  max-width: 46ch;
+  color: var(--nh-text-muted);
+}
+
+.action {
+  margin-top: var(--nh-space-5);
+}

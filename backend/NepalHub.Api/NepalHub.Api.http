@@ -1,0 +1,9 @@
+@host = http://localhost:5080
+
+### Health
+GET {{host}}/api/health
+Accept: application/json
+
+### Liveness (framework health check)
+GET {{host}}/health
+Accept: application/json
