@@ -119,6 +119,108 @@ including `Nawalparasi West`, `Rukum East` and `Rukum West`.
 Rukum East is recorded under Lumbini and Rukum West under Karnali, which is what the district counts
 above assume.
 
+## Module 3 — Calculators (live)
+
+`calculators` is one row per calculator, added by `20260930105251_AddCalculators`. The whole input
+form is stored as JSON, so publishing another calculator is a data change rather than a schema
+change. Rows are seeded by an idempotent startup seeder rather than `HasData`, because a seeded
+calculator's copy is expected to be edited by staff afterwards and must survive a reseed.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | GUID |
+| `slug` | `varchar(80)` unique | `^[a-z0-9]+(-[a-z0-9]+)*$`; the public URL, and immutable once created |
+| `name` | `varchar(120)` | |
+| `summary` | `varchar(280)` | the catalogue card line |
+| `description` | `varchar(4000)` | the explanation on the calculator page |
+| `category` | `int` | `CalculatorCategory`; 0 = Finance, 1 = Education, 2 = Health, 3 = Engineering, 4 = Everyday |
+| `inputs_json` | `json` | array of `InputFieldDefinition`: `key`, `label`, `kind`, `unit`, `minimum`, `maximum`, `step`, `defaultValue`, `required`, `help` |
+| `sort_order` | `int` | catalogue order, lowest first |
+| `is_published` | `tinyint(1)` default 0 | only published rows appear on the public endpoints |
+| `created_by_id` | `char(36)` nullable → `users` (SET NULL) | the author, kept if the account is removed |
+| `created_at`, `updated_at` | `datetime(6)` | |
+
+Indexes: `ix_calculators_slug` (unique), `ix_calculators_category`, `ix_calculators_sort_order`,
+`ix_calculators_is_published`, and `ix_calculators_created_by_id` for the staff list. The public
+catalogue query is `WHERE is_published = 1 ORDER BY sort_order, name`, which the sort index serves.
+
+`kind` is one of `Amount`, `Percent`, `Years` or `Number`; it drives the unit suffix and the input
+step on the rendered field. `category` and `kind` are serialised to the API by name, so a client
+never depends on the stored ordinal.
+
+Seeded calculators: `loan-emi` and `compound-interest` (Finance) and `percentage-calculator`
+(Everyday). The seeder only inserts, so a calculator an administrator deletes stays deleted.
+
+## Module 4 — Daily quiz (live)
+
+Six tables, added by `20260930122740_AddQuiz`. The bank of questions is authored by staff; the
+daily set is materialised from it on first use, which is what makes a single day's quiz identical
+for everybody without a scheduled job ever having to run.
+
+### Question bank
+
+| Table | Key columns |
+| --- | --- |
+| `quiz_questions` | `id` PK, `text` varchar(600), `explanation` varchar(1500), `category` int (`QuizCategory`), `is_published` tinyint(1) default 0, `created_by_user_id` nullable → `users` (SET NULL), `created_at`, `updated_at` |
+| `quiz_options` | `id` PK, `question_id` → `quiz_questions` (CASCADE), `position` int, `text` varchar(300), `is_correct` tinyint(1) default 0 |
+
+Indexes: `ix_quiz_questions_is_published_id` (the draw only reads published rows),
+`ix_quiz_questions_category` (the category-balanced draw), `ix_quiz_questions_created_by_user_id`,
+and `ix_quiz_options_question_id_position`, which is **unique** so options cannot share a slot.
+
+`category` is one of `Nepal`, `GeneralKnowledge`, `Science`, `Technology`, `History`, `Geography`
+and is serialised to the API by name, so a client never depends on the stored ordinal.
+`is_correct` lives only here and in the staff contracts: no pre-answer response DTO has a field
+that would reveal it, which is the whole reason grading happens server-side.
+
+Question text uniqueness across the bank is enforced by the service, not by a unique index, so
+that two staff members saving similar wording at the same time get a readable conflict rather than
+a duplicate-key error.
+
+Validation is split in two, and the split is deliberate. The *shape* of a question — two to six
+options, each with text, no two the same — is always required, because a draft with no options is
+not worth storing. The *playability* of a question — exactly one correct answer and an explanation
+of at least 10 characters — is required only when publishing, which is the difference between
+"not finished yet" and "wrong". Requiring the answer on a draft would leave staff no way to save a
+half-written question.
+
+### Daily sets and attempts
+
+| Table | Key columns |
+| --- | --- |
+| `daily_quizzes` | `id` PK, `quiz_date` date, `question_count` int, `created_at` |
+| `daily_quiz_questions` | PK `(daily_quiz_id, question_id)`, `position` int |
+| `quiz_attempts` | `id` PK, `user_id` → `users` (CASCADE), `daily_quiz_id` → `daily_quizzes` (CASCADE), `score`, `max_score`, `xp_awarded`, `completed_at` |
+| `quiz_attempt_answers` | PK `(attempt_id, question_id)`, `selected_option_id` → `quiz_options` (RESTRICT), `is_correct` tinyint(1) |
+
+Two unique indexes carry the integrity model:
+
+- `ix_daily_quizzes_quiz_date` — one set per date, so a repeated materialisation is a no-op even
+  when two visitors race on the first request of the day.
+- `ix_quiz_attempts_user_id_daily_quiz_id` — one completed run per person per day, so a second
+  submit is a `409` rather than a second XP payout. This is the only defence that actually
+  matters; the service's pre-check is a courtesy that saves a user a confusing error.
+
+Supporting indexes: `ix_daily_quiz_questions_daily_quiz_id_position` (reading a day in order),
+`ix_daily_quiz_questions_question_id`, `ix_quiz_attempts_user_id_completed_at` (quiz history, newest
+first), `ix_quiz_attempts_daily_quiz_id`, `ix_quiz_attempt_answers_question_id` (answers "has this
+question ever been played?" with one probe) and `ix_quiz_attempt_answers_selected_option_id`.
+
+`daily_quiz_questions` and `quiz_attempt_answers` point at questions and options with **RESTRICT**,
+not cascade. A question a player has already seen is part of somebody's history, and the staff
+delete rule refuses to remove it anyway; cascade would only be a way to lose it by accident.
+
+Progression is not a new table. `users.xp`, `users.level`, `users.streak_count` and
+`users.last_active_on` from Module 1 are written by the quiz service, and `xp_awarded` on the
+attempt is the audit trail for the payout. An attempt stores the XP it granted so a later change to
+the scoring formula cannot retroactively rewrite a player's history.
+
+`20260930122740_AddQuiz` is applied to both `nepalhub` and `nepalhub_test`. Questions are seeded by
+an idempotent startup seeder with deterministic GUIDs from `ReferenceDataIds`, for the same reason
+calculators are: staff own the copy from the moment it exists, and a reseed must not overwrite
+their corrections. The seeder only inserts, and only for the IDs it knows. 31 questions and 124
+options ship this way, each question with four options and exactly one correct.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
@@ -151,24 +253,19 @@ id and the resulting entitlement are stored. No card data ever touches this data
 | `events` | `id`, `title`, `slug`, `description`, `organiser`, `venue`, `district_id`, `starts_at`, `ends_at`, `cover_url`, `status` |
 | `deals` | `id`, `business_id`, `title`, `description`, `original_price`, `discounted_price`, `coupon_code`, `starts_at`, `ends_at`, `terms`, `is_active` |
 
-### Quiz
-
-- `quiz_questions` — `text`, `explanation`, `category`, `difficulty`, `is_active`
-- `quiz_options` — `question_id`, `label`, `is_correct` (exactly one correct option per question,
-  enforced in the service layer, never exposed in a response DTO)
-- `quiz_attempts` — `user_id`, `question_id`, `selected_option_id`, `is_correct`, `answered_at`
-- `daily_quiz_results` — `user_id`, `quiz_date` (unique per user+date), `score`, `max_score`,
-  `xp_awarded`, `completed_at`
-
-The unique constraint on `(user_id, quiz_date)` is what makes the daily quiz genuinely daily and
-keeps XP from being farmed by reloading.
-
 ### Progression
+
+`users.xp`, `users.level`, `users.streak_count` and `users.last_active_on` are already live (Module
+1) and are written by the quiz. What is still planned:
 
 - `badges` — `code`, `name`, `description`, `icon`, `criteria` (JSON), `xp_reward`
 - `user_badges` — `user_id`, `badge_id`, `awarded_at` (unique per user+badge)
 - `leaderboard_entries` — cached ranking rows per period, refreshed by a background service rather
   than recomputed on every request
+
+Levels are derived from total XP and cached on the user row, so a leaderboard can be built later
+without a migration. Badges and leaderboards are deliberately not part of the quiz: both need
+their own read models.
 
 ### User data and operations
 
@@ -184,13 +281,17 @@ grow irreversibly once they are in use.
 
 ## Migration discipline
 
-1. One migration per module, named for the feature (`AddBusinesses`).
+1. One migration per module, named for the feature (`AddCalculators`).
 2. `dotnet ef migrations add`, review the generated SQL by reading the model, then
    `dotnet ef database update`.
 3. Seed reference data (provinces, districts, badge definitions) through `HasData` with
-   deterministic ids, so a fresh environment is reproducible.
-4. Never edit an applied migration; add a new one.
-5. Before going live: backup strategy, `innodb_file_per_table`, and a tested restore.
+   deterministic ids, so a fresh environment is reproducible. Seed rows that staff are expected to
+   edit — calculator copy, for instance — go through an idempotent startup seeder instead, because
+   `HasData` would overwrite a real edit on the next migration.
+4. Apply to `nepalhub_test` as well as `nepalhub`, so the integration tests run against the same
+   schema the app uses.
+5. Never edit an applied migration; add a new one.
+6. Before going live: backup strategy, `innodb_file_per_table`, and a tested restore.
 
 ```powershell
 dotnet ef migrations add <Name> --project backend/NepalHub.Api --startup-project backend/NepalHub.Api --output-dir Data/Migrations

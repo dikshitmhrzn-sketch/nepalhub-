@@ -6,9 +6,10 @@ Nepal Hub will eventually bring Nepal-specific tools and calculators, a daily qu
 hub, jobs, local businesses, deals and events into a single platform — with user accounts, XP and
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
-This repository currently contains **Phase 2: the data layer and real accounts**. The database,
-authentication and the account pages are live; the product modules (calculators, quiz, jobs,
-businesses, payments) are not started, by design.
+This repository currently contains **Phase 3: the data layer, real accounts, the first public
+module and the daily quiz**. The database, authentication, the account pages, the
+tools/calculators module and the daily quiz are live; the remaining product modules (student hub,
+jobs, businesses, payments) are not started, by design.
 
 ---
 
@@ -16,12 +17,14 @@ businesses, payments) are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, sign-in, registration and account pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, 14 endpoints |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 9 tables, migration applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, sign-in, registration, account, and staff calculator/quiz pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz and XP |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 16 tables, three migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
-| Tests | 22 integration tests against the real `nepalhub_test` database |
-| Calculators, quiz, jobs, businesses, payments, admin screens | Not started |
+| Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
+| Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
+| Tests | 99 integration tests against the real `nepalhub_test` database |
+| Student hub, jobs, businesses, payments, badges, leaderboard, admin screens beyond calculators and quiz | Not started |
 
 ---
 
@@ -57,13 +60,15 @@ nepalhub/
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   ├── auth/          # RequireAuth route guard
+│       │   ├── auth/          # RequireAuth / RequireStaff route guards
+│       │   ├── calculators/   # card, dynamic form, result view, staff editor
 │       │   ├── layout/        # AppShell (header, nav, footer)
-│       │   └── ui/            # Container, Button, StateMessage
+│       │   ├── quiz/          # result view, staff question editor
+│       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
 │       ├── features/          # one folder per feature (api.ts + hooks)
-│       ├── lib/               # apiClient.ts
-│       ├── pages/             # route-level components
+│       ├── lib/               # apiClient.ts, apiErrors.ts
+│       ├── pages/             # route-level components (tools, calculators, quiz, admin)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── App.tsx
 │       ├── main.tsx
@@ -154,6 +159,8 @@ Database__ServerVersion=8.4.0-mysql
 Cors__AllowedOrigins__0=http://localhost:5173
 Auth__RateLimit__PermitLimit=20
 Auth__RateLimit__WindowSeconds=60
+Calculate__RateLimit__PermitLimit=60
+Calculate__RateLimit__WindowSeconds=60
 ```
 
 `Database:ServerVersion` is read by both the app and the EF Core design-time factory, so the server
@@ -171,6 +178,8 @@ dotnet ef database update --project NepalHub.Api
 ```
 
 The first migration, `20260930092534_InitialCreate`, creates the Identity tables plus the seeded reference data.
+The second, `20260930105251_AddCalculators`, creates `calculators`.
+The third, `20260930122740_AddQuiz`, creates the six quiz tables.
 
 ---
 
@@ -200,6 +209,86 @@ out with `[AllowAnonymous]`.
 
 > Accounts are created already confirmed, because no email provider is connected yet. Wiring a real
 > mailer belongs to the notifications work, not to this phase.
+
+---
+
+## Calculators
+
+The first public module. A calculator is a database row whose input form is stored as JSON, so adding
+one is a data change plus a server-side handler — no frontend code.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/calculators` | anonymous | Paged catalogue; `page`, `pageSize`, `search`, `category` |
+| `GET /api/calculators/{slug}` | anonymous | One published calculator, including its input schema |
+| `POST /api/calculators/{slug}/calculate` | anonymous | Runs the calculation; 60/minute/IP |
+| `GET /api/admin/calculators` | `staff-only` | Every row, drafts included |
+| `GET /api/admin/calculators/{id}` | `staff-only` | One row for the edit form |
+| `POST /api/admin/calculators` | `staff-only` | Creates a row |
+| `PUT /api/admin/calculators/{id}` | `staff-only` | Updates copy, schema and publish state |
+| `DELETE /api/admin/calculators/{id}` | `staff-only` | Deletes a draft; `409` if it has been published |
+
+```bash
+# the token is required because every unsafe request is antiforgery-validated
+$token = (Invoke-RestMethod http://localhost:5080/api/auth/csrf).data.token
+Invoke-RestMethod http://localhost:5080/api/calculators/loan-emi/calculate -Method Post `
+  -Headers @{ 'X-CSRF-TOKEN' = $token } -ContentType 'application/json' `
+  -Body '{"inputs":{"principal":2000000,"annualRate":11.5,"years":20}}'
+```
+
+The arithmetic always runs on the server. A published calculator with no registered
+`ICalculatorHandler` is refused, so a half-finished row cannot reach the public catalogue, and a
+slug cannot be changed after creation because it is the public URL.
+
+Seeded calculators are inserted by an idempotent startup seeder, so an existing row is never
+overwritten. See `docs/database.md` for the schema.
+
+---
+
+## Daily quiz
+
+The second public module. Ten questions a day, the same set for everybody, materialised on the
+first request of the day rather than by a scheduled job.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/quiz/daily` | anonymous | Today's set; carries no answer and no explanation |
+| `POST /api/quiz/daily/submit` | anonymous | Grades the whole quiz in one call; 20/minute/IP |
+| `GET /api/quiz/daily/result` | required | Today's stored result with the review |
+| `GET /api/quiz/stats` | required | Total XP, level, streak, quizzes played |
+| `GET /api/admin/quiz/questions` | `staff-only` | Every question, drafts included; paged, searchable, category filter |
+| `GET /api/admin/quiz/questions/{id}` | `staff-only` | One question for the edit form, including the answer |
+| `POST /api/admin/quiz/questions` | `staff-only` | Creates a question |
+| `PUT /api/admin/quiz/questions/{id}` | `staff-only` | Updates the question, its options and its publish state |
+| `DELETE /api/admin/quiz/questions/{id}` | `staff-only` | Deletes a question; `409` if it has ever been played |
+
+**Grading is server-side and it is the only place the answer exists.** A pre-answer response has
+no `isCorrect` and no `explanation` field, so there is nothing in the payload to read the answer
+out of. A submission is validated, graded and written in one transaction: there is no per-question
+endpoint, no half-finished attempt and no state to resume, because a whole quiz is submitted at
+once or not at all.
+
+**Playing is open, progress is not.** An anonymous visitor gets a real score, the real answers and
+the real explanations, but nothing is stored and the API reports `xpAwarded: 0` with `recorded:
+false` rather than a misleading zero total. An account earns `10 XP` per correct answer plus a
+`20 XP` completion bonus, and the completion bonus is paid even on a zero score — finishing is
+worth something, which is the only incentive that survives a bad day.
+
+**One attempt per day, enforced by the database.** `ix_quiz_attempts_user_id_daily_quiz_id` is
+unique, so a second submit is a `409` no matter what the service check decided. The service check
+exists to produce a friendly error; the index is what makes it true.
+
+**A played question is permanent.** Once a question has appeared in a daily quiz its text and
+options are frozen: staff can publish and retract it, but editing the wording or deleting it
+returns `409`. Retracting stops it being drawn again without rewriting what a player already saw.
+Validation is split in two, and the split is deliberate. A draft needs two to six options, each
+with text and no two the same, but it may have **no** correct answer and **no** explanation —
+requiring those on a draft would leave no way to save a half-written question. Only publishing
+requires exactly one correct option and an explanation of at least ten characters, because those
+are what make the question worth answering.
+
+31 questions and 124 options are seeded by an idempotent startup seeder with deterministic ids, so
+a staff correction is never reverted by a restart. See `docs/database.md` for the schema.
 
 ---
 

@@ -1,0 +1,126 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-4);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nh-font-size-lg);
+}
+
+.help {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}
+
+.alert {
+  margin: 0;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-danger);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-sm);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.label {
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border-strong);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-md);
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.input[aria-invalid='true'],
+.textarea[aria-invalid='true'] {
+  border-color: var(--nh-danger);
+}
+
+.fieldError {
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-xs);
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.checkboxField input {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--nh-primary);
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+  margin: 0;
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-sm);
+}
+
+.legend {
+  padding: 0 var(--nh-space-2);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-bold);
+}
+
+.optionRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface-muted);
+}
+
+.optionFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nh-space-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+}

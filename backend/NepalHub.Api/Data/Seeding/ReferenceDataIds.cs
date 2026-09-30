@@ -14,6 +14,12 @@ internal static class ReferenceDataIds
 
     internal static Guid Role(string name) => Derive($"role:{name}");
 
+    internal static Guid Calculator(string slug) => Derive($"calculator:{slug}");
+
+    internal static Guid Question(string code) => Derive($"question:{code}");
+
+    internal static Guid QuestionOption(string code, int position) => Derive($"question-option:{code}:{position}");
+
     private static Guid Derive(string name)
     {
         var nameBytes = Encoding.UTF8.GetBytes(name);

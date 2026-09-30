@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -12,6 +13,9 @@ using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Data.Seeding;
 using NepalHub.Api.Features.Auth;
+using NepalHub.Api.Features.Calculators;
+using NepalHub.Api.Features.Calculators.Handlers;
+using NepalHub.Api.Features.Quiz;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,8 +29,22 @@ var authRateLimitPermitLimit = builder.Configuration.GetValue("Auth:RateLimit:Pe
 var authRateLimitWindow = builder.Configuration.GetValue("Auth:RateLimit:WindowSeconds", 60) is { } windowSeconds
     ? TimeSpan.FromSeconds(windowSeconds)
     : TimeSpan.FromMinutes(1);
+var calculateRateLimitPermitLimit = builder.Configuration.GetValue("Calculate:RateLimit:PermitLimit", 60);
+var calculateRateLimitWindow = builder.Configuration.GetValue("Calculate:RateLimit:WindowSeconds", 60)
+    is { } calculateWindowSeconds
+    ? TimeSpan.FromSeconds(calculateWindowSeconds)
+    : TimeSpan.FromMinutes(1);
 
-builder.Services.AddControllers();
+// Bound once here and injected into the service as well, so the numbers the API advertises
+// and the numbers it awards cannot drift apart.
+var quizSettings = builder.Configuration.GetSection(QuizSettings.SectionName).Get<QuizSettings>() ?? new QuizSettings();
+var quizRateLimit = new QuizRateLimitOptions(quizSettings);
+
+// Enums go over the wire as their names, so the catalogue filter and the input kinds
+// stay readable and a new member cannot silently renumber the ones before it.
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
@@ -145,7 +163,49 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true,
         }));
+
+    options.AddPolicy(RateLimitPolicies.Calculate, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = calculateRateLimitPermitLimit,
+            Window = calculateRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    // Only the submit endpoint is limited. Reading a day's questions is a cheap, idempotent
+    // GET, and a player reloading the page must never be treated as abuse.
+    //
+    // The quota is read from the options holder on every partition lookup rather than
+    // captured into a closure. That is what lets a test host lower the limit before it
+    // issues a request, and it would let the limit be changed without restarting.
+    options.AddPolicy(RateLimitPolicies.Quiz, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = quizRateLimit.PermitLimit,
+            Window = quizRateLimit.Window,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
 });
+
+// Each calculator is one handler. Registering them all under the interface is what
+// lets CalculatorService look one up by slug, and it is the only place a new
+// calculator has to be registered.
+builder.Services.AddSingleton<ICalculatorHandler, LoanEmiHandler>();
+builder.Services.AddSingleton<ICalculatorHandler, CompoundInterestHandler>();
+builder.Services.AddSingleton<ICalculatorHandler, PercentageHandler>();
+builder.Services.AddScoped<CalculatorService>();
+
+// The quiz clock is the framework's own TimeProvider so tests can pin "today" without a
+// new package and without the feature reaching for the machine clock directly.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<INepalDateProvider, NepalDateProvider>();
+builder.Services.AddSingleton(quizSettings);
+builder.Services.AddSingleton(quizRateLimit);
+builder.Services.AddScoped<QuizService>();
 
 if (databaseConfigured)
 {
@@ -190,6 +250,12 @@ if (databaseConfigured)
     await using var scope = app.Services.CreateAsyncScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
     await RoleSeeder.SeedAsync(roleManager, CancellationToken.None);
+    await CalculatorSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        CancellationToken.None);
+    await QuizSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        CancellationToken.None);
 }
 
 app.Run();

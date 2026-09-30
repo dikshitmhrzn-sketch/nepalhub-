@@ -18,6 +18,7 @@ interface AuthContextValue {
   status: AuthStatus;
   user: SessionUser | null;
   isAdmin: boolean;
+  isStaff: boolean;
   signIn: (request: LoginRequest) => Promise<void>;
   signUp: (request: RegisterRequest) => Promise<void>;
   signOut: () => Promise<void>;
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       user,
       isAdmin: user?.roles.includes('admin') ?? false,
+      isStaff: user?.roles.some((role) => role === 'admin' || role === 'moderator') ?? false,
       signIn: async (request) => {
         const signedIn = await authApi.login(request);
         if (mounted.current) {

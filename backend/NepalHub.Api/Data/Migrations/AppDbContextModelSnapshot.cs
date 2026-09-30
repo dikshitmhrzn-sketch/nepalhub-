@@ -338,6 +338,149 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("description");
+
+                    b.Property<string>("InputsJson")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("inputs_json");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_published");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("slug");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(280)
+                        .HasColumnType("varchar(280)")
+                        .HasColumnName("summary");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.HasKey("Id")
+                        .HasName("pk_calculators");
+
+                    b.HasIndex("Category")
+                        .HasDatabaseName("ix_calculators_category");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_calculators_created_by_user_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_calculators_slug");
+
+                    b.HasIndex("IsPublished", "SortOrder")
+                        .HasDatabaseName("ix_calculators_is_published_sort_order");
+
+                    b.ToTable("calculators", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuiz", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<int>("QuestionCount")
+                        .HasColumnType("int")
+                        .HasColumnName("question_count");
+
+                    b.Property<DateOnly>("QuizDate")
+                        .HasColumnType("date")
+                        .HasColumnName("quiz_date");
+
+                    b.HasKey("Id")
+                        .HasName("pk_daily_quizzes");
+
+                    b.HasIndex("QuizDate")
+                        .IsUnique()
+                        .HasDatabaseName("ix_daily_quizzes_quiz_date");
+
+                    b.ToTable("daily_quizzes", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuizQuestion", b =>
+                {
+                    b.Property<Guid>("DailyQuizId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("daily_quiz_id");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("question_id");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int")
+                        .HasColumnName("position");
+
+                    b.HasKey("DailyQuizId", "QuestionId")
+                        .HasName("pk_daily_quiz_questions");
+
+                    b.HasIndex("QuestionId")
+                        .HasDatabaseName("ix_daily_quiz_questions_question_id");
+
+                    b.HasIndex("DailyQuizId", "Position")
+                        .HasDatabaseName("ix_daily_quiz_questions_daily_quiz_id_position");
+
+                    b.ToTable("daily_quiz_questions", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.District", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1086,6 +1229,183 @@ namespace NepalHub.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("completed_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid>("DailyQuizId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("daily_quiz_id");
+
+                    b.Property<int>("MaxScore")
+                        .HasColumnType("int")
+                        .HasColumnName("max_score");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("int")
+                        .HasColumnName("score");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("XpAwarded")
+                        .HasColumnType("int")
+                        .HasColumnName("xp_awarded");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quiz_attempts");
+
+                    b.HasIndex("DailyQuizId")
+                        .HasDatabaseName("ix_quiz_attempts_daily_quiz_id");
+
+                    b.HasIndex("UserId", "CompletedAt")
+                        .HasDatabaseName("ix_quiz_attempts_user_id_completed_at");
+
+                    b.HasIndex("UserId", "DailyQuizId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quiz_attempts_user_id_daily_quiz_id");
+
+                    b.ToTable("quiz_attempts", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttemptAnswer", b =>
+                {
+                    b.Property<Guid>("AttemptId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("attempt_id");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("question_id");
+
+                    b.Property<bool>("IsCorrect")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_correct");
+
+                    b.Property<Guid>("SelectedOptionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("selected_option_id");
+
+                    b.HasKey("AttemptId", "QuestionId")
+                        .HasName("pk_quiz_attempt_answers");
+
+                    b.HasIndex("QuestionId")
+                        .HasDatabaseName("ix_quiz_attempt_answers_question_id");
+
+                    b.HasIndex("SelectedOptionId")
+                        .HasDatabaseName("ix_quiz_attempt_answers_selected_option_id");
+
+                    b.ToTable("quiz_attempt_answers", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsCorrect")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_correct");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int")
+                        .HasColumnName("position");
+
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("question_id");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_quiz_options");
+
+                    b.HasIndex("QuestionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("ix_quiz_options_question_id_position");
+
+                    b.ToTable("quiz_options", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizQuestion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("varchar(1500)")
+                        .HasColumnName("explanation");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_published");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(600)
+                        .HasColumnType("varchar(600)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.HasKey("Id")
+                        .HasName("pk_quiz_questions");
+
+                    b.HasIndex("Category")
+                        .HasDatabaseName("ix_quiz_questions_category");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_quiz_questions_created_by_user_id");
+
+                    b.HasIndex("IsPublished", "Id")
+                        .HasDatabaseName("ix_quiz_questions_is_published_id");
+
+                    b.ToTable("quiz_questions", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("NepalHub.Api.Data.Entities.ApplicationRole", null)
@@ -1143,6 +1463,38 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("user_tokens_fk_user_id");
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("calculators_fk_created_by_user_id");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuizQuestion", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.DailyQuiz", "DailyQuiz")
+                        .WithMany("Questions")
+                        .HasForeignKey("DailyQuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("daily_quiz_questions_fk_daily_quiz_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.QuizQuestion", "Question")
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("daily_quiz_questions_fk_question_id");
+
+                    b.Navigation("DailyQuiz");
+
+                    b.Navigation("Question");
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.District", b =>
                 {
                     b.HasOne("NepalHub.Api.Data.Entities.Province", "Province")
@@ -1155,9 +1507,98 @@ namespace NepalHub.Api.Data.Migrations
                     b.Navigation("Province");
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttempt", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.DailyQuiz", "DailyQuiz")
+                        .WithMany()
+                        .HasForeignKey("DailyQuizId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("quiz_attempts_fk_daily_quiz_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("quiz_attempts_fk_user_id");
+
+                    b.Navigation("DailyQuiz");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttemptAnswer", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.QuizAttempt", "Attempt")
+                        .WithMany("Answers")
+                        .HasForeignKey("AttemptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("quiz_attempt_answers_fk_attempt_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.QuizQuestion", "Question")
+                        .WithMany()
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("quiz_attempt_answers_fk_question_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.QuizOption", "SelectedOption")
+                        .WithMany()
+                        .HasForeignKey("SelectedOptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("quiz_attempt_answers_fk_selected_option_id");
+
+                    b.Navigation("Attempt");
+
+                    b.Navigation("Question");
+
+                    b.Navigation("SelectedOption");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizOption", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.QuizQuestion", "Question")
+                        .WithMany("Options")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("quiz_options_fk_question_id");
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizQuestion", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("quiz_questions_fk_created_by_user_id");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuiz", b =>
+                {
+                    b.Navigation("Questions");
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Province", b =>
                 {
                     b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttempt", b =>
+                {
+                    b.Navigation("Answers");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizQuestion", b =>
+                {
+                    b.Navigation("Options");
                 });
 #pragma warning restore 612, 618
         }

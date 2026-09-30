@@ -1,0 +1,196 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-2xl);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--nh-text-muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nh-space-2);
+  margin: var(--nh-space-3) 0 0;
+}
+
+.stat {
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+}
+
+.stat dt {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat dd {
+  margin: var(--nh-space-1) 0 0;
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-lg);
+  font-weight: var(--nh-font-weight-bold);
+}
+
+.pot {
+  margin: 0;
+  color: var(--nh-accent);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-4);
+}
+
+.formError {
+  margin: 0;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-danger);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-sm);
+}
+
+.doneNotice {
+  margin: 0;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-success-soft);
+  color: var(--nh-success-text);
+  font-size: var(--nh-font-size-sm);
+}
+
+.questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-lg);
+  background-color: var(--nh-surface);
+}
+
+.questionMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nh-space-3);
+  margin: 0;
+}
+
+.questionNumber {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.questionCategory {
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-accent-soft);
+  color: var(--nh-accent);
+  font-size: var(--nh-font-size-xs);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.questionText {
+  margin: 0;
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-lg);
+  line-height: var(--nh-line-height);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  cursor: pointer;
+  transition: border-color var(--nh-duration-fast) var(--nh-easing),
+    background-color var(--nh-duration-fast) var(--nh-easing);
+}
+
+.option:hover {
+  border-color: var(--nh-border-strong);
+}
+
+.optionSelected {
+  border-color: var(--nh-primary);
+  background-color: var(--nh-primary-soft);
+}
+
+.optionInput {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  accent-color: var(--nh-primary);
+}
+
+.optionText {
+  color: var(--nh-text);
+  line-height: var(--nh-line-height);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nh-space-3);
+}
+
+.signInHint {
+  color: var(--nh-accent);
+  font-size: var(--nh-font-size-sm);
+}
+
+@media (min-width: 40rem) {
+  .stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

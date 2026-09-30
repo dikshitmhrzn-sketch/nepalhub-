@@ -33,12 +33,21 @@ internal static class TestDatabase
     /// run before the first <c>CreateClient()</c>, because the application seeds the
     /// Identity roles while the host starts.
     /// </summary>
-    internal static async Task PrepareAsync(int authRateLimitPermitLimit)
+    internal static async Task PrepareAsync(
+        int authRateLimitPermitLimit,
+        int calculateRateLimitPermitLimit = 10_000,
+        int quizRateLimitPermitLimit = 10_000)
     {
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", ConnectionString);
         Environment.SetEnvironmentVariable(
             "Auth__RateLimit__PermitLimit",
             authRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Calculate__RateLimit__PermitLimit",
+            calculateRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Quiz__RateLimit__PermitLimit",
+            quizRateLimitPermitLimit.ToString());
 
         if (_isReady)
         {

@@ -12,6 +12,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<District> Districts => Set<District>();
 
+    public DbSet<Calculator> Calculators => Set<Calculator>();
+
+    public DbSet<QuizQuestion> QuizQuestions => Set<QuizQuestion>();
+
+    public DbSet<QuizOption> QuizOptions => Set<QuizOption>();
+
+    public DbSet<DailyQuiz> DailyQuizzes => Set<DailyQuiz>();
+
+    public DbSet<DailyQuizQuestion> DailyQuizQuestions => Set<DailyQuizQuestion>();
+
+    public DbSet<QuizAttempt> QuizAttempts => Set<QuizAttempt>();
+
+    public DbSet<QuizAttemptAnswer> QuizAttemptAnswers => Set<QuizAttemptAnswer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

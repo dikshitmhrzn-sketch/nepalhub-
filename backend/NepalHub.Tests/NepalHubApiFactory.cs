@@ -1,12 +1,16 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Builder;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Auth;
+using NepalHub.Api.Features.Quiz;
 
 namespace NepalHub.Tests;
 
@@ -15,16 +19,24 @@ public class NepalHubApiFactory : WebApplicationFactory<Program>
     public const string ValidPassword = "Passw0rd!";
 
     private readonly int _authRateLimitPermitLimit;
+    private readonly int _calculateRateLimitPermitLimit;
+    private readonly int _quizRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
     {
     }
 
-    protected NepalHubApiFactory(int authRateLimitPermitLimit)
+    protected NepalHubApiFactory(
+        int authRateLimitPermitLimit,
+        int calculateRateLimitPermitLimit = 10_000,
+        int quizRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
-        TestDatabase.PrepareAsync(_authRateLimitPermitLimit).GetAwaiter().GetResult();
+        _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
+        _quizRateLimitPermitLimit = quizRateLimitPermitLimit;
+        TestDatabase.PrepareAsync(_authRateLimitPermitLimit, _calculateRateLimitPermitLimit, _quizRateLimitPermitLimit)
+            .GetAwaiter().GetResult();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseEnvironment("Testing");
@@ -56,6 +68,28 @@ public class NepalHubApiFactory : WebApplicationFactory<Program>
         var result = await userManager.AddToRoleAsync(user!, role);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
     }
+
+    /// <summary>
+    /// Returns a client signed in as a fresh account holding <paramref name="role"/>.
+    /// The role claim is baked into the cookie, so the account signs in again after
+    /// the role is granted.
+    /// </summary>
+    public async Task<HttpClient> CreateStaffClientAsync(string role)
+    {
+        var email = TestData.UniqueEmail();
+        using (var registered = CreateSignedInClientAsync(email))
+        {
+        }
+
+        await GrantRoleAsync(email, role);
+
+        var client = CreateClient();
+        var api = new AuthApiClient(client);
+        using var login = await api.LoginAsync(email, ValidPassword);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+        return client;
+    }
 }
 
 /// <summary>
@@ -72,9 +106,118 @@ public sealed class RateLimitedApiFactory : NepalHubApiFactory
     }
 }
 
+/// <summary>
+/// A host whose calculation endpoint rejects almost immediately, for the same
+/// reason as <see cref="RateLimitedApiFactory"/>.
+/// </summary>
+public sealed class CalculateLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public CalculateLimitedApiFactory()
+        : base(10_000, PermitLimit)
+    {
+    }
+}
+
+/// <summary>
+/// A host whose quiz submit endpoint rejects almost immediately, for the same
+/// reason as <see cref="RateLimitedApiFactory"/>.
+/// </summary>
+public sealed class QuizLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public QuizLimitedApiFactory()
+        : base(10_000, 10_000, PermitLimit)
+    {
+    }
+
+    /// <summary>
+    /// Lowers the quota on this host only. The application builds its configuration
+    /// during startup, which happens before a test fixture constructor can affect it, so a
+    /// process-wide environment variable set here would simply be ignored. The submit
+    /// partitioner reads the limit from this holder on every lookup, so mutating the
+    /// registered instance before the first request is enough, and it cannot leak into a
+    /// host created by another test class.
+    /// </summary>
+    public void LowerSubmitQuota(int permitLimit) =>
+        Services.GetRequiredService<QuizRateLimitOptions>().PermitLimit = permitLimit;
+}
+
+/// <summary>
+/// A clock the tests can move. The daily quiz is chosen by the Nepal date, so pinning
+/// "now" is the only way to exercise yesterday/today selection and streak arithmetic
+/// without waiting for midnight.
+/// </summary>
+public sealed class MovableTimeProvider : TimeProvider
+{
+    private DateTimeOffset _utcNow;
+
+    public MovableTimeProvider(DateTimeOffset utcNow) => _utcNow = utcNow;
+
+    public override DateTimeOffset GetUtcNow() => _utcNow;
+
+    public void Set(DateTimeOffset utcNow) => _utcNow = utcNow;
+}
+
+/// <summary>A host whose clock the test controls, exposed so the test can move it.</summary>
+public sealed class FixedClockApiFactory : NepalHubApiFactory
+{
+    /// <summary>
+    /// Builds a host whose clock is near the real one, so Identity still accepts a cookie
+    /// issued moments ago. Identity validates the authentication ticket against the
+    /// configured <c>TimeProvider</c>, and a clock pinned to a date in the past makes a
+    /// freshly issued ticket look like it was issued in the future, which signs the
+    /// player out. Tests then move the clock in whole days to change the Nepal date.
+    /// </summary>
+    public static FixedClockApiFactory NearNow() => new(DateTimeOffset.UtcNow);
+
+    public FixedClockApiFactory(DateTimeOffset utcNow)
+        : this(new MovableTimeProvider(utcNow))
+    {
+    }
+
+    private FixedClockApiFactory(MovableTimeProvider clock)
+        : base(10_000)
+    {
+        Clock = clock;
+    }
+
+    public MovableTimeProvider Clock { get; }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
+        });
+    }
+}
+
 public sealed record ApiErrorPayload(string Code, string Message, JsonElement? Details);
 
 public sealed record ApiEnvelope<T>(bool Success, T? Data, ApiErrorPayload? Error);
+
+/// <summary>
+/// Mirrors the API's own JSON settings, so a test can read any response the API
+/// produces. The API writes enums by name, so a converter is required here too.
+/// </summary>
+public static class TestJson
+{
+    public static readonly JsonSerializerOptions Options = Create();
+
+    private static JsonSerializerOptions Create()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+
+        return options;
+    }
+}
 
 /// <summary>Thin helper that keeps a cookie jar and always sends a fresh CSRF token.</summary>
 public sealed class AuthApiClient(HttpClient client)
@@ -87,7 +230,7 @@ public sealed class AuthApiClient(HttpClient client)
         var response = await client.GetAsync(path);
         response.EnsureSuccessStatusCode();
 
-        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<T>>();
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<T>>(TestJson.Options);
         Assert.NotNull(envelope);
 
         return envelope!.Data!;
@@ -142,11 +285,37 @@ public sealed class AuthApiClient(HttpClient client)
 
         return new ApiResponseSnapshot(response.StatusCode, json);
     }
+
+    public async Task<ApiResponseSnapshot> PutForSnapshotAsync(string path, object? body)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, path);
+        if (body is not null)
+        {
+            request.Content = JsonContent.Create(body);
+        }
+
+        request.Headers.Add(AuthConstants.CsrfHeaderName, await GetCsrfTokenAsync());
+        using var response = await client.SendAsync(request);
+        var json = await response.Content.ReadAsStringAsync();
+
+        return new ApiResponseSnapshot(response.StatusCode, json);
+    }
+
+    /// <summary>Sends a DELETE with a CSRF token, which the antiforgery middleware requires.</summary>
+    public async Task<ApiResponseSnapshot> DeleteForSnapshotAsync(string path)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
+        request.Headers.Add(AuthConstants.CsrfHeaderName, await GetCsrfTokenAsync());
+        using var response = await client.SendAsync(request);
+        var json = await response.Content.ReadAsStringAsync();
+
+        return new ApiResponseSnapshot(response.StatusCode, json);
+    }
 }
 
 public sealed record ApiResponseSnapshot(HttpStatusCode StatusCode, string Json)
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions = TestJson.Options;
 
     public ApiErrorPayload? Error
     {

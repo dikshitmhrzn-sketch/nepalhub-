@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
 import { useAuth } from '@/features/auth/AuthContext';
-import { getErrorMessage, getFieldErrors } from '@/features/auth/errors';
+import { getErrorMessage, getFieldErrors } from '@/lib/apiErrors';
 
 import styles from './AuthPage.module.css';
 

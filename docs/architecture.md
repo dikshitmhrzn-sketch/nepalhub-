@@ -25,18 +25,44 @@ layer-plumbing ceremony. Folders give the same navigational clarity.
 
 ```
 NepalHub.Api/
-├── Program.cs          composition root: DI, CORS, Swagger, exception handling, health checks
-├── Common/             cross-cutting primitives (ApiResponse envelope)
-├── Data/               AppDbContext, design-time factory, entity configurations
+├── Program.cs          composition root: DI, CORS, Swagger, exception handling, rate limiting
+├── Common/             cross-cutting primitives: ApiResponse envelope, PagedResult/PageRequest
+├── Data/               AppDbContext, design-time factory, entity configurations, seeding, migrations
 └── Features/<Module>/  vertical slices, one folder per product module
-    └── Health/
-        ├── HealthController.cs
-        └── HealthResponse.cs
+    ├── Auth/
+    ├── Health/
+    ├── Quiz/             the daily quiz and progression
+    │   ├── QuizController.cs           public daily, submit, result, stats
+    │   ├── QuizAdminController.cs      staff-only question CRUD
+    │   ├── QuizService.cs              selection, grading, progression, staff rules
+    │   │                               and QuizRateLimitOptions, the submit quota
+    │   ├── QuizContracts.cs            request/response records
+    │   ├── QuizProgression.cs          XP, levels and streaks as one unit
+    │   └── NepalDateProvider.cs        the Nepal calendar day (UTC+05:45)
+    └── Calculators/    a second, larger reference example
+        ├── CalculatorsController.cs        public catalogue, detail, calculate
+        ├── CalculatorAdminController.cs    staff-only CRUD
+        ├── CalculatorService.cs            validation and the calculation pipeline
+        ├── CalculatorContracts.cs          request/response records
+        ├── InputFieldDefinition.cs         the stored form schema
+        ├── ICalculatorHandler.cs           one handler per calculator
+        └── Handlers/                       LoanEmi, CompoundInterest, Percentage
 ```
 
 **Vertical slices, not layer folders.** When a module is added it gets its own `Features/<Module>/`
 folder holding its controller, DTOs, services and data access. A request can be traced without
-jumping between five directories. `Features/Health` is the reference example.
+jumping between five directories. `Features/Health` is the smallest example,
+`Features/Calculators` the largest and `Features/Quiz` the one with the most invariants.
+
+**The quiz is graded, never predicted.** A pre-answer DTO has no answer field, so a daily set can
+be fetched and re-fetched without leaking the result. All the answers leave the database only
+inside a `QuizAnswerReview`, which is built after a submission has been graded. Anonymous play is
+therefore allowed: the score and the review are honest, and only the progression is withheld.
+
+**Calculators are described by data, not code.** A calculator row stores its whole form as JSON in
+`calculators.inputs_json`, and the frontend renders whatever the API returns. The arithmetic lives
+server-side in an `ICalculatorHandler` registered in DI, so a published calculator without a handler
+is refused rather than left broken, and the browser never computes a financial figure.
 
 Rules that keep this maintainable:
 
@@ -51,10 +77,11 @@ Rules that keep this maintainable:
 
 ```
 src/
-├── components/     presentational, reusable: layout/ (AppShell) and ui/ (Container, Button, StateMessage)
+├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
+│                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
-├── lib/            cross-cutting infrastructure: apiClient.ts
+├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
 ├── pages/          route-level components that compose features and components
 ├── styles/         tokens.css (all design values) + global.css (reset and base elements)
 ├── App.tsx         RouterProvider
@@ -89,9 +116,11 @@ absolute URL. CORS is still configured on the backend (origins from `Cors:Allowe
 direct cross-origin use works if a deployment needs it.
 
 **Error handling.** `apiClient` unwraps the success envelope and throws a typed `ApiError` carrying
-`status`, `code`, `message` and `details`. Hooks translate that into UI state, and
-`StateMessage` renders loading / empty / error / info states. Components never call `fetch` and
-never inspect HTTP status codes.
+`status`, `code`, `message` and `details`. `lib/apiErrors.ts` turns `details` into a field → message
+map so a form can show the server's own message next to the right input, and picks a human sentence
+for transport failures. Hooks translate an `ApiError` into UI state, and `StateMessage` renders
+loading / empty / error / info states. Components never call `fetch` and never inspect HTTP status
+codes.
 
 **Timeouts and cancellation.** Every request gets a 15-second default timeout via `AbortController`
 (8 seconds for health). Hooks abort in-flight requests on unmount, so a fast navigation or reload
@@ -140,9 +169,11 @@ never leaves a stale response to overwrite fresh state.
   unless it opts out with `[AllowAnonymous]`, so a new controller is protected the moment it is added.
 - **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations;
   file uploads are validated by content type and size and stored outside the web root.
-- **Rate limiting:** a fixed-window limiter on the auth endpoints (20 requests/minute/IP,
-  `Auth:RateLimit:PermitLimit`), returning `429 rate_limited`. Read-only endpoints are not limited.
-  Public write endpoints (quiz answers, business claims) reuse the same mechanism.
+- **Rate limiting:** a fixed-window limiter per policy, returning `429 rate_limited`. Auth endpoints
+  get 20 requests/minute/IP (`Auth:RateLimit:PermitLimit`) and the public calculation endpoint gets 60
+  requests/minute/IP (`Calculate:RateLimit:PermitLimit`), so one visitor cannot burn the server on
+  arithmetic while still letting a person work through a calculator normally. Read-only endpoints are
+  not limited. Public write endpoints (quiz answers, business claims) reuse the same mechanism.
 - **Errors:** Identity failures are translated into stable field codes (`email_taken`,
   `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.
   A wrong password and an unknown account return the same `401 invalid_credentials`.

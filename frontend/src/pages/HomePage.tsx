@@ -70,7 +70,11 @@ const foundations = [
   },
   {
     title: 'MySQL through EF Core',
-    text: 'MySQL 8.4 runs on its own port and the first migration creates the users, roles, provinces and districts tables.',
+    text: 'MySQL 8.4 runs on its own port and the migrations create the users, roles, reference data and calculators tables.',
+  },
+  {
+    title: 'Tools and calculators',
+    text: 'The first public module is live. Each calculator describes its own form as data, and every figure is computed on the server by a registered handler.',
   },
   {
     title: 'Real accounts',
@@ -94,25 +98,28 @@ export function HomePage() {
       <section className={styles.hero}>
         <Container className={styles.heroGrid}>
           <div>
-            <span className={styles.eyebrow}>Phase 2 — accounts and data</span>
+            <span className={styles.eyebrow}>Phase 2 — accounts, data and tools</span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
               Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and
-              events into one place. Accounts and the real database are now in place — the modules
-              themselves are still to come.
+              events into one place. Accounts, the real database and the first tools are now in
+              place — the remaining modules are still to come.
             </p>
 
             <div className={styles.heroActions}>
+              <a className={styles.primaryLink} href="/tools">
+                Browse the tools
+              </a>
               {status === 'authenticated' && user ? (
                 <>
                   <p className={styles.signedInAs}>Signed in as {user.fullName}.</p>
-                  <a className={styles.primaryLink} href="/account">
+                  <a className={styles.secondaryLink} href="/account">
                     Go to your account
                   </a>
                 </>
               ) : (
                 <>
-                  <a className={styles.primaryLink} href="/register">
+                  <a className={styles.secondaryLink} href="/register">
                     Create an account
                   </a>
                   <a className={styles.secondaryLink} href="/login">

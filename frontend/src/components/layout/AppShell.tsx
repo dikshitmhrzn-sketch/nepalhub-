@@ -7,14 +7,23 @@ import { useAuth } from '@/features/auth/AuthContext';
 
 import styles from './AppShell.module.css';
 
-const navigation = [
+interface NavigationItem {
+  label: string;
+  to: string;
+  requiresAuth?: boolean;
+  requiresStaff?: boolean;
+}
+
+const navigation: NavigationItem[] = [
   { label: 'Home', to: '/' },
+  { label: 'Tools', to: '/tools' },
+  { label: 'Daily quiz', to: '/quiz' },
   { label: 'Account', to: '/account', requiresAuth: true },
+  { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },
+  { label: 'Manage quiz', to: '/admin/quiz', requiresStaff: true },
 ];
 
 const plannedModules = [
-  'Tools',
-  'Quiz',
   'Student Hub',
   'Jobs',
   'Businesses',
@@ -71,7 +80,7 @@ function AccountActions() {
 }
 
 export function AppShell() {
-  const { status } = useAuth();
+  const { status, isStaff } = useAuth();
 
   return (
     <div className={styles.shell}>
@@ -91,7 +100,13 @@ export function AppShell() {
           <nav aria-label="Primary">
             <ul className={styles.navList}>
               {navigation
-                .filter((item) => !item.requiresAuth || status === 'authenticated')
+                .filter((item) => {
+                  if (item.requiresStaff) {
+                    return isStaff;
+                  }
+
+                  return !item.requiresAuth || status === 'authenticated';
+                })
                 .map((item) => (
                   <li key={item.to}>
                     <NavLink
@@ -120,7 +135,7 @@ export function AppShell() {
         <Container className={styles.footerInner}>
           <div>
             <p>Nepal Hub — one useful website for everyday Nepal.</p>
-            <p>Phase 2: accounts are live. Modules arrive in later phases.</p>
+            <p>Accounts, calculators and the daily quiz are live.</p>
           </div>
 
           <div>

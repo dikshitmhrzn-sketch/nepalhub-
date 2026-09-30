@@ -34,21 +34,59 @@ Deliberately deferred to a later phase: email verification and a `refresh` endpo
 provider yet, so accounts are created already confirmed, and the cookie is a session that the browser
 keeps until it expires — there is no access token to refresh.
 
-## Phase 2 — First real module (tools and calculators) — not started
+## Phase 2 — First real module (tools and calculators) ✅ complete
 
 Smallest end-to-end feature that proves calculators can be added one by one.
 
-- [ ] Calculator catalogue table + CRUD behind roles
-- [ ] `/api/calculators` (paged, searchable) and `/api/calculators/{slug}`
-- [ ] Tools hub page, calculator detail page, mobile-first numeric inputs
-- [ ] Server-side calculation endpoint for a calculator that needs it (loan EMI, tax)
+- [x] `calculators` table: slug, copy, category, sort order, publish flag and a JSON input schema
+- [x] `20260930105251_AddCalculators` applied to `nepalhub` and `nepalhub_test`
+- [x] `GET /api/calculators` (paged, searchable, category filter) and `GET /api/calculators/{slug}`,
+      both anonymous
+- [x] `POST /api/calculators/{slug}/calculate`, rate limited to 60/minute/IP, on a dedicated
+      `calculate` policy
+- [x] `staff-only` CRUD at `/api/admin/calculators` — immutable slug, draft-only delete, and a
+      published row is retracted rather than removed
+- [x] Every calculation runs server-side through `ICalculatorHandler`; publishing without a
+      registered handler is refused
+- [x] Tools hub page with URL-driven search, category and paging, plus a calculator page whose form
+      is rendered from the stored schema
+- [x] Staff management page: create, edit, publish/unpublish and delete drafts
+- [x] Three calculators seeded by an idempotent startup seeder: loan EMI, compound interest and
+  percentage
+- [x] 60 integration tests against the real `nepalhub_test` database
 
-## Phase 3 — Daily quiz and XP
+Deliberately not in this phase: a tax calculator, saved results, and result history. The
+`CalculatorCategory` enum already carries the categories later modules will need.
 
-- [ ] Quiz tables, seed data, `POST /api/quiz/daily`, leaderboard endpoint
-- [ ] XP, level and streak rules as one service, unit-tested
-- [ ] Badges and leaderboard page
-- [ ] Rate limiting on answers
+## Phase 3 — Daily quiz and XP ✅ complete
+
+- [x] Six quiz tables: `quiz_questions`, `quiz_options`, `daily_quizzes`, `daily_quiz_questions`,
+      `quiz_attempts`, `quiz_attempt_answers`
+- [x] `20260930122740_AddQuiz` applied to `nepalhub` and `nepalhub_test`
+- [x] 31 questions / 124 options seeded by an idempotent startup seeder with deterministic ids, so
+      staff edits survive a reseed
+- [x] `GET /api/quiz/daily`, anonymous, with no answer or explanation in the payload, and a
+      deterministic category-balanced set materialised on first use for a given Nepal date
+- [x] `POST /api/quiz/daily/submit`, anonymous and rate limited to 20/minute/IP, antiforgery
+      protected, graded server-side in one transaction
+- [x] One attempt per user per day, enforced by a unique index rather than only by a service check
+- [x] `GET /api/quiz/daily/result` and `GET /api/quiz/stats`, both authenticated
+- [x] XP, level and streak rules as one service writing `users.xp` / `level` / `streak_count` /
+      `last_active_on`; anonymous play is graded and reviewed but records nothing
+- [x] `staff-only` CRUD at `/api/admin/quiz/questions` — a draft needs 2-6 distinct non-empty
+      options but may have no correct answer and no explanation; publishing requires exactly one
+      correct option and an explanation; a question that has been played can be retracted but never
+      rewritten or deleted
+- [x] Daily quiz page with the question set, the per-day XP pot, a post-submit review with
+      explanations, and an XP/level/streak summary
+- [x] Staff management page: create, edit, publish/retract, delete drafts, search and category
+      filter
+- [x] 99 integration tests against the real `nepalhub_test` database (64 carried forward)
+
+Deliberately not in this phase: badges, a leaderboard, resume, per-question submits, and
+anonymous leaderboard eligibility. Grading is already atomic, so there is no half-finished attempt
+to resume and no state to reconstruct. Badges and the leaderboard need their own read models and
+are listed under Phase 7.
 
 ## Phase 4 — Student hub
 
@@ -68,12 +106,13 @@ Smallest end-to-end feature that proves calculators can be added one by one.
 - [ ] Subscription plans and payment provider adapter
 - [ ] Deals and events modules
 
-## Phase 7 — Global search and admin
+## Phase 7 — Global search, gamification and admin
 
 - [ ] Cross-module search index
+- [ ] Badges and a leaderboard, both read models over the XP the quiz already records
 - [ ] Admin screens, reports queue and audit log (the `admin` and `moderator` roles and the
       `admin-only` / `staff-only` policies already exist)
-- [ ] Rate limiting and abuse protection across public writes
+- [ ] Abuse protection across the remaining public writes
 
 ## Phase 8 — Mobile
 
