@@ -6,10 +6,10 @@ Nepal Hub will eventually bring Nepal-specific tools and calculators, a daily qu
 hub, jobs, local businesses, deals and events into a single platform — with user accounts, XP and
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
-This repository currently contains **Phase 3: the data layer, real accounts, the first public
-module and the daily quiz**. The database, authentication, the account pages, the
-tools/calculators module and the daily quiz are live; the remaining product modules (student hub,
-jobs, businesses, payments) are not started, by design.
+This repository currently contains **Phase 4: the data layer, real accounts, the first public
+module, the daily quiz and the Student Hub**. The database, authentication, the account pages, the
+tools/calculators module, the daily quiz and the Student Hub are live; the remaining product
+modules (jobs, businesses, payments) are not started, by design.
 
 ---
 
@@ -17,14 +17,15 @@ jobs, businesses, payments) are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, sign-in, registration, account, and staff calculator/quiz pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz and XP |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 16 tables, three migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, sign-in, registration, account, and staff calculator/quiz/resource pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP and the Student Hub |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 17 tables, four migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
-| Tests | 99 integration tests against the real `nepalhub_test` database |
-| Student hub, jobs, businesses, payments, badges, leaderboard, admin screens beyond calculators and quiz | Not started |
+| Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
+| Tests | 166 integration tests against the real `nepalhub_test` database |
+| Jobs, businesses, payments, badges, leaderboard, admin screens beyond calculators, quiz and resources | Not started |
 
 ---
 
@@ -64,11 +65,12 @@ nepalhub/
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
 │       │   ├── layout/        # AppShell (header, nav, footer)
 │       │   ├── quiz/          # result view, staff question editor
+│       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
 │       ├── features/          # one folder per feature (api.ts + hooks)
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, admin)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, admin)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── App.tsx
 │       ├── main.tsx
@@ -180,6 +182,7 @@ dotnet ef database update --project NepalHub.Api
 The first migration, `20260930092534_InitialCreate`, creates the Identity tables plus the seeded reference data.
 The second, `20260930105251_AddCalculators`, creates `calculators`.
 The third, `20260930122740_AddQuiz`, creates the six quiz tables.
+The fourth, `20260930154447_AddStudentResources`, creates `resources`.
 
 ---
 
@@ -289,6 +292,57 @@ are what make the question worth answering.
 
 31 questions and 124 options are seeded by an idempotent startup seeder with deterministic ids, so
 a staff correction is never reverted by a restart. See `docs/database.md` for the schema.
+
+---
+
+## Student Hub
+
+The third public module: study notes, past question papers and scholarships in one catalogue, served
+from a single generic `resources` table. One table rather than three, because a scholarship and a
+note are filtered and searched the same way, and a member looking for "physics" should not have to
+guess which of three pages to open.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/students/resources` | anonymous | Paged catalogue; `page`, `pageSize`, `search`, `type`, `category`, `level`, `sort` |
+| `GET /api/students/resources/{slug}` | anonymous | One published, unexpired resource |
+| `GET /api/admin/students/resources` | `staff-only` | Every row, drafts and expired rows included; `status` filter |
+| `GET /api/admin/students/resources/{id}` | `staff-only` | One row for the edit form, with its publish blockers |
+| `POST /api/admin/students/resources` | `staff-only` | Creates a row |
+| `PUT /api/admin/students/resources/{id}` | `staff-only` | Updates copy, type-specific fields and publish state |
+| `DELETE /api/admin/students/resources/{id}` | `staff-only` | Deletes a draft; `409 resource_published` if it has been published |
+
+**One catalogue, three kinds of thing.** A resource is a `Note`, a `QuestionPaper` or a
+`Scholarship`; the optional columns (`academic_year`, `external_url`, `provider`, `award_amount_npr`,
+`eligibility`, `expires_on`) belong to only one or two of them, and the service clears the ones
+that do not apply to the saved type. Switching a row from a question paper to a note therefore
+clears its year and link rather than leaving them to show up on a note.
+
+**Expiry is a Nepal-time date, and it is not the server's idea of today.** A scholarship with
+`expires_on` set stays publicly listed through the end of that day in Nepal and returns `404`
+afterwards — computed against UTC+05:45, so it disappears at the same moment for every reader. Staff
+keep seeing it, because a row that quietly vanished is a row nobody can unpublish.
+
+**Publishing is stricter than saving.** A draft may be half-written: no summary, no body, no
+deadline. Publishing requires a summary of at least 20 characters, a body of at least 80, and
+whatever the chosen type needs. The staff list reports the missing pieces as `publishBlockers`
+rather than making staff publish and read the error.
+
+**Two rules protect the catalogue.** A slug is permanent, because it is the public address and
+moving it breaks every link already shared. A published row cannot be deleted, only retracted and
+then deleted; a resource somebody used to revise for an exam should not disappear from the
+archive on an ordinary delete.
+
+**Nothing is uploaded and nothing is fetched.** A question paper links out with a stored HTTPS
+address that is validated for shape and never requested by the server, and a body is plain text
+rendered as text — no HTML, no Markdown, no file storage. Search matches title and summary only,
+with `%`, `_` and `\` escaped so a search for `100%` is a search for the characters rather than a
+wildcard.
+
+24 resources (10 notes, 7 question papers, 7 scholarships, two of them already past their deadline)
+are seeded by an idempotent startup seeder with deterministic ids and deadlines relative to the
+Nepal calendar date, so a re-seed never overwrites a staff correction. See `docs/database.md` for
+the schema.
 
 ---
 

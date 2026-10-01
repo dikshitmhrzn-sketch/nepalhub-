@@ -98,17 +98,20 @@ export function HomePage() {
       <section className={styles.hero}>
         <Container className={styles.heroGrid}>
           <div>
-            <span className={styles.eyebrow}>Phase 2 — accounts, data and tools</span>
+            <span className={styles.eyebrow}>Accounts, data, tools, quiz and the Student Hub</span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
               Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and
-              events into one place. Accounts, the real database and the first tools are now in
-              place — the remaining modules are still to come.
+              events into one place. Accounts, the real database, the first tools and the Student Hub
+              are now in place — the remaining modules are still to come.
             </p>
 
             <div className={styles.heroActions}>
               <a className={styles.primaryLink} href="/tools">
                 Browse the tools
+              </a>
+              <a className={styles.secondaryLink} href="/students">
+                Student Hub
               </a>
               {status === 'authenticated' && user ? (
                 <>

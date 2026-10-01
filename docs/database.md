@@ -1,7 +1,8 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and the first two modules are live.** The schema below is the
-as-built result of migration `20260930092534_InitialCreate`, not a proposal. Everything from
+**Status: MySQL 8.4.9 is installed and the first three modules are live.** The schema below is the
+as-built result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
+`20260930122740_AddQuiz` and `20260930154447_AddStudentResources`, not a proposal. Everything from
 "Planned modules" onwards is still design only.
 
 ## Local instance
@@ -220,6 +221,63 @@ an idempotent startup seeder with deterministic GUIDs from `ReferenceDataIds`, f
 calculators are: staff own the copy from the moment it exists, and a reseed must not overwrite
 their corrections. The seeder only inserts, and only for the IDs it knows. 31 questions and 124
 options ship this way, each question with four options and exactly one correct.
+
+## Module 5 — Student Hub (live)
+
+One table, added by `20260930154447_AddStudentResources`, for three kinds of resource: a study
+note, a past question paper and a scholarship. They are one table because they are searched,
+filtered, paged and expired identically; three tables would mean three of everything and a client
+that has to guess which one to ask.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | GUID |
+| `slug` | `varchar(160)` unique | `^[a-z0-9]+(-[a-z0-9]+)*$`; the public URL, and immutable once created |
+| `title` | `varchar(200)` | |
+| `summary` | `varchar(300)` | the catalogue card line; an empty string while a draft is half-written |
+| `body` | `longtext` | plain text, rendered as text; blank lines are paragraph breaks |
+| `type` | `int` | `ResourceType`; 0 = Note, 1 = QuestionPaper, 2 = Scholarship |
+| `category` | `int` | `ResourceCategory` (subject); e.g. 1 = Mathematics, 8 = Nepali |
+| `level` | `int` | `EducationLevel`; 0 = General, 1 = PlusTwo, 2 = Undergraduate, 3 = Postgraduate |
+| `external_url` | `varchar(500)` nullable | question papers only; absolute `https`, shape-checked and never fetched |
+| `academic_year` | `int` nullable | question papers only; Bikram Sambat year, validated to 2000–2100 |
+| `provider` | `varchar(160)` nullable | scholarships only |
+| `award_amount_npr` | `decimal(12,2)` nullable | scholarships only; money is never a float |
+| `eligibility` | `varchar(500)` nullable | scholarships only |
+| `expires_on` | `date` nullable | scholarships only; compared against the **Nepal** date (UTC+05:45) |
+| `is_published` | `tinyint(1)` default 0 | only published rows appear on the public endpoints |
+| `created_at`, `updated_at` | `datetime(6)` | |
+| `created_by_user_id` | `char(36)` nullable → `users` (SET NULL) | the author, kept if the account is removed |
+
+Indexes: `ix_resources_slug` (unique), and one composite per public filter so the catalogue never
+scans the whole table — `ix_resources_is_published_resource_type`,
+`ix_resources_is_published_category`, `ix_resources_is_published_education_level`,
+`ix_resources_is_published_expires_on` and `ix_resources_is_published_created_at` (the default
+`Newest` order), plus `ix_resources_created_by_user_id` for the staff list.
+
+Three decisions are worth stating because they look odd in the schema and are not:
+
+- **`expires_on` is a `date`, not a `datetime`, and there is no expiry flag column.** Nothing needs
+  a boolean that says "expired", because expired is a fact about the row and the date it is compared
+  to, not a state somebody has to remember to set. The comparison happens in C# against the Nepal
+  date so a scholarship disappears at the same moment for every reader, whatever the server's own
+  timezone is.
+- **`summary` and `body` are `NOT NULL` rather than nullable.** A draft is allowed to be empty, so
+  the column could have been nullable, but "no summary yet" and "a summary of nothing" are the same
+  thing to every reader of this table, and one representation of empty is one fewer thing for a
+  client to handle. The publishing rule is what distinguishes a finished row, not a null.
+- **There is no `sort_order`.** The public order is created date, closing date or title, all three
+  answerable from indexes, and a fourth hand-maintained integer would be a column staff would
+  forget to renumber. It belongs to the calculators table, where the order is editorial rather than
+  derived.
+
+`20260930154447_AddStudentResources` is applied to both `nepalhub` and `nepalhub_test`. 24 rows ship
+with it — 10 notes, 7 question papers and 7 scholarships, two of which are already past their
+deadline so the expiry path is visible in a fresh install rather than only in the tests. They are
+inserted by an idempotent startup seeder with deterministic GUIDs from `ReferenceDataIds`, for the
+reason the other two modules use one: staff own the copy from the moment it exists. Scholarship
+deadlines are computed relative to the Nepal calendar date rather than hard-coded, so a seed written
+today does not ship two expired rows a month later.
 
 ## Planned modules
 

@@ -20,6 +20,8 @@ internal static class ReferenceDataIds
 
     internal static Guid QuestionOption(string code, int position) => Derive($"question-option:{code}:{position}");
 
+    internal static Guid Resource(string code) => Derive($"resource:{code}");
+
     private static Guid Derive(string name)
     {
         var nameBytes = Encoding.UTF8.GetBytes(name);

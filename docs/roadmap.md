@@ -88,10 +88,35 @@ anonymous leaderboard eligibility. Grading is already atomic, so there is no hal
 to resume and no state to reconstruct. Badges and the leaderboard need their own read models and
 are listed under Phase 7.
 
-## Phase 4 — Student hub
+## Phase 4 — Student Hub ✅ complete
 
-- [ ] Notes, past papers, calculators scoped to the student audience
-- [ ] Search and filters, saved items
+Study notes, past question papers and scholarships in one catalogue, from one generic table.
+
+- [x] One `resources` table with `type` (Note / QuestionPaper / Scholarship), subject `category`,
+      `level` and the optional columns each type needs
+- [x] `20260930154447_AddStudentResources` applied to `nepalhub` and `nepalhub_test`
+- [x] 24 resources seeded by an idempotent startup seeder with deterministic ids: 10 notes, 7 question
+      papers and 7 scholarships, two of them already past their deadline
+- [x] `GET /api/students/resources` (paged, searchable, type/category/level filters, newest /
+      expiring / title order) and `GET /api/students/resources/{slug}`, both anonymous
+- [x] A resource is public only while it is published and its date has not passed **on the Nepal
+      calendar day**; an expired row returns `404` publicly and stays visible to staff
+- [x] `staff-only` CRUD at `/api/admin/students/resources` — immutable slug, publish blockers
+      reported on the row, and a published resource retracted rather than deleted
+- [x] A draft may be half-written; publishing requires a summary of 20+ characters, a body of 80+
+      and the fields the chosen type needs
+- [x] Outbound links are shape-checked absolute `https` URLs and are never fetched; bodies are
+      plain text rendered as text
+- [x] Public catalogue page with URL-driven search, filters, ordering and paging; detail page; staff
+      management page with create, edit, publish/retract, delete drafts, search and status filter
+- [x] 67 integration tests against the real `nepalhub_test` database (166 total)
+
+Deliberately not in this phase: file uploads, saved items, a rich-text editor and a "calculators
+scoped to the student audience" page. A question paper links out to a stored address instead of
+hosting a file, the body is plain text because an HTML surface is a moderation problem this phase
+did not need to take on, and saved items belong with the account's own data rather than with a
+public catalogue. Search covers title and summary across all three types, which is the part that
+gets used.
 
 ## Phase 5 — Jobs
 

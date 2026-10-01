@@ -70,6 +70,7 @@
 
 .navList {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--nh-space-1);
   list-style: none;

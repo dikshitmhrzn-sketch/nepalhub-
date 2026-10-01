@@ -1,0 +1,63 @@
+.filters {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+}
+
+.searchField,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.label {
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.input {
+  width: 100%;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border-strong);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-md);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--nh-space-2);
+}
+
+@media (min-width: 40rem) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .searchField {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 64rem) {
+  .filters {
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+  }
+
+  .searchField {
+    grid-column: auto;
+  }
+}

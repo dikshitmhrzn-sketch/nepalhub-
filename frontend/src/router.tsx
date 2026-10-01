@@ -6,12 +6,15 @@ import { AppShell } from '@/components/layout/AppShell';
 import { AccountPage } from '@/pages/AccountPage';
 import { CalculatorAdminPage } from '@/pages/admin/CalculatorAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
+import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
 import { CalculatorPage } from '@/pages/CalculatorPage';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { StudentResourcePage } from '@/pages/StudentResourcePage';
+import { StudentsPage } from '@/pages/StudentsPage';
 import { ToolsPage } from '@/pages/ToolsPage';
 
 export const router = createBrowserRouter([
@@ -23,6 +26,8 @@ export const router = createBrowserRouter([
       { path: 'register', element: <RegisterPage /> },
       { path: 'tools', element: <ToolsPage /> },
       { path: 'quiz', element: <QuizPage /> },
+      { path: 'students', element: <StudentsPage /> },
+      { path: 'students/resources/:slug', element: <StudentResourcePage /> },
       { path: 'calculators/:slug', element: <CalculatorPage /> },
       {
         element: <RequireAuth />,
@@ -33,6 +38,7 @@ export const router = createBrowserRouter([
         children: [
           { path: 'admin/calculators', element: <CalculatorAdminPage /> },
           { path: 'admin/quiz', element: <QuizAdminPage /> },
+          { path: 'admin/students', element: <ResourceAdminPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

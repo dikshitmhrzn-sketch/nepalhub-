@@ -1406,6 +1406,126 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("quiz_questions", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.StudentResource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("AcademicYear")
+                        .HasColumnType("int")
+                        .HasColumnName("academic_year");
+
+                    b.Property<decimal?>("AwardAmountNpr")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("award_amount_npr");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("body");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Eligibility")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("eligibility");
+
+                    b.Property<DateOnly?>("ExpiresOn")
+                        .HasColumnType("date")
+                        .HasColumnName("expires_on");
+
+                    b.Property<string>("ExternalUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("external_url");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_published");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("int")
+                        .HasColumnName("level");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)")
+                        .HasColumnName("summary");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.HasKey("Id")
+                        .HasName("pk_resources");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_resources_created_by_user_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_resources_slug");
+
+                    b.HasIndex("IsPublished", "Category")
+                        .HasDatabaseName("ix_resources_is_published_category");
+
+                    b.HasIndex("IsPublished", "CreatedAt")
+                        .HasDatabaseName("ix_resources_is_published_created_at");
+
+                    b.HasIndex("IsPublished", "ExpiresOn")
+                        .HasDatabaseName("ix_resources_is_published_expires_on");
+
+                    b.HasIndex("IsPublished", "Level")
+                        .HasDatabaseName("ix_resources_is_published_education_level");
+
+                    b.HasIndex("IsPublished", "Type")
+                        .HasDatabaseName("ix_resources_is_published_resource_type");
+
+                    b.ToTable("resources", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("NepalHub.Api.Data.Entities.ApplicationRole", null)
@@ -1577,6 +1697,17 @@ namespace NepalHub.Api.Data.Migrations
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("quiz_questions_fk_created_by_user_id");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.StudentResource", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("resources_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
                 });

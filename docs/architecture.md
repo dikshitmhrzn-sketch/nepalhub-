@@ -26,7 +26,8 @@ layer-plumbing ceremony. Folders give the same navigational clarity.
 ```
 NepalHub.Api/
 ├── Program.cs          composition root: DI, CORS, Swagger, exception handling, rate limiting
-├── Common/             cross-cutting primitives: ApiResponse envelope, PagedResult/PageRequest
+├── Common/             cross-cutting primitives: ApiResponse envelope, PagedResult/PageRequest,
+│                       LikePattern (escaped LIKE for every search box)
 ├── Data/               AppDbContext, design-time factory, entity configurations, seeding, migrations
 └── Features/<Module>/  vertical slices, one folder per product module
     ├── Auth/
@@ -39,6 +40,12 @@ NepalHub.Api/
     │   ├── QuizContracts.cs            request/response records
     │   ├── QuizProgression.cs          XP, levels and streaks as one unit
     │   └── NepalDateProvider.cs        the Nepal calendar day (UTC+05:45)
+    ├── Students/         the Student Hub: notes, question papers and scholarships
+    │   ├── StudentsController.cs              public catalogue and detail
+    │   ├── StudentResourcesAdminController.cs  staff-only CRUD
+    │   ├── StudentResourceService.cs          visibility, expiry, publishing, slug rules
+    │   ├── StudentResourceContracts.cs        public and staff DTOs, sort/filter enums
+    │   └── ExternalUrlPolicy.cs               https shape check for outbound links
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
         ├── CalculatorAdminController.cs    staff-only CRUD
@@ -64,6 +71,15 @@ therefore allowed: the score and the review are honest, and only the progression
 server-side in an `ICalculatorHandler` registered in DI, so a published calculator without a handler
 is refused rather than left broken, and the browser never computes a financial figure.
 
+**The Student Hub is one slice, one table, three public shapes.** Notes, question papers and
+scholarships share a table and a service because they are searched, filtered, paged and expired
+identically; only the optional columns differ, and the service clears the ones that do not belong to
+the saved type. The split that matters is *save* versus *publish*: a draft may be half-written, and
+the staff contract reports `publishBlockers` so an unfinished row is visible as unfinished rather
+than discovered by attempting to publish it. Visibility is a single predicate — published, and not
+past its date on the Nepal calendar — used by the public list, the public detail and the seeded
+counts, so the catalogue and the detail page can never disagree about whether a row is live.
+
 Rules that keep this maintainable:
 
 - Entities are not exposed as API models. Each feature defines its own request/response records.
@@ -79,6 +95,7 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
+│                   (calculators/, quiz/, students/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
@@ -92,6 +109,12 @@ src/
 Business logic stays in `features/*` and `lib/*`. Pages and components render what they are given.
 Fetching, caching, retries and error normalisation belong to the hook layer, not to a component's
 `useEffect`.
+
+A page that is mostly a list over a paged endpoint keeps its list state in the URL rather than in
+`useState`, so a filtered catalogue can be shared, bookmarked and survived by the back button. The
+one exception is the search box, which is local state submitted by the form: firing a request per
+keystroke would be both noisy and rude to the API. The public Student Hub is the reference example
+of that split.
 
 CSS: plain CSS with design tokens (`styles/tokens.css`) plus CSS Modules for component scope. No
 utility framework, no runtime CSS-in-JS. Dark mode and any future rebrand are a single-file change

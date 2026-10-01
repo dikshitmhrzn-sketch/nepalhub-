@@ -26,6 +26,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<QuizAttemptAnswer> QuizAttemptAnswers => Set<QuizAttemptAnswer>();
 
+    public DbSet<StudentResource> StudentResources => Set<StudentResource>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

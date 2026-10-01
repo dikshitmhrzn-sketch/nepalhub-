@@ -16,6 +16,7 @@ using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
 using NepalHub.Api.Features.Quiz;
+using NepalHub.Api.Features.Students;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -206,6 +207,7 @@ builder.Services.AddSingleton<INepalDateProvider, NepalDateProvider>();
 builder.Services.AddSingleton(quizSettings);
 builder.Services.AddSingleton(quizRateLimit);
 builder.Services.AddScoped<QuizService>();
+builder.Services.AddScoped<StudentResourceService>();
 
 if (databaseConfigured)
 {
@@ -255,6 +257,15 @@ if (databaseConfigured)
         CancellationToken.None);
     await QuizSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        CancellationToken.None);
+
+    // The resource seeder is given the Nepal date rather than reading the clock, so a seeded
+    // scholarship deadline is computed against the same "today" the application will use to
+    // decide what has already closed. Two different clocks would let a row be seeded as open
+    // and be treated as expired on the same request.
+    await StudentResourceSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
         CancellationToken.None);
 }
 
