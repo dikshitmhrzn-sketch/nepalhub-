@@ -6,10 +6,10 @@ Nepal Hub will eventually bring Nepal-specific tools and calculators, a daily qu
 hub, jobs, local businesses, deals and events into a single platform — with user accounts, XP and
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
-This repository currently contains **Phase 4: the data layer, real accounts, the first public
-module, the daily quiz and the Student Hub**. The database, authentication, the account pages, the
-tools/calculators module, the daily quiz and the Student Hub are live; the remaining product
-modules (jobs, businesses, payments) are not started, by design.
+This repository currently contains **Phase 5: the data layer, real accounts and four public
+modules — tools/calculators, the daily quiz, the Student Hub and Jobs**. The database,
+authentication, the account pages and all four modules are live; the remaining product modules
+(businesses, payments) are not started, by design.
 
 ---
 
@@ -17,15 +17,16 @@ modules (jobs, businesses, payments) are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, sign-in, registration, account, and staff calculator/quiz/resource pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP and the Student Hub |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 17 tables, four migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, sign-in, registration, account, and staff calculator/quiz/resource/job pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub and the job board |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 18 application tables plus the EF migration-history table, five migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 166 integration tests against the real `nepalhub_test` database |
-| Jobs, businesses, payments, badges, leaderboard, admin screens beyond calculators, quiz and resources | Not started |
+| Tests | 249 integration tests against the real `nepalhub_test` database |
+| Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
+| Businesses, payments, badges, leaderboard, admin screens beyond calculators, quiz, resources and jobs | Not started |
 
 ---
 
@@ -64,13 +65,14 @@ nepalhub/
 │       │   ├── auth/          # RequireAuth / RequireStaff route guards
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
 │       │   ├── layout/        # AppShell (header, nav, footer)
+│       │   ├── jobs/          # job card, filters, staff editor
 │       │   ├── quiz/          # result view, staff question editor
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks)
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. jobs/ and reference/
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, admin)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, admin)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── App.tsx
 │       ├── main.tsx
@@ -183,6 +185,7 @@ The first migration, `20260930092534_InitialCreate`, creates the Identity tables
 The second, `20260930105251_AddCalculators`, creates `calculators`.
 The third, `20260930122740_AddQuiz`, creates the six quiz tables.
 The fourth, `20260930154447_AddStudentResources`, creates `resources`.
+The fifth, `20261001041409_AddJobs`, creates `jobs`.
 
 ---
 
@@ -346,6 +349,51 @@ the schema.
 
 ---
 
+## Jobs
+
+The fourth public module: a board of staff-written openings that leave on their own closing date
+rather than being taken down by hand.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/jobs` | anonymous | Paged board; `page`, `pageSize`, `search`, `province`, `district`, `category`, `employmentType`, `workMode`, `sort` |
+| `GET /api/jobs/{slug}` | anonymous | One published, unexpired posting |
+| `GET /api/admin/jobs` | `staff-only` | Every row, drafts and closed rows included; `status` filter |
+| `GET /api/admin/jobs/{id}` | `staff-only` | One row for the edit form, with its publish blockers |
+| `POST /api/admin/jobs` | `staff-only` | Creates a posting |
+| `PUT /api/admin/jobs/{id}` | `staff-only` | Updates copy, location, application link and publish state |
+| `DELETE /api/admin/jobs/{id}` | `staff-only` | Deletes a draft; `409 job_published` if it has been published |
+
+**A posting is public only while it is published and its deadline has not passed on the Nepal
+calendar day.** A closed posting returns the same `404` as a slug that never existed, so the public
+endpoint cannot be used to discover which slugs are real but no longer open, and it stays visible to
+staff because retiring it is their job rather than the reader's.
+
+**Location is a nullable `district_id`, and the province is read through it.** The two therefore
+cannot disagree, and a remote posting is saved with no district at all rather than with a placeholder
+district that would then show up in every district filter for its province.
+
+**Publishing is stricter than saving, and the slug is frozen once it is public.** A draft may be
+half-written and keeps an editable slug, because a staff member who mistyped it has not yet sent
+anyone to the wrong address. Publishing requires a title, an employer, a description of at least 80
+characters, an application link and a deadline that has not passed; the staff list reports the missing
+pieces as `publishBlockers` rather than making staff publish and read the error. Once published the
+slug is the address people share, so it can no longer be changed and the row is retracted rather than
+deleted.
+
+**Application links are shape-checked absolute `https` URLs and are never fetched.** A `javascript:`
+or `data:` link, a bare address such as `https://localhost/jobs`, and a non-`https` scheme are all
+refused, and a posting with no way to apply is refused too, because a dead end is not worth
+publishing. Descriptions are plain text rendered as text, with no HTML and no file storage.
+
+16 postings are seeded by an idempotent startup seeder with deterministic ids and deadlines relative
+to the Nepal calendar date, so a re-seed never overwrites a staff correction. The seeds cover all
+seven provinces, all four employment types and all three work modes, and two of them are already
+past their deadline so the closing path is visible in a fresh install rather than only in the tests.
+See `docs/database.md` for the schema.
+
+---
+
 ## Tests
 
 ```bash
@@ -357,6 +405,18 @@ The suite is integration-only and uses a **real** MySQL server — there is no i
 the schema, the collation, the Identity stores and the seed data are all exercised. It creates and
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
+
+249 tests pass, of which 83 cover Jobs:
+
+| File | Tests |
+| --- | --- |
+| `AuthenticationTests.cs` | 15 |
+| `CalculatorTests.cs` | 42 |
+| `JobsTests.cs` | 83 |
+| `QuizTests.cs` | 35 |
+| `RateLimitingTests.cs` | 2 |
+| `ReferenceDataTests.cs` | 5 |
+| `StudentHubTests.cs` | 67 |
 
 ---
 

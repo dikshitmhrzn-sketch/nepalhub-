@@ -15,6 +15,7 @@ using NepalHub.Api.Data.Seeding;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
+using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Students;
 
@@ -208,6 +209,7 @@ builder.Services.AddSingleton(quizSettings);
 builder.Services.AddSingleton(quizRateLimit);
 builder.Services.AddScoped<QuizService>();
 builder.Services.AddScoped<StudentResourceService>();
+builder.Services.AddScoped<JobService>();
 
 if (databaseConfigured)
 {
@@ -264,6 +266,13 @@ if (databaseConfigured)
     // decide what has already closed. Two different clocks would let a row be seeded as open
     // and be treated as expired on the same request.
     await StudentResourceSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
+        CancellationToken.None);
+
+    // The job seeder gets the same date for the same reason: a seeded deadline has to be computed
+    // against the same "today" the application will use to decide what has already closed.
+    await JobSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
         CancellationToken.None);

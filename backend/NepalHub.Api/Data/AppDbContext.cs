@@ -28,6 +28,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<StudentResource> StudentResources => Set<StudentResource>();
 
+    public DbSet<Job> Jobs => Set<Job>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

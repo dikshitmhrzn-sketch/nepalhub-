@@ -98,7 +98,7 @@ export function HomePage() {
       <section className={styles.hero}>
         <Container className={styles.heroGrid}>
           <div>
-            <span className={styles.eyebrow}>Accounts, data, tools, quiz and the Student Hub</span>
+            <span className={styles.eyebrow}>Accounts, data, tools, quiz, the Student Hub and Jobs</span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
               Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and

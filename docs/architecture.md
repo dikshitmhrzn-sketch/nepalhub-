@@ -46,6 +46,13 @@ NepalHub.Api/
     │   ├── StudentResourceService.cs          visibility, expiry, publishing, slug rules
     │   ├── StudentResourceContracts.cs        public and staff DTOs, sort/filter enums
     │   └── ExternalUrlPolicy.cs               https shape check for outbound links
+    ├── Jobs/             the job board: staff-written postings with a closing date
+    │   ├── JobsController.cs                 public board and detail, anonymous
+    │   ├── JobsAdminController.cs            staff-only CRUD
+    │   ├── JobService.cs                     visibility, closing soon, publishing, slug rules
+    │   ├── JobContracts.cs                   public and staff DTOs, sort/filter enums
+    │   └── (reuses Students/ExternalUrlPolicy.cs for the application link)
+    ├── Reference/       provinces and districts, the only place location lists come from
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
         ├── CalculatorAdminController.cs    staff-only CRUD
@@ -80,6 +87,23 @@ than discovered by attempting to publish it. Visibility is a single predicate �
 past its date on the Nepal calendar — used by the public list, the public detail and the seeded
 counts, so the catalogue and the detail page can never disagree about whether a row is live.
 
+**A job posting's status is derived, never stored.** The board has no `status` column and no expiry
+flag: public visibility is published, plus a deadline that has not passed on the Nepal calendar, and
+`Open` versus `ClosingSoon` is that deadline compared against today at read time. Both answers stop
+being true on their own as a deadline approaches, so a stored value would be wrong the next morning —
+which is the same reason `NepalDateProvider` exists and the reason the Student Hub has no `is_expired`
+column. A draft's slug is editable and a published posting's is not, because the slug is the public
+address and moving it breaks every link already shared. Location is a nullable `district_id` with the
+province read through it, so a posting cannot claim to be in two provinces at once and a remote posting
+stores nothing rather than a placeholder. Applications, CVs and salary ranges are deferred: each needs
+either a moderation surface or a verification rule this phase did not have.
+
+**Reference data is fetched, not hard-coded.** The province and district lists come from
+`Features/Reference` and are the single source for the board's location filters and the editor's
+district select. A hard-coded list of Nepal's districts is a thing that silently goes stale, and the
+seeder that validates every seeded district code against the same table is what caught the two codes
+in the first seed draft that did not exist.
+
 Rules that keep this maintainable:
 
 - Entities are not exposed as API models. Each feature defines its own request/response records.
@@ -95,7 +119,7 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
-│                   (calculators/, quiz/, students/)
+│                   (calculators/, quiz/, students/, jobs/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
@@ -165,7 +189,8 @@ never leaves a stale response to overwrite fresh state.
 
 - JSON only, camelCase property names, UTC timestamps in ISO-8601.
 - Versioned under `/api/...` from day one; breaking changes get a new major version prefix.
-- Resource nouns in paths, HTTP verbs for actions: `GET/POST /api/jobs`, `GET /api/jobs/{id}`.
+- Resource nouns in paths, HTTP verbs for actions: `GET /api/students/resources`,
+  `GET/POST /api/admin/jobs`, `GET /api/jobs/{slug}`.
 - List endpoints are paged (`page`, `pageSize`, capped) and return a total count.
 - Errors use stable machine-readable `code` values; `message` is for humans and may change.
 - Validation failures are `400` with per-field details; auth `401`/`403`; missing rows `404`.

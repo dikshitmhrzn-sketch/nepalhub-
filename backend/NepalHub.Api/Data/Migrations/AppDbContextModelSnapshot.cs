@@ -1142,6 +1142,116 @@ namespace NepalHub.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Job", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("ApplicationDeadline")
+                        .HasColumnType("date")
+                        .HasColumnName("application_deadline");
+
+                    b.Property<string>("ApplicationUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("application_url");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("DistrictId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("district_id");
+
+                    b.Property<int>("EmploymentType")
+                        .HasColumnType("int")
+                        .HasColumnName("employment_type");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_published");
+
+                    b.Property<string>("Organization")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("organization");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("slug");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.Property<int>("WorkMode")
+                        .HasColumnType("int")
+                        .HasColumnName("work_mode");
+
+                    b.HasKey("Id")
+                        .HasName("pk_jobs");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_jobs_created_by_user_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_jobs_slug");
+
+                    b.HasIndex("DistrictId", "IsPublished")
+                        .HasDatabaseName("ix_jobs_district_id_is_published");
+
+                    b.HasIndex("IsPublished", "ApplicationDeadline")
+                        .HasDatabaseName("ix_jobs_is_published_application_deadline");
+
+                    b.HasIndex("IsPublished", "Category")
+                        .HasDatabaseName("ix_jobs_is_published_category");
+
+                    b.HasIndex("IsPublished", "CreatedAt")
+                        .HasDatabaseName("ix_jobs_is_published_created_at");
+
+                    b.HasIndex("IsPublished", "EmploymentType")
+                        .HasDatabaseName("ix_jobs_is_published_employment_type");
+
+                    b.HasIndex("IsPublished", "WorkMode")
+                        .HasDatabaseName("ix_jobs_is_published_work_mode");
+
+                    b.ToTable("jobs", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Province", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1625,6 +1735,25 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("districts_fk_province_id");
 
                     b.Navigation("Province");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Job", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("jobs_fk_created_by_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.District", "District")
+                        .WithMany()
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("jobs_fk_district_id");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("District");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttempt", b =>

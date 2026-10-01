@@ -42,7 +42,17 @@ internal static class ExternalUrlPolicy
     /// accepted and normalised to null, because "no link" is a legitimate answer for a note and
     /// for a scholarship, and is checked separately for a question paper.
     /// </summary>
-    internal static bool TryNormalise(string? raw, out string? normalised, out string? error)
+    internal static bool TryNormalise(string? raw, out string? normalised, out string? error) =>
+        TryNormalise(raw, Field, out normalised, out error);
+
+    /// <summary>
+    /// The same check, reporting failures against a caller-supplied field name. The job module
+    /// reuses this policy for its application link and needs its own field name, so the error a
+    /// staff member sees points at the input they actually filled in. The validation itself is
+    /// deliberately identical: a javascript: link is equally unsafe in either module, and two
+    /// copies of this rule would eventually disagree about what is safe.
+    /// </summary>
+    internal static bool TryNormalise(string? raw, string field, out string? normalised, out string? error)
     {
         normalised = null;
         error = null;

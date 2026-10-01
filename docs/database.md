@@ -1,9 +1,9 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and the first three modules are live.** The schema below is the
+**Status: MySQL 8.4.9 is installed and the first five modules are live.** The schema below is the
 as-built result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
-`20260930122740_AddQuiz` and `20260930154447_AddStudentResources`, not a proposal. Everything from
-"Planned modules" onwards is still design only.
+`20260930122740_AddQuiz`, `20260930154447_AddStudentResources` and `20261001041409_AddJobs`, not a
+proposal. Everything from "Planned modules" onwards is still design only.
 
 ## Local instance
 
@@ -279,6 +279,59 @@ reason the other two modules use one: staff own the copy from the moment it exis
 deadlines are computed relative to the Nepal calendar date rather than hard-coded, so a seed written
 today does not ship two expired rows a month later.
 
+## Module 6 — Jobs (live)
+
+One table, added by `20261001041409_AddJobs`, for a job posting. A posting is written by staff in
+this phase rather than by an employer, so the author is a staff account rather than a business.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | GUID |
+| `slug` | `varchar(160)` unique | `^[a-z0-9]+(-[a-z0-9]+)*$`; the public URL, editable only while the row is a draft |
+| `title` | `varchar(200)` | the posting title |
+| `organization` | `varchar(160)` | the employer, named in the posting rather than linked |
+| `description` | `longtext` | plain text, rendered as text; blank lines are paragraph breaks; may be empty in a draft |
+| `category` | `int` | `JobCategory` (sector); 0 = InformationTechnology, 1 = Teaching, … 14 = Other |
+| `employment_type` | `int` | `EmploymentType`; 0 = FullTime, 1 = PartTime, 2 = Contract, 3 = Internship |
+| `work_mode` | `int` | `WorkMode`; 0 = OnSite, 1 = Remote, 2 = Hybrid |
+| `district_id` | `char(36)` nullable → `districts` (RESTRICT) | null for a remote posting; the province is read through it |
+| `application_url` | `varchar(500)` | absolute `https`, shape-checked and never fetched |
+| `application_deadline` | `date` | compared against the **Nepal** date (UTC+05:45) |
+| `is_published` | `tinyint(1)` default 0 | only published rows appear on the public endpoints |
+| `created_at`, `updated_at` | `datetime(6)` | |
+| `created_by_user_id` | `char(36)` nullable → `users` (SET NULL) | the author, kept if the account is removed |
+
+Indexes: `ix_jobs_slug` (unique), one composite per public filter so the board never scans the
+whole table — `ix_jobs_is_published_category`, `ix_jobs_is_published_employment_type`,
+`ix_jobs_is_published_work_mode`, `ix_jobs_is_published_application_deadline` and
+`ix_jobs_is_published_created_at` (the default `Newest` order), plus `ix_jobs_district_id_is_published`
+for the location filter and `ix_jobs_created_by_user_id` for the staff list.
+
+Four decisions are worth stating because they look odd in the schema and are not:
+
+- **There is no `status` column, and no expiry flag.** A posting's public status is derived on every
+  read from `is_published` and `application_deadline` against the Nepal date: published and not yet
+  closed is `Open`, published and within three days is `ClosingSoon`. Both of those stop being true
+  on their own as the deadline approaches, so a stored value would be wrong the following morning,
+  and a `pending` state has nothing to review in a phase where only staff write.
+- **Location is `district_id` alone, and nullable.** Storing a province as well would let the two
+  disagree. A remote posting has no fixed place, so it stores null rather than a placeholder district
+  that would then appear in every district filter for that province.
+- **`application_deadline` is `NOT NULL`.** There is no such thing as a job posting with no closing
+  date: an employer who has not said when it closes has not finished writing the posting. A draft may
+  still be saved without one, because a draft is allowed to be unfinished.
+- **There is no `salary_min`, `salary_max` or `business_id`.** A salary nobody verifies is worse than
+  none, and an employer account belongs to the business module; both would be columns added with the
+  module that can fill them properly.
+
+`20261001041409_AddJobs` is applied to both `nepalhub` and `nepalhub_test`. 16 rows ship with it,
+one in each of the seven provinces, two of which are already past their deadline so the closing path
+is visible in a fresh install rather than only in the tests. They are inserted by an idempotent
+startup seeder with deterministic GUIDs from `ReferenceDataIds`, for the reason the other two
+modules use one: staff own the copy from the moment it exists. Deadlines are computed relative to the
+Nepal calendar date rather than hard-coded, so a seed written today does not ship two closed rows a
+month later.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
@@ -296,18 +349,23 @@ built.
 - `business_subscriptions` — `business_id`, `plan` (free/featured/premium), `status`,
   `price`, currency, `starts_at`, `ends_at`, `cancelled_at`, provider reference
 
-`businesses` and `jobs` store `latitude`/`longitude` (`decimal(10,7)`) for map and distance-sorted
-search, with a composite index on `(latitude, longitude)`.
+`businesses` stores `latitude`/`longitude` (`decimal(10,7)`) for map and distance-sorted search,
+with a composite index on `(latitude, longitude)`. The live `jobs` table deliberately has no
+coordinates: a district is the location a reader filters by, and a job board that can only answer
+"which district" does not need a map pin it cannot place accurately.
 
 Payments are handled by a gateway adapter behind an interface; only the provider's opaque transaction
 id and the resulting entitlement are stored. No card data ever touches this database.
 
 ### Content modules
 
+`jobs` is live (Module 6). Everything else below is still design.
+
 | Table | Key columns |
 | --- | --- |
-| `jobs` | `id`, `business_id` nullable, `title`, `slug`, `description`, `employment_type`, `work_mode` (onsite/remote/hybrid), `salary_min`, `salary_max`, `currency`, `category_id`, `district_id`, `status`, `expires_at`, `is_featured` |
 | `job_applications` | `job_id`, `user_id`, `cv_url`, `cover_letter`, `status`, `applied_at` (unique per job+user) |
+| `jobs.business_id` | nullable → `businesses`, for employer-owned postings; null on staff-written rows |
+| `jobs.salary_min`, `jobs.salary_max`, `jobs.currency` | nullable, added only when there is a rule for what a verified range means |
 | `events` | `id`, `title`, `slug`, `description`, `organiser`, `venue`, `district_id`, `starts_at`, `ends_at`, `cover_url`, `status` |
 | `deals` | `id`, `business_id`, `title`, `description`, `original_price`, `discounted_price`, `coupon_code`, `starts_at`, `ends_at`, `terms`, `is_active` |
 

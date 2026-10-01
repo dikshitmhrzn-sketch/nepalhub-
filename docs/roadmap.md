@@ -118,11 +118,39 @@ did not need to take on, and saved items belong with the account's own data rath
 public catalogue. Search covers title and summary across all three types, which is the part that
 gets used.
 
-## Phase 5 — Jobs
+## Phase 5 — Jobs ✅ complete
 
-- [ ] Job posting lifecycle (draft → pending → live → expired), applications
-- [ ] Job search with filters, district and remote/onsite, salary
-- [ ] Business-owned job management
+Openings in one board, staff-written, leaving on their own closing date.
+
+- [x] One `jobs` table added by `20261001041409_AddJobs`, applied to `nepalhub` and `nepalhub_test`
+- [x] `category` (15 sectors), `employment_type` (full time / part time / contract / internship) and
+      `work_mode` (on site / remote / hybrid), plus a required `application_url` and
+      `application_deadline`
+- [x] Location is a nullable `district_id` and the province is read through it, so the two cannot
+      disagree; a remote posting is saved with no district
+- [x] 16 postings seeded by an idempotent startup seeder with deterministic ids, one in each of the
+      seven provinces, two of them already past their deadline
+- [x] `GET /api/jobs` (paged, searchable, province/district/sector/employment/workplace filters,
+      newest / closing-soonest order) and `GET /api/jobs/{slug}`, both anonymous
+- [x] A posting is public only while it is published and its deadline has not passed **on the Nepal
+      calendar day**; a closed posting returns `404` publicly and stays visible to staff
+- [x] `staff-only` CRUD at `/api/admin/jobs` — a draft's slug is editable and becomes permanent once
+      published, publish blockers reported on the row, and a published posting retracted rather than
+      deleted
+- [x] A draft may be half-written; publishing requires a title, an employer, a description, an
+      application link and a deadline that has not passed
+- [x] Application links are shape-checked absolute `https` URLs and are never fetched; descriptions
+      are plain text rendered as text
+- [x] Public board page with URL-driven search, filters, ordering and paging; detail page; staff
+      management page with create, edit, publish/retract, delete drafts, search and status filter
+- [x] 83 integration tests against the real `nepalhub_test` database (249 total)
+
+Deliberately not in this phase: applications, saved postings, CVs, salary ranges, employer accounts
+and featured listings. Applications need a moderation surface and a place to store what somebody
+sent, and a posting that a business owns needs the business module to attach to; a job board a
+reader cannot apply through is still worth having, because the reader follows the employer's own
+link. Salary was left out because a range nobody verifies is worse than none, and Nepal's
+conventions for publishing one are not settled.
 
 ## Phase 6 — Businesses, deals and events
 
