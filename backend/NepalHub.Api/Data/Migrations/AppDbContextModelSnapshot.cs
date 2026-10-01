@@ -338,6 +338,149 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(240)
+                        .HasColumnType("varchar(240)")
+                        .HasColumnName("address");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int")
+                        .HasColumnName("category");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("DistrictId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("district_id");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(254)
+                        .HasColumnType("varchar(254)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_published");
+
+                    b.Property<bool>("IsVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_verified");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("verified_at");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("website");
+
+                    b.HasKey("Id")
+                        .HasName("pk_businesses");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_businesses_created_by_user_id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_businesses_slug");
+
+                    b.HasIndex("DistrictId", "IsPublished")
+                        .HasDatabaseName("ix_businesses_district_id_is_published");
+
+                    b.HasIndex("IsPublished", "Category")
+                        .HasDatabaseName("ix_businesses_is_published_category");
+
+                    b.HasIndex("IsPublished", "CreatedAt")
+                        .HasDatabaseName("ix_businesses_is_published_created_at");
+
+                    b.HasIndex("IsPublished", "IsVerified")
+                        .HasDatabaseName("ix_businesses_is_published_verified");
+
+                    b.HasIndex("IsPublished", "Name")
+                        .HasDatabaseName("ix_businesses_is_published_name");
+
+                    b.ToTable("businesses", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessOpeningHours", b =>
+                {
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("business_id");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int")
+                        .HasColumnName("day_of_week");
+
+                    b.Property<TimeOnly?>("ClosesAt")
+                        .HasColumnType("time(6)")
+                        .HasColumnName("closes_at");
+
+                    b.Property<bool>("IsClosed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_closed");
+
+                    b.Property<TimeOnly?>("OpensAt")
+                        .HasColumnType("time(6)")
+                        .HasColumnName("opens_at");
+
+                    b.HasKey("BusinessId", "DayOfWeek")
+                        .HasName("pk_business_hours");
+
+                    b.ToTable("business_hours", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1693,6 +1836,38 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("user_tokens_fk_user_id");
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("businesses_fk_created_by_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.District", "District")
+                        .WithMany()
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("businesses_fk_district_id");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("District");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessOpeningHours", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Business", "Business")
+                        .WithMany("OpeningHours")
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_hours_fk_business_id");
+
+                    b.Navigation("Business");
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
                 {
                     b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "CreatedByUser")
@@ -1839,6 +2014,11 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("resources_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>
+                {
+                    b.Navigation("OpeningHours");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuiz", b =>

@@ -98,12 +98,15 @@ export function HomePage() {
       <section className={styles.hero}>
         <Container className={styles.heroGrid}>
           <div>
-            <span className={styles.eyebrow}>Accounts, data, tools, quiz, the Student Hub and Jobs</span>
+            <span className={styles.eyebrow}>
+              Accounts, data, tools, quiz, the Student Hub, Jobs and Businesses
+            </span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
               Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and
-              events into one place. Accounts, the real database, the first tools and the Student Hub
-              are now in place — the remaining modules are still to come.
+              events into one place. Accounts, the real database, the first tools, the Student Hub,
+              the job board and the business directory are now in place — deals and events are still
+              to come.
             </p>
 
             <div className={styles.heroActions}>
@@ -112,6 +115,9 @@ export function HomePage() {
               </a>
               <a className={styles.secondaryLink} href="/students">
                 Student Hub
+              </a>
+              <a className={styles.secondaryLink} href="/businesses">
+                Businesses
               </a>
               {status === 'authenticated' && user ? (
                 <>
@@ -136,6 +142,28 @@ export function HomePage() {
 
           <div>
             <StatusCard />
+          </div>
+        </Container>
+      </section>
+
+      <section className={styles.section}>
+        <Container>
+          <h2 className={styles.sectionTitle}>Local businesses and services</h2>
+          <p className={styles.sectionText}>
+            A directory of the shops, restaurants, trades and services around you. Search by name or
+            by what you need, narrow it to your province or district, and see a listing&rsquo;s
+            address, phone number, website and opening hours on one page. Every entry is written and
+            checked by our staff, and a business with no stated hours is shown as unstated rather
+            than guessed at.
+          </p>
+
+          <div className={styles.heroActions}>
+            <a className={styles.primaryLink} href="/businesses">
+              Browse the directory
+            </a>
+            <a className={styles.secondaryLink} href="/jobs">
+              Looking for a job?
+            </a>
           </div>
         </Container>
       </section>

@@ -15,6 +15,7 @@ using NepalHub.Api.Data.Seeding;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
+using NepalHub.Api.Features.Businesses;
 using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Students;
@@ -210,6 +211,7 @@ builder.Services.AddSingleton(quizRateLimit);
 builder.Services.AddScoped<QuizService>();
 builder.Services.AddScoped<StudentResourceService>();
 builder.Services.AddScoped<JobService>();
+builder.Services.AddScoped<BusinessService>();
 
 if (databaseConfigured)
 {
@@ -275,6 +277,11 @@ if (databaseConfigured)
     await JobSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
+        CancellationToken.None);
+
+    // The business seeder needs no date: opening hours are wall-clock times that do not expire.
+    await BusinessSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         CancellationToken.None);
 }
 

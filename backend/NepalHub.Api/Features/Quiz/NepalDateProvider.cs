@@ -16,6 +16,12 @@ public interface INepalDateProvider
 
     /// <summary>The current instant, so timestamps are written in the same frame of reference.</summary>
     DateTime UtcNow { get; }
+
+    /// <summary>
+    /// The current date and time in Nepal local time, for anything that compares a clock time
+    /// against a Nepal schedule rather than a date against a deadline.
+    /// </summary>
+    DateTime NepalNow { get; }
 }
 
 public sealed class NepalDateProvider(TimeProvider timeProvider) : INepalDateProvider
@@ -35,6 +41,8 @@ public sealed class NepalDateProvider(TimeProvider timeProvider) : INepalDatePro
     public DateOnly Yesterday => Today.AddDays(-1);
 
     public DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
+
+    public DateTime NepalNow => Now();
 
     private DateTime Now()
     {

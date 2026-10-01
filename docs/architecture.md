@@ -119,7 +119,7 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
-│                   (calculators/, quiz/, students/, jobs/)
+│                   (calculators/, quiz/, students/, jobs/, businesses/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts

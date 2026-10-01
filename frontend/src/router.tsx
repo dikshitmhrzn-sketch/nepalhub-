@@ -4,10 +4,13 @@ import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireStaff } from '@/components/auth/RequireStaff';
 import { AppShell } from '@/components/layout/AppShell';
 import { AccountPage } from '@/pages/AccountPage';
+import { BusinessesAdminPage } from '@/pages/admin/BusinessesAdminPage';
 import { CalculatorAdminPage } from '@/pages/admin/CalculatorAdminPage';
 import { JobsAdminPage } from '@/pages/admin/JobsAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
+import { BusinessPage } from '@/pages/BusinessPage';
+import { BusinessesPage } from '@/pages/BusinessesPage';
 import { CalculatorPage } from '@/pages/CalculatorPage';
 import { HomePage } from '@/pages/HomePage';
 import { JobPage } from '@/pages/JobPage';
@@ -33,6 +36,8 @@ export const router = createBrowserRouter([
       { path: 'students/resources/:slug', element: <StudentResourcePage /> },
       { path: 'jobs', element: <JobsPage /> },
       { path: 'jobs/:slug', element: <JobPage /> },
+      { path: 'businesses', element: <BusinessesPage /> },
+      { path: 'businesses/:slug', element: <BusinessPage /> },
       { path: 'calculators/:slug', element: <CalculatorPage /> },
       {
         element: <RequireAuth />,
@@ -45,6 +50,7 @@ export const router = createBrowserRouter([
           { path: 'admin/quiz', element: <QuizAdminPage /> },
           { path: 'admin/students', element: <ResourceAdminPage /> },
           { path: 'admin/jobs', element: <JobsAdminPage /> },
+          { path: 'admin/businesses', element: <BusinessesAdminPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

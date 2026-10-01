@@ -332,34 +332,116 @@ modules use one: staff own the copy from the moment it exists. Deadlines are com
 Nepal calendar date rather than hard-coded, so a seed written today does not ship two closed rows a
 month later.
 
+## Module 7 — Businesses (live)
+
+Two tables, added by `20261001101158_AddBusinesses`. This is the first slice of the business
+directory, and it is **staff-managed listings only**: there is no business account, no owner column
+and no claim flow, because a portal has nothing to attach to until someone can register as a
+business. `database.md` keeps the monetisation tables below as a later phase rather than pre-creating
+them empty.
+
+`businesses` is one row per listing. A table per category would mean a copy of every query and a
+client that has to guess which one to ask.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | GUID |
+| `slug` | `varchar(160)` unique | `^[a-z0-9]+(-[a-z0-9]+)*$`; the public URL, editable only while the row is a draft |
+| `name` | `varchar(200)` | the business name |
+| `description` | `longtext` | plain text, rendered as text; blank lines are paragraph breaks; may be empty in a draft |
+| `category` | `int` | `BusinessCategory`; 0 = Restaurants, 1 = Cafes, … 11 = Other |
+| `district_id` | `char(36)` → `districts` (RESTRICT) | **not null**; the province is read through it |
+| `address` | `varchar(300)` nullable | free text, not geocoded |
+| `phone` | `varchar(20)` nullable | digits only after normalisation; required before publishing; not unique |
+| `email` | `varchar(256)` nullable | unverified — nothing in this product sends to it |
+| `website` | `varchar(500)` nullable | absolute `https` with a real host, shape-checked and never fetched |
+| `is_published` | `tinyint(1)` default 0 | only published rows appear on the public endpoints |
+| `is_verified` | `tinyint(1)` default 0 | whether staff have checked the listing |
+| `verified_at` | `datetime(6)` nullable | when it was last checked; null while unchecked |
+| `created_at`, `updated_at` | `datetime(6)` | |
+| `created_by_user_id` | `char(36)` nullable → `users` (SET NULL) | the staff author, kept if the account is removed |
+
+`business_hours` is a child table, at most one row per weekday, with a composite primary key of
+`(business_id, day_of_week)` so the service is not asked to enforce it.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `business_id` | `char(36)` PK/FK → `businesses` (CASCADE) | |
+| `day_of_week` | `tinyint` unsigned PK | `DayOfWeek`, 0 = Sunday … 6 = Saturday |
+| `is_closed` | `tinyint(1)` default 0 | the business does not open on this day at all |
+| `opens_at`, `closes_at` | `time(6)` nullable | null on a closed day |
+
+Indexes on `businesses`: `ix_businesses_slug` (unique) and one composite per public filter so the
+directory never scans the whole table — `ix_businesses_is_published_name` (the default `Name` order),
+`ix_businesses_is_published_category`, `ix_businesses_is_published_is_verified`,
+`ix_businesses_is_published_created_at` (the `Newest` order) and
+`ix_businesses_district_id_is_published` for the location filter, plus
+`ix_businesses_created_by_user_id` for the staff list.
+
+Five decisions are worth stating because they look odd in the schema and are not:
+
+- **The province is not a column.** It is read through `district_id`, because two columns naming the
+  same place can disagree and a filter that contradicts its own row is worse than one fewer column.
+- **`district_id` is `NOT NULL`, which is where this departs from the job board.** A remote job
+  legitimately has no location; a directory of local businesses is useless without one, and a listing
+  with no district cannot be found by anyone browsing their own area.
+- **`is_published` and `is_verified` are two independent flags, not one status column.** Publishing
+  requires verification, but unverifying does not retract, so a listing can stay live without its
+  badge when a detail turns out to be wrong and someone needs to take responsibility for the
+  correction. Merging them would force an unverified business off the directory entirely, which is a
+  worse outcome than showing it honestly unchecked.
+- **Hours are a child table rather than a JSON column or seven nullable columns on the parent.** All
+  three eventually get a partial update that leaves one day out of step with the other six, and the
+  child table buys "is it open now" for free, which a single string cannot answer. Empty is
+  meaningful: a lot of businesses publish without stating hours, and "not listed" is honest where a
+  wrong guess is not. `is_closed` exists because "closed" is not the absence of hours — a
+  Sunday-only closure is a real schedule.
+- **No `latitude`/`longitude`, `logo_url` or `cover_url`.** No map pin, because a district is the
+  location a reader filters by and a hand-placed pin the server cannot verify is worse than none.
+  Image storage is a later phase with its own decision about disk versus object storage.
+
+`20261001101158_AddBusinesses` is applied to both `nepalhub` and `nepalhub_test`. 25 rows ship with it,
+inserted by an idempotent startup seeder with deterministic GUIDs, for the same reason the other
+modules use one: staff own the copy from the moment it exists. The seeds cover all twelve categories
+and all seven provinces, and are weighted towards Bagmati on purpose — fifteen are in Kathmandu
+valley, which is where most readers are and where a fresh install needs the province filter to have
+something to do, while every other province still has at least one so no filter returns an empty
+page. Three rows exist in states the staff screen has to handle: a draft waiting to be checked, a
+listing checked before it went live, and one that is published but no longer carries its badge.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
 built.
 
-### Businesses and monetisation
+### Businesses, monetisation and claims
 
-- `business_categories` — tree via `parent_id`, seeded tree (shops, services, restaurants, …)
-- `businesses` — `id`, `owner_user_id` → `users`, `category_id`, `name`, `slug` (unique),
-  `description`, `phone`, `email`, `website`, address columns + `district_id`/`municipality_id`,
-  `latitude`/`longitude`, `logo_url`, `cover_url`, `status` (draft/pending/active/suspended),
-  `is_verified`, `rating_average`, `rating_count`, `view_count`
-- `business_images` — `business_id`, `url`, `sort_order`
-- `business_hours` — `business_id`, `day_of_week`, `opens_at`, `closes_at`, `is_closed`
-- `business_subscriptions` — `business_id`, `plan` (free/featured/premium), `status`,
-  `price`, currency, `starts_at`, `ends_at`, `cancelled_at`, provider reference
+The live `businesses` and `business_hours` tables above are the first slice. What a later phase adds
+depends on the business-account decision, and is listed here as a record of the intent rather than a
+plan:
 
-`businesses` stores `latitude`/`longitude` (`decimal(10,7)`) for map and distance-sorted search,
-with a composite index on `(latitude, longitude)`. The live `jobs` table deliberately has no
-coordinates: a district is the location a reader filters by, and a job board that can only answer
-"which district" does not need a map pin it cannot place accurately.
+- `businesses.owner_user_id` → `users`, nullable — the account that owns and edits the listing. This
+  is the column the current table deliberately lacks, and the one claim approval would populate.
+- `business_categories` — a tree via `parent_id`. The live schema uses a `BusinessCategory` enum
+  instead, because a fixed set of twelve labels is searchable, translatable and impossible to orphan;
+  a tree is worth it only when staff need to define categories at runtime.
+- `business_images` — `business_id`, `url`, `sort_order`, with the disk-versus-object-storage decision
+  made first
+- `business_subscriptions` — `business_id`, `plan` (free/featured/premium), `status`, price, currency,
+  `starts_at`, `ends_at`, `cancelled_at`, provider reference
+- `businesses.latitude`/`longitude` (`decimal(10,7)`) with a composite index, added with the maps
+  integration and only once there is a way to place a pin that is not invented
+- ratings: `rating_average`, `rating_count`, `view_count`, and the `business_reviews` table behind them
 
 Payments are handled by a gateway adapter behind an interface; only the provider's opaque transaction
 id and the resulting entitlement are stored. No card data ever touches this database.
 
+`jobs.business_id` stays nullable and null on staff-written rows. It is reserved for employer-owned
+postings, which needs the owner column above.
+
 ### Content modules
 
-`jobs` is live (Module 6). Everything else below is still design.
+`jobs` is live (Module 6) and `businesses` is live (Module 7). Everything else below is still design.
 
 | Table | Key columns |
 | --- | --- |

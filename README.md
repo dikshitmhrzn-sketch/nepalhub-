@@ -6,10 +6,10 @@ Nepal Hub will eventually bring Nepal-specific tools and calculators, a daily qu
 hub, jobs, local businesses, deals and events into a single platform — with user accounts, XP and
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
-This repository currently contains **Phase 5: the data layer, real accounts and four public
-modules — tools/calculators, the daily quiz, the Student Hub and Jobs**. The database,
-authentication, the account pages and all four modules are live; the remaining product modules
-(businesses, payments) are not started, by design.
+This repository currently contains **the data layer, real accounts and five public
+modules — tools/calculators, the daily quiz, the Student Hub, Jobs and Businesses**. The database,
+authentication, the account pages and all five modules are live; payments, business accounts and
+deals are not started, by design.
 
 ---
 
@@ -17,16 +17,17 @@ authentication, the account pages and all four modules are live; the remaining p
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, sign-in, registration, account, and staff calculator/quiz/resource/job pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub and the job board |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 18 application tables plus the EF migration-history table, five migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, sign-in, registration, account, and staff calculator/quiz/resource/job/business pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub, the job board and the business directory |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 20 application tables plus the EF migration-history table, six migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 249 integration tests against the real `nepalhub_test` database |
+| Tests | 354 integration tests against the real `nepalhub_test` database |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Businesses, payments, badges, leaderboard, admin screens beyond calculators, quiz, resources and jobs | Not started |
+| Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
+| Payments, business accounts, deals, events, badges, leaderboard, admin screens beyond calculators, quiz, resources, jobs and businesses | Not started |
 
 ---
 
@@ -394,6 +395,61 @@ See `docs/database.md` for the schema.
 
 ---
 
+## Businesses
+
+The fifth public module: a directory of local shops, restaurants, trades and services, written and
+checked by staff. It is a directory and nothing else — there are no business accounts yet, because
+an owner portal has nothing to attach to until someone can register as a business.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/businesses` | anonymous | Paged directory; `page`, `pageSize`, `search`, `province`, `district`, `category`, `verified`, `sort` |
+| `GET /api/businesses/{slug}` | anonymous | One published listing, with its opening hours |
+| `GET /api/admin/businesses` | `staff-only` | Every row, drafts included; `status` filter |
+| `GET /api/admin/businesses/{id}` | `staff-only` | One row for the edit form, with its publish blockers |
+| `POST /api/admin/businesses` | `staff-only` | Creates a listing |
+| `PUT /api/admin/businesses/{id}` | `staff-only` | Updates copy, contact details, hours, and the publish/verify flags |
+| `DELETE /api/admin/businesses/{id}` | `staff-only` | Deletes a draft; refused once it has been published |
+
+**A listing is public only while `is_published` is set, and the province is read through a required
+`district_id`.** The two can therefore never disagree, and a listing with no district cannot be
+found by anyone browsing their own area — which is the one thing a local directory has to get right.
+
+**`is_published` and `is_verified` are independent, on purpose.** Publishing requires verification,
+but taking the badge away does not retract the listing, so a detail that turns out to be wrong can be
+corrected in place instead of pulling a business off the directory until someone fixes it. The
+interesting staff row is the live listing that has lost its badge.
+
+**Hours are a child table of at most seven rows, and a listing may publish none of them.** No hours
+means "not listed", which the card and the detail page both say explicitly, rather than a red
+"closed" badge the business never agreed to. Each day is either open with two times or explicitly
+closed, and a closing time earlier than the opening time is read as running past midnight, because a
+bar that empties at 02:00 is an ordinary Nepal schedule.
+
+**Publishing is stricter than saving, and the slug is frozen once it is public.** A draft may be
+half-written and keeps an editable slug. Publishing requires a phone number, a description of at
+least 80 characters and verification; the staff editor is handed the same list as `publishBlockers`,
+so what the form says and what the server enforces cannot drift apart. A live listing is retracted
+rather than deleted.
+
+**Website is shape-checked as an absolute `https` URL and is never fetched.** A `javascript:` or
+`data:` link, a bare address such as `https://localhost` and a non-`https` scheme are all refused.
+Phone numbers are normalised to digits, so one business cannot appear under two spellings of the same
+number. Search escapes `LIKE` wildcards, so a reader searching for `%` gets businesses with a
+percent sign rather than the whole table.
+
+25 listings are seeded by an idempotent startup seeder with deterministic ids, covering all twelve
+categories and all seven provinces. Bagmati is weighted heavily on purpose — fifteen listings are in
+Kathmandu valley, which is where most readers are — while every other province still has at least one,
+so no province filter returns an empty page. Three seeds exist in states the staff screen must handle:
+a draft, a listing checked before it went live, and one that is published without its badge. See
+`docs/database.md` for the schema.
+
+Deliberately not in this slice: business accounts, paid subscriptions, featured placement, reviews and
+ratings, image uploads, deals, saved businesses, messaging, maps and claims.
+
+---
+
 ## Tests
 
 ```bash
@@ -406,11 +462,12 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-249 tests pass, of which 83 cover Jobs:
+354 tests pass, of which 72 cover Businesses:
 
 | File | Tests |
 | --- | --- |
 | `AuthenticationTests.cs` | 15 |
+| `BusinessTests.cs` | 72 |
 | `CalculatorTests.cs` | 42 |
 | `JobsTests.cs` | 83 |
 | `QuizTests.cs` | 35 |

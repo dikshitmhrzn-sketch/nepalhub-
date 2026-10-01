@@ -24,6 +24,8 @@ internal static class ReferenceDataIds
 
     internal static Guid Job(string slug) => Derive($"job:{slug}");
 
+    internal static Guid Business(string slug) => Derive($"business:{slug}");
+
     private static Guid Derive(string name)
     {
         var nameBytes = Encoding.UTF8.GetBytes(name);

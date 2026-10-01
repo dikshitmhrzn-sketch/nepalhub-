@@ -152,10 +152,42 @@ reader cannot apply through is still worth having, because the reader follows th
 link. Salary was left out because a range nobody verifies is worse than none, and Nepal's
 conventions for publishing one are not settled.
 
-## Phase 6 — Businesses, deals and events
+## Phase 6 — Businesses (first slice, live)
 
-- [ ] Business registration and verification flow
-- [ ] Business profiles, hours, photos, reviews and ratings
+A public directory of staff-written local listings. The scope is deliberately a directory and
+nothing else: no business accounts, because an owner portal has nothing to attach to until someone can
+register as a business.
+
+- [x] `businesses` and `business_hours` added by `20261001101158_AddBusinesses`; hours is a child
+      table keyed `(business_id, day_of_week)` with an explicit `is_closed`, so a listing that
+      publishes no hours is a normal state rather than seven null columns
+- [x] `BusinessCategory` enum of twelve labels rather than a category table, so the set is searchable,
+      translatable and impossible to orphan
+- [x] The province is read through a required `district_id` rather than stored beside it, so the two
+      cannot disagree; `is_published` and `is_verified` are independent flags, so unverifying does not
+      retract a live listing
+- [x] Public list with search, category, province, district and verification filters, `Name`/`Newest`
+      ordering and paging; detail page by slug; staff list including drafts
+- [x] Staff create, edit, publish/retract, verify/unverify, delete drafts only
+- [x] Publishing requires a phone number, a description of at least 80 characters and verification;
+      the staff editor is given the same list as `publishBlockers`, so what the form says and what the
+      server enforces cannot drift apart
+- [x] Website is shape-checked as an absolute `https` URL and never fetched; phone is normalised to
+      digits so one business cannot appear under two spellings of the same number; search escapes
+      `LIKE` wildcards
+- [x] Public directory page, detail page, staff management page and editor, all with the seven-day
+      hours table Sunday first
+- [x] 25 seeded listings across all twelve categories and all seven provinces (72 integration tests,
+      354 total)
+
+Deliberately not in this slice: business accounts and an owner portal, paid subscriptions, featured
+placement, reviews and ratings, image uploads, deals, saved businesses, messaging, map integration
+and claims. `docs/database.md` records the schema note for each; the one that gates the most of them
+is `businesses.owner_user_id`, which does not exist yet by design.
+
+## Phase 6b — Deals and events
+
+- [ ] Business registration and verification flow, once there is an owner column to attach it to
 - [ ] Subscription plans and payment provider adapter
 - [ ] Deals and events modules
 

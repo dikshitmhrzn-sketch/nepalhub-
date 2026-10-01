@@ -1,0 +1,225 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-4);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nh-font-size-lg);
+}
+
+.note,
+.help {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}
+
+.help {
+  margin: 0;
+}
+
+.note {
+  margin: 0;
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-warning-soft);
+  color: var(--nh-status-warning-text);
+}
+
+.alert {
+  margin: 0;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-danger);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-sm);
+}
+
+.blockers {
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border-strong);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.blockersTitle {
+  margin: 0 0 var(--nh-space-2);
+  font-weight: var(--nh-font-weight-bold);
+}
+
+.blockerList {
+  margin: 0;
+  padding-left: var(--nh-space-5);
+  color: var(--nh-text-muted);
+}
+
+.blockerList li + li {
+  margin-top: var(--nh-space-1);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--nh-space-3);
+}
+
+.slugRow {
+  display: flex;
+  gap: var(--nh-space-2);
+  align-items: center;
+}
+
+.slugRow .input {
+  flex: 1;
+}
+
+.label {
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border-strong);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-md);
+}
+
+.textarea {
+  resize: vertical;
+  line-height: var(--nh-line-height);
+}
+
+.input:focus-visible,
+.textarea:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.input[aria-invalid='true'],
+.textarea[aria-invalid='true'] {
+  border-color: var(--nh-danger);
+}
+
+.input[readonly] {
+  background-color: var(--nh-surface-muted);
+  color: var(--nh-text-muted);
+}
+
+.fieldError {
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-xs);
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sectionLegend {
+  padding: 0;
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--nh-text-muted);
+}
+
+.hours {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface-muted);
+}
+
+.hourRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--nh-space-2);
+  align-items: center;
+}
+
+.hourDay {
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.hourControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.timeInput {
+  padding: var(--nh-space-2);
+  border: var(--nh-border-width) solid var(--nh-border-strong);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-sm);
+}
+
+.timeInput:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.timeInput:disabled {
+  background-color: var(--nh-surface-muted);
+  color: var(--nh-text-muted);
+}
+
+.hourSeparator {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+}
+
+@media (min-width: 40rem) {
+  .pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hourRow {
+    grid-template-columns: 6rem 1fr;
+  }
+}
