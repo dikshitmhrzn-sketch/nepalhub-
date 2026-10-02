@@ -181,15 +181,62 @@ register as a business.
       354 total)
 
 Deliberately not in this slice: business accounts and an owner portal, paid subscriptions, featured
-placement, reviews and ratings, image uploads, deals, saved businesses, messaging, map integration
+placement, reviews and ratings, image uploads, saved businesses, messaging, map integration
 and claims. `docs/database.md` records the schema note for each; the one that gates the most of them
-is `businesses.owner_user_id`, which does not exist yet by design.
+is `businesses.owner_user_id`, which does not exist yet by design. Deals arrived separately as
+Phase 6b, on the same rule that a listing is staff-written until there is an owner to attach to.
 
-## Phase 6b — Deals and events
+## Phase 6b — Deals and events (live)
+
+A public offers page and a public events calendar, both staff-written and both linking into the
+business directory rather than replacing it. An offer is a discount with an end date; an event is a
+scheduled thing that happens in one district. Neither is user-submitted, because neither has a
+submitter: both are staff entries with a beginning and an end, which is why they can be useful
+without an owner account.
+
+- [x] `deals` and `events` added by `20261001142733_AddDealsAndEvents`, with
+      `20261001155854_AddDealsAndEventsIndexes` adding the two indexes behind the `Newest` sort; both
+      take a nullable `business_id` that is set null on delete, so an offer or event still reads after
+      the listing it was attached to is retracted
+- [x] A deal is `starts_on`/`ends_on` as `DateOnly`, day-granular and inclusive, because an offer is
+      redeemed on a day rather than at an instant; `days_remaining` is computed against the current
+      Nepal date on every read and stored nowhere, so it cannot go stale
+- [x] A deal's headline is `discount_text` — the business's own words, 120 characters — rather than a
+      percentage or a price pair, because "free chiya with any thakali set" is a real offer and most
+      Nepalese offers are not expressible as a number
+- [x] `DealSort.EndingSoon`/`Newest` and `EventSort.Soonest`/`Newest`; enums are serialised by name so
+      the wire contract is readable and cannot silently change meaning when a member is reordered
+- [x] An event's `starts_at`/`ends_at` are `DateTime` read as Nepal wall-clock, and `is_ongoing` is
+      derived per read. Public reads drop finished events and keep an event that is still running until
+      its finishing time passes, inclusive
+- [x] A deal's `district_id` is nullable — a nationwide offer is the case that separates an offer from
+      a business listing — while an event's is required, because a reader cannot attend something with
+      no location
+- [x] Public list with search, province, district, category and ordering filters plus paging; detail by
+      slug; staff list including drafts, expired deals and finished events
+- [x] Staff create, edit, publish/retract, delete drafts only; a published row cannot be deleted, so the
+      record of what was public is kept
+- [x] Redemption and registration links are shape-checked as absolute `https` URLs and never fetched;
+      public search escapes `LIKE` wildcards, so searching `%` matches a literal `%` and nothing else
+- [x] Public `businessSlug` is emitted only for a published business. The name always survives; the
+      slug does not, because a slug is only useful when it resolves to a page and a link to a 404 is
+      worse than no link
+- [x] Public offers page, offer detail page, events page, event detail page, staff management pages and
+      editors. Event times are read as text rather than as an instant, so ten o'clock reads as ten
+      o'clock in every reader's browser
+- [x] 15 seeded deals and 15 seeded events, including a draft, an already-expired offer and a finished
+      event, so every state is visible in a fresh install rather than only in the tests (114
+      integration tests for the two modules, 468 total)
+
+Deliberately not in this slice: payments, tickets, bookings, RSVPs, reviews, image uploads, owner
+portals, claims, subscriptions, saved offers, notifications and maps. An offer has no price to pay
+and an event has no ticket, so a payment provider would have nothing to attach to yet; `docs/database.md`
+records the column each of those would need.
+
+## Phase 6c — Business registration and monetisation
 
 - [ ] Business registration and verification flow, once there is an owner column to attach it to
 - [ ] Subscription plans and payment provider adapter
-- [ ] Deals and events modules
 
 ## Phase 7 — Global search, gamification and admin
 

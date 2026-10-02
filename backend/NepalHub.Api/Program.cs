@@ -16,6 +16,8 @@ using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
 using NepalHub.Api.Features.Businesses;
+using NepalHub.Api.Features.Deals;
+using NepalHub.Api.Features.Events;
 using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Students;
@@ -212,6 +214,8 @@ builder.Services.AddScoped<QuizService>();
 builder.Services.AddScoped<StudentResourceService>();
 builder.Services.AddScoped<JobService>();
 builder.Services.AddScoped<BusinessService>();
+builder.Services.AddScoped<DealService>();
+builder.Services.AddScoped<EventService>();
 
 if (databaseConfigured)
 {
@@ -282,6 +286,22 @@ if (databaseConfigured)
     // The business seeder needs no date: opening hours are wall-clock times that do not expire.
     await BusinessSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        CancellationToken.None);
+
+    // The offers and events seeders get the same date the resource and job seeders get, for the same
+    // reason: a seeded end date has to be computed against the same "today" the application will use to
+    // decide what has already expired. Two different clocks would let a row be seeded as live and be
+    // treated as finished on the same request.
+    var nepalToday = scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today;
+
+    await DealSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        nepalToday,
+        CancellationToken.None);
+
+    await EventSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        nepalToday,
         CancellationToken.None);
 }
 

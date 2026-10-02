@@ -34,6 +34,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<BusinessOpeningHours> BusinessOpeningHours => Set<BusinessOpeningHours>();
 
+    public DbSet<Deal> Deals => Set<Deal>();
+
+    public DbSet<Event> Events => Set<Event>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

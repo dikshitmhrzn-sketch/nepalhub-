@@ -52,6 +52,24 @@ NepalHub.Api/
     │   ├── JobService.cs                     visibility, closing soon, publishing, slug rules
     │   ├── JobContracts.cs                   public and staff DTOs, sort/filter enums
     │   └── (reuses Students/ExternalUrlPolicy.cs for the application link)
+    ├── Businesses/       the local directory: staff-written listings with opening hours
+    │   ├── BusinessesController.cs           public directory and detail, anonymous
+    │   ├── BusinessAdminController.cs        staff-only CRUD and verification
+    │   ├── BusinessService.cs                visibility, publish blockers, slug rules
+    │   ├── BusinessContracts.cs              public and staff DTOs, category enum
+    │   └── BusinessHours.cs                  the seven-day schedule as one value
+    ├── Deals/            the offers page: staff-written discounts with an end date
+    │   ├── DealsController.cs                public offers and detail, anonymous
+    │   ├── DealsAdminController.cs           staff-only CRUD
+    │   ├── DealService.cs                    visibility, days remaining, slug rules
+    │   ├── DealContracts.cs                  public and staff DTOs, DealSort enum
+    │   └── (reuses Students/ExternalUrlPolicy.cs for the redemption link)
+    ├── Events/           the events calendar: staff-written happenings in a district
+    │   ├── EventsController.cs               public calendar and detail, anonymous
+    │   ├── EventsAdminController.cs          staff-only CRUD
+    │   ├── EventService.cs                   visibility, ongoing, slug rules
+    │   ├── EventContracts.cs                 public and staff DTOs, EventCategory/EventSort enums
+    │   └── (reuses Students/ExternalUrlPolicy.cs for the registration link)
     ├── Reference/       provinces and districts, the only place location lists come from
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
@@ -98,6 +116,39 @@ province read through it, so a posting cannot claim to be in two provinces at on
 stores nothing rather than a placeholder. Applications, CVs and salary ranges are deferred: each needs
 either a moderation surface or a verification rule this phase did not have.
 
+**Offers and events are three slices sharing one argument.** Deals, events and businesses are the
+same shape of problem — staff-written public copy that is filtered, paged and expires — so each gets its
+own folder and its own service rather than a generic "listing" abstraction that would have to grow a
+flag per module. What they share they share deliberately: `NepalDateProvider` for "is this still
+current", `Students/ExternalUrlPolicy` for the outbound link, `Reference` for the district list, and
+the `ApiResponse`/`PagedResponse` envelope. A fourth module with the same shape should follow the same
+pattern rather than inventing one.
+
+**An offer and an event both have a clock, and neither stores a countdown.** `deals` carries
+`starts_on`/`ends_on` as `DateOnly` and `events` carries `starts_at`/`ends_at` as Nepal wall-clock
+`DateTime`; `days_remaining` and `is_ongoing` are computed per read. A stored flag is wrong by the
+evening, which is the same argument as the job board's derived `ClosingSoon` and the Student Hub's
+missing `is_expired`. The two modules differ only in granularity — an offer is redeemed on a day, an
+event happens at an hour — and the wire format follows: a bare `yyyy-MM-dd` is safe to read anywhere,
+while a bare local time must be displayed as the text it is rather than parsed as an instant, or every
+reader outside Nepal sees it shifted by five hours and three quarters.
+
+**Events are dated, not located.** A deal may be nationwide (`district_id` null) because free delivery
+that applies everywhere is real; an event may not, because a reader cannot attend something with no
+place. Neither table stores a latitude, for the reason the business directory does not: a district is
+the location a reader filters by, and a pin the server cannot verify is worse than no pin.
+
+**An offer or event outlives the listing it was attached to.** Both take a nullable `business_id` with
+`ON DELETE SET NULL`, so retracting a business leaves its offers and events standing rather than
+deleting public copy a reader may have saved. The business *name* survives with them; the public
+`businessSlug` is withheld for an unpublished business, because that is a read-model decision rather
+than a column — a link to a 404 is worse than no link, but a name with no link is still true.
+
+**Neither module collects anything.** There is no payment, ticket, coupon, capacity or price column,
+because a deal is redeemed at a counter and an event is registered with its organiser: the useful thing
+this site can offer is a trustworthy link out, shape-checked as `https` and never fetched. The same
+reason there is no cover image — image storage has not had its disk-versus-object-storage decision yet.
+
 **Reference data is fetched, not hard-coded.** The province and district lists come from
 `Features/Reference` and are the single source for the board's location filters and the editor's
 district select. A hard-coded list of Nepal's districts is a thing that silently goes stale, and the
@@ -119,7 +170,7 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
-│                   (calculators/, quiz/, students/, jobs/, businesses/)
+│                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
@@ -187,10 +238,15 @@ never leaves a stale response to overwrite fresh state.
 
 **Rules**
 
-- JSON only, camelCase property names, UTC timestamps in ISO-8601.
+- JSON only, camelCase property names. Timestamps are ISO-8601 without an offset (`2026-10-04T10:00:00`)
+  and are read as **Nepal wall-clock**, not UTC; audit columns (`createdAt`, `updatedAt`) are server
+  values the client never displays. A `DateOnly` is a bare `yyyy-MM-dd`. See "an offer and an event
+  both have a clock" in section 2 for why none of them carry a `Z`.
 - Versioned under `/api/...` from day one; breaking changes get a new major version prefix.
 - Resource nouns in paths, HTTP verbs for actions: `GET /api/students/resources`,
   `GET/POST /api/admin/jobs`, `GET /api/jobs/{slug}`.
+- Public reads are `[AllowAnonymous]` at class level and are safe because every filter argument is bound
+  to a fixed property with a whitelist, never concatenated into a query.
 - List endpoints are paged (`page`, `pageSize`, capped) and return a total count.
 - Errors use stable machine-readable `code` values; `message` is for humans and may change.
 - Validation failures are `400` with per-field details; auth `401`/`403`; missing rows `404`.

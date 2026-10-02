@@ -409,6 +409,92 @@ something to do, while every other province still has at least one so no filter 
 page. Three rows exist in states the staff screen has to handle: a draft waiting to be checked, a
 listing checked before it went live, and one that is published but no longer carries its badge.
 
+## Module 8 — Deals and events (live)
+
+Added by `20261001142733_AddDealsAndEvents`, applied to both `nepalhub` and `nepalhub_test`. Two
+tables, fifteen seeded rows each, both written by staff through the same seeder pattern as every other
+module. A second migration, `20261001155854_AddDealsAndEventsIndexes`, adds the two indexes behind the
+`Newest` sort — written as its own migration rather than folded into the create, because the first one
+was already applied to a live development database and rewriting history to look tidier is not worth a
+hand-edited schema.
+
+### `deals`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `slug` | `varchar(160)` unique | `^[a-z0-9]+(?:-[a-z0-9]+)*$`, frozen once published |
+| `title` | `varchar(200)` | |
+| `summary` | `varchar(400)` nullable | the card's one-liner |
+| `discount_text` | `varchar(120)` nullable | the offer in the business's own words |
+| `description` | `longtext` | the full terms; length is enforced by the service, not the column |
+| `business_id` | `char(36)` nullable → `businesses` (SET NULL) | optional; null on delete |
+| `district_id` | `char(36)` nullable → `districts` (RESTRICT) | null means nationwide |
+| `redemption_url` | `varchar(500)` nullable | absolute `https`, shape-checked, never fetched |
+| `starts_on`, `ends_on` | `date` | inclusive end date |
+| `is_published` | `tinyint(1)` default 0 | |
+| `created_at`, `updated_at` | `datetime(6)` | |
+| `created_by_user_id` | `char(36)` nullable → `users` (SET NULL) | |
+
+### `events`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `slug` | `varchar(160)` unique | same pattern as `deals` |
+| `title` | `varchar(200)` | |
+| `summary` | `varchar(400)` nullable | |
+| `description` | `longtext` | the full copy; length is enforced by the service, not the column |
+| `category` | `tinyint` unsigned | `EventCategory`, serialised by name |
+| `organiser` | `varchar(160)` nullable | the group running it |
+| `business_id` | `char(36)` nullable → `businesses` (SET NULL) | optional; null on delete |
+| `district_id` | `char(36)` → `districts` (RESTRICT) | **NOT NULL**, unlike `deals` |
+| `venue` | `varchar(240)` nullable | free text, not geocoded |
+| `starts_at`, `ends_at` | `datetime(6)` | Nepal wall-clock, no zone conversion |
+| `registration_url` | `varchar(500)` nullable | absolute `https`, shape-checked, never fetched |
+| `is_published` | `tinyint(1)` default 0 | |
+| `created_at`, `updated_at` | `datetime(6)` | |
+| `created_by_user_id` | `char(36)` nullable → `users` (SET NULL) | |
+
+Six decisions are worth stating because they look odd in the schema and are not:
+
+- **`deals.starts_on`/`ends_on` are `date`, not `datetime`.** An offer is redeemed on a day. A clock
+  time on an offer invents a precision the business does not have and makes "ends today" mean
+  something different at 09:00 than at 21:00 for no reason a reader can act on.
+- **Neither table stores a countdown.** `days_remaining` and `is_ongoing` are computed against the
+  current Nepal time on every read. A stored flag is wrong by the evening, and the daily quiz already
+  established that a Nepal-facing date must come from a clock that knows about UTC+05:45 rather than
+  from the machine or from UTC.
+- **`events.starts_at`/`ends_at` are bare Nepal local times, not UTC.** They are written from what a
+  staff member typed and read back the same way. Converting to UTC would move every event by five
+  hours and three quarters, and the round trip through a JavaScript `Date` would move it again for
+  every reader outside Nepal.
+- **`deals.district_id` is nullable and `events.district_id` is not.** The two are different facts. A
+  free-delivery offer that applies everywhere is the case that separates an offer from a business
+  listing; an event with no location is an event nobody can attend or browse by.
+- **The business foreign key is `SET NULL` on both.** An offer or event stays readable after the
+  listing it was attached to is retracted, because the alternative is a live page about a real offer
+  that 500s because an unrelated row was deleted. The business *name* survives with it; only the
+  public `businessSlug` is withheld for an unlisted business, and that is a read-model decision rather
+  than a column.
+- **No `cover_url`, `price`, `coupon_code`, `ticket_price` or capacity.** There is no image storage
+  decision yet, an offer's headline is text in the business's own words rather than a price pair, and
+  an event collects nothing on this site — it points at the organiser's own page.
+
+Indexes: `ix_deals_slug` (unique) and one composite per public filter, each leading with
+`is_published` because every public read tests that first —
+`ix_deals_is_published_ends_on` (the `EndingSoon` order), `ix_deals_is_published_starts_on`,
+`ix_deals_is_published_created_at` (the `Newest` order),
+`ix_deals_district_id_is_published` (the district leads here, since a location filter tests both
+together), `ix_deals_business_id`, plus `ix_deals_created_by_user_id`. `events` mirrors it with
+`ix_events_is_published_starts_at` (the `Soonest` order), `ix_events_is_published_ends_at`,
+`ix_events_is_published_category`, `ix_events_is_published_created_at` (the `Newest` order),
+`ix_events_district_id_is_published`, `ix_events_business_id` and `ix_events_created_by_user_id`.
+
+The seeds cover every category, every province and both sort orders, and include states a fresh
+install would otherwise never show: a draft, an offer whose end date has already passed, and an event
+that has already finished.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
@@ -441,15 +527,21 @@ postings, which needs the owner column above.
 
 ### Content modules
 
-`jobs` is live (Module 6) and `businesses` is live (Module 7). Everything else below is still design.
+`jobs` is live (Module 6), `businesses` is live (Module 7), and `deals`/`events` are live (Module 8).
+Everything else below is still design.
 
 | Table | Key columns |
 | --- | --- |
 | `job_applications` | `job_id`, `user_id`, `cv_url`, `cover_letter`, `status`, `applied_at` (unique per job+user) |
 | `jobs.business_id` | nullable → `businesses`, for employer-owned postings; null on staff-written rows |
 | `jobs.salary_min`, `jobs.salary_max`, `jobs.currency` | nullable, added only when there is a rule for what a verified range means |
-| `events` | `id`, `title`, `slug`, `description`, `organiser`, `venue`, `district_id`, `starts_at`, `ends_at`, `cover_url`, `status` |
-| `deals` | `id`, `business_id`, `title`, `description`, `original_price`, `discounted_price`, `coupon_code`, `starts_at`, `ends_at`, `terms`, `is_active` |
+| `deals.redemption_codes`, `deals.redemption_uses` | only if offers ever become redeemable on this site rather than at the counter; a code table needs a rule about who mints codes |
+| `events.ticket_price`, `events.capacity`, `events.registration_count` | only with a payment provider and a decision about who the money goes to; an event here points at the organiser's own page |
+| `businesses.owner_user_id` → `deals`/`events` | ownership of an offer or event, which needs the owner column in the businesses table above |
+
+Offers and events deliberately collect nothing on this site. A deal is redeemed at a counter and an
+event is registered with its organiser, so the honest value of both is a link out — which is why
+`redemption_url` and `registration_url` exist and why no payment, ticket or capacity column does.
 
 ### Progression
 

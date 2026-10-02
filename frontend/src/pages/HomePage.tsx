@@ -99,14 +99,14 @@ export function HomePage() {
         <Container className={styles.heroGrid}>
           <div>
             <span className={styles.eyebrow}>
-              Accounts, data, tools, quiz, the Student Hub, Jobs and Businesses
+              Accounts, data, tools, quiz, the Student Hub, Jobs, Businesses, Offers and Events
             </span>
             <h1 className={styles.title}>One useful website for everyday Nepal.</h1>
             <p className={styles.lead}>
-              Nepal Hub will bring tools, a daily quiz, study help, jobs, local businesses, deals and
+              Nepal Hub brings tools, a daily quiz, study help, jobs, local businesses, offers and
               events into one place. Accounts, the real database, the first tools, the Student Hub,
-              the job board and the business directory are now in place — deals and events are still
-              to come.
+              the job board, the business directory, the offers page and the events calendar are all
+              in place now.
             </p>
 
             <div className={styles.heroActions}>
@@ -118,6 +118,12 @@ export function HomePage() {
               </a>
               <a className={styles.secondaryLink} href="/businesses">
                 Businesses
+              </a>
+              <a className={styles.secondaryLink} href="/deals">
+                Offers
+              </a>
+              <a className={styles.secondaryLink} href="/events">
+                Events
               </a>
               {status === 'authenticated' && user ? (
                 <>
@@ -163,6 +169,28 @@ export function HomePage() {
             </a>
             <a className={styles.secondaryLink} href="/jobs">
               Looking for a job?
+            </a>
+          </div>
+        </Container>
+      </section>
+
+      <section className={styles.section}>
+        <Container>
+          <h2 className={styles.sectionTitle}>Offers and events near you</h2>
+          <p className={styles.sectionText}>
+            Offers from businesses around Nepal, each with the day it ends, and a calendar of the
+            fairs, festivals, training and matches coming up. Both are written by our staff, both are
+            searched by province and district, and both are honest about time: an offer that has
+            finished is taken off the list, an event stays until it has actually finished, and every
+            date and time is Nepal Standard Time rather than wherever you happen to be reading from.
+          </p>
+
+          <div className={styles.heroActions}>
+            <a className={styles.primaryLink} href="/deals">
+              See the offers
+            </a>
+            <a className={styles.secondaryLink} href="/events">
+              See the events
             </a>
           </div>
         </Container>

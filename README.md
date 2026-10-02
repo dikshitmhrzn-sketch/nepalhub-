@@ -6,10 +6,10 @@ Nepal Hub will eventually bring Nepal-specific tools and calculators, a daily qu
 hub, jobs, local businesses, deals and events into a single platform — with user accounts, XP and
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
-This repository currently contains **the data layer, real accounts and five public
-modules — tools/calculators, the daily quiz, the Student Hub, Jobs and Businesses**. The database,
-authentication, the account pages and all five modules are live; payments, business accounts and
-deals are not started, by design.
+This repository currently contains **the data layer, real accounts and seven public
+modules — tools/calculators, the daily quiz, the Student Hub, Jobs, Businesses, Offers and Events**. The
+database, authentication, the account pages and all seven modules are live; payments, business accounts,
+tickets and bookings are not started, by design.
 
 ---
 
@@ -17,17 +17,19 @@ deals are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, sign-in, registration, account, and staff calculator/quiz/resource/job/business pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub, the job board and the business directory |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 20 application tables plus the EF migration-history table, six migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account, and staff calculator/quiz/resource/job/business/deal/event pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub, the job board, the business directory, offers and the events calendar |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 22 application tables plus the EF migration-history table, eight migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 354 integration tests against the real `nepalhub_test` database |
+| Tests | 468 integration tests against the real `nepalhub_test` database |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
-| Payments, business accounts, deals, events, badges, leaderboard, admin screens beyond calculators, quiz, resources, jobs and businesses | Not started |
+| Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
+| Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
+| Payments, business accounts, tickets, bookings, badges, leaderboard, admin screens beyond calculators, quiz, resources, jobs, businesses, deals and events | Not started |
 
 ---
 
@@ -64,16 +66,19 @@ nepalhub/
 │   └── src/
 │       ├── components/
 │       │   ├── auth/          # RequireAuth / RequireStaff route guards
+│       │   ├── businesses/    # business card, filters, staff editor
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
+│       │   ├── deals/         # offer card, filters, staff editor
+│       │   ├── events/        # event card, filters, staff editor
 │       │   ├── layout/        # AppShell (header, nav, footer)
 │       │   ├── jobs/          # job card, filters, staff editor
 │       │   ├── quiz/          # result view, staff question editor
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. jobs/ and reference/
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. deals/, events/, jobs/ and reference/
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, admin)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, admin)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── App.tsx
 │       ├── main.tsx
@@ -81,6 +86,7 @@ nepalhub/
 └── docs/
     ├── architecture.md
     ├── database.md
+    ├── phase-6-businesses-plan.md
     └── roadmap.md
 ```
 
@@ -187,6 +193,16 @@ The second, `20260930105251_AddCalculators`, creates `calculators`.
 The third, `20260930122740_AddQuiz`, creates the six quiz tables.
 The fourth, `20260930154447_AddStudentResources`, creates `resources`.
 The fifth, `20261001041409_AddJobs`, creates `jobs`.
+The sixth, `20261001101158_AddBusinesses`, creates `businesses` and `business_hours`.
+The seventh, `20261001142733_AddDealsAndEvents`, creates `deals` and `events`.
+The eighth, `20261001155854_AddDealsAndEventsIndexes`, adds the two indexes behind the `Newest` sort.
+It is a separate migration because the seventh was already applied to a live development database, and
+editing an applied migration to look tidier would leave the two out of step.
+
+The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
+passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
+user-secrets entry exported) even though the running API itself resolves its connection string from
+configuration.
 
 ---
 
@@ -446,7 +462,87 @@ a draft, a listing checked before it went live, and one that is published withou
 `docs/database.md` for the schema.
 
 Deliberately not in this slice: business accounts, paid subscriptions, featured placement, reviews and
-ratings, image uploads, deals, saved businesses, messaging, maps and claims.
+ratings, image uploads, saved businesses, messaging, maps and claims. Deals arrived as the next module;
+see below.
+
+---
+
+## Offers
+
+A public page of staff-written discounts, each with the days it runs for. An offer is a *day*-granular
+thing — it is redeemed at a counter on a date, not booked for an hour — so its window is two `DateOnly`
+values and its headline is `discountText`: the business's own words, because "free chiya with any
+thakali set" is a real offer and most Nepalese offers are not expressible as a percentage.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/deals` | anonymous | Paged offers; `page`, `pageSize`, `search`, `province`, `district`, `sort` |
+| `GET /api/deals/{slug}` | anonymous | One live offer |
+| `GET /api/admin/deals` | `staff-only` | Every row, drafts and expired offers included; `status` filter |
+| `GET /api/admin/deals/{id}` | `staff-only` | One row for the edit form, with its publish blockers |
+| `POST /api/admin/deals` | `staff-only` | Creates an offer |
+| `PUT /api/admin/deals/{id}` | `staff-only` | Updates copy, dates, business and the publish flag |
+| `DELETE /api/admin/deals/{id}` | `staff-only` | Deletes a draft; refused once it has been published |
+
+**An offer is public while it is published and today has not passed its end date**, inclusive, computed
+against `NepalDateProvider` on every read — `daysRemaining` is a read-time value and is stored nowhere,
+because a stored countdown is wrong by the evening. The province is read through `districtId`, which is
+**nullable here and not on an event**: a free-delivery offer that applies nationwide is the case that
+separates an offer from a business listing.
+
+**The business name survives; the business link does not always.** A public detail returns
+`businessName` whether or not the listing is published, but returns `businessSlug: null` unless it is.
+A link to a 404 is worse than no link, and a name with no link is still true. Deleting a business sets
+`businessId` to null rather than cascading, so an offer outlives the listing it was attached to.
+
+**`discountText` is the only price on the page.** There is no original/discounted pair, no coupon code
+and no redemption count, because an offer in Nepal is usually "show this post" or "ask for the code" and
+a numeric discount would be a fabrication. `redemptionUrl` is shape-checked as an absolute `https` URL
+and never fetched; the page is honest about sending a reader to the business's own terms.
+
+15 offers are seeded, including a draft, one whose end date has already passed, and a nationwide one, so
+every state the staff screen must handle is visible in a fresh install. See `docs/database.md` for the
+schema.
+
+---
+
+## Events
+
+A public calendar of things that happen in a district on a date and at an hour, written by staff. The
+times are **Nepal wall-clock**, serialised without an offset (`2026-10-04T10:00:00`), and the frontend
+displays them as the text they are rather than parsing them as an instant — otherwise a reader in
+London or Sydney sees an evening event at lunchtime.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/events` | anonymous | Paged calendar; `page`, `pageSize`, `search`, `province`, `district`, `category`, `sort` |
+| `GET /api/events/{slug}` | anonymous | One event that has not finished |
+| `GET /api/admin/events` | `staff-only` | Every row, drafts and finished events included; `status` filter |
+| `GET /api/admin/events/{id}` | `staff-only` | One row for the edit form, with its publish blockers |
+| `POST /api/admin/events` | `staff-only` | Creates an event |
+| `PUT /api/admin/events/{id}` | `staff-only` | Updates copy, times, place, business and the publish flag |
+| `DELETE /api/admin/events/{id}` | `staff-only` | Deletes a draft; refused once it has been published |
+
+**`districtId` is required here, unlike an offer.** A reader cannot attend something with no place, and
+a province filter over events with no location cannot return anything honest. The province is still read
+through the district, so the two can never disagree.
+
+**An event that has finished is gone from the public endpoints; one that is under way is still listed
+with `isOngoing: true`.** The finishing time is inclusive, so an event stays on the calendar for the
+whole of the day it ends. Like `daysRemaining`, that flag is derived per read rather than stored.
+
+**Categories are a fixed enum** — `Community`, `Cultural`, `Sports`, `Education`, `Religious`,
+`Business`, `Exhibition`, `Other` — serialised by name, on the same argument as `BusinessCategory`: a
+fixed set of labels is searchable, translatable and impossible to orphan. `registrationUrl` is
+shape-checked and never fetched; there is no ticket, price, capacity or booking, because the organiser
+collects registrations on their own page.
+
+15 events are seeded across all eight categories and at least four provinces, including a draft and one
+that has already finished. See `docs/database.md` for the schema.
+
+Deliberately not in either module: payments, tickets, bookings, RSVPs, reviews, image uploads, saved
+offers and notifications. There is nothing to attach them to yet — an offer has no price to pay and an
+event has no ticket — and each is recorded in `docs/database.md` as the column it would need.
 
 ---
 
@@ -462,17 +558,20 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-354 tests pass, of which 72 cover Businesses:
+468 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
 | `AuthenticationTests.cs` | 15 |
-| `BusinessTests.cs` | 72 |
+| `BusinessTests.cs` | 105 |
 | `CalculatorTests.cs` | 42 |
+| `DealTests.cs` | 60 |
+| `EventTests.cs` | 54 |
+| `HealthEndpointTests.cs` | 1 |
 | `JobsTests.cs` | 83 |
 | `QuizTests.cs` | 35 |
 | `RateLimitingTests.cs` | 2 |
-| `ReferenceDataTests.cs` | 5 |
+| `ReferenceDataTests.cs` | 4 |
 | `StudentHubTests.cs` | 67 |
 
 ---

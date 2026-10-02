@@ -21,15 +21,19 @@ const navigation: NavigationItem[] = [
   { label: 'Student Hub', to: '/students' },
   { label: 'Jobs', to: '/jobs' },
   { label: 'Businesses', to: '/businesses' },
+  { label: 'Offers', to: '/deals' },
+  { label: 'Events', to: '/events' },
   { label: 'Account', to: '/account', requiresAuth: true },
   { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },
   { label: 'Manage quiz', to: '/admin/quiz', requiresStaff: true },
   { label: 'Manage resources', to: '/admin/students', requiresStaff: true },
   { label: 'Manage jobs', to: '/admin/jobs', requiresStaff: true },
   { label: 'Manage businesses', to: '/admin/businesses', requiresStaff: true },
+  { label: 'Manage offers', to: '/admin/deals', requiresStaff: true },
+  { label: 'Manage events', to: '/admin/events', requiresStaff: true },
 ];
 
-const plannedModules = ['Deals', 'Events', 'Search'];
+const plannedModules = ['Search'];
 
 function AccountActions() {
   const { status, user, signOut } = useAuth();
@@ -135,8 +139,8 @@ export function AppShell() {
           <div>
             <p>Nepal Hub — one useful website for everyday Nepal.</p>
             <p>
-              Accounts, calculators, the daily quiz, the Student Hub, the job board and the
-              business directory are live.
+              Accounts, calculators, the daily quiz, the Student Hub, the job board, the business
+              directory, offers and events are live.
             </p>
           </div>
 
