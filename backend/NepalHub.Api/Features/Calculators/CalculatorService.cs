@@ -82,7 +82,7 @@ public sealed partial class CalculatorService
 
         if (!includeUnpublished)
         {
-            query = query.Where(calculator => calculator.IsPublished);
+            query = PublicContentScope.Calculators(query);
         }
 
         if (category is { } selected)
@@ -100,11 +100,13 @@ public sealed partial class CalculatorService
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
+
         var items = await query
             .OrderBy(calculator => calculator.SortOrder)
             .ThenBy(calculator => calculator.Name)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(calculator => new CalculatorSummaryResponse(
                 calculator.Slug,
                 calculator.Name,
@@ -113,7 +115,7 @@ public sealed partial class CalculatorService
                 calculator.IsPublished))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<CalculatorSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<CalculatorSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<PagedResult<CalculatorAdminSummaryResponse>> ListForAdminAsync(
@@ -133,11 +135,13 @@ public sealed partial class CalculatorService
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
+
         var items = await query
             .OrderBy(calculator => calculator.SortOrder)
             .ThenBy(calculator => calculator.Name)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(calculator => new CalculatorAdminSummaryResponse(
                 calculator.Id,
                 calculator.Slug,
@@ -150,7 +154,7 @@ public sealed partial class CalculatorService
                 calculator.CreatedByUser == null ? null : calculator.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<CalculatorAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<CalculatorAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>

@@ -247,12 +247,62 @@ never leaves a stale response to overwrite fresh state.
   `GET/POST /api/admin/jobs`, `GET /api/jobs/{slug}`.
 - Public reads are `[AllowAnonymous]` at class level and are safe because every filter argument is bound
   to a fixed property with a whitelist, never concatenated into a query.
-- List endpoints are paged (`page`, `pageSize`, capped) and return a total count.
+- List endpoints are paged (`page`, `pageSize`, capped) and return a total count. See "one paging
+  convention" below.
 - Errors use stable machine-readable `code` values; `message` is for humans and may change.
 - Validation failures are `400` with per-field details; auth `401`/`403`; missing rows `404`.
 - Swagger/OpenAPI is generated and available at `/swagger` in development.
-- Pagination, sorting and filtering follow one convention across all list endpoints so the global
-  search feature can reuse them.
+
+### One paging convention
+
+Every list endpoint, public and staff, returns `PagedResult<T>` from
+`NepalHub.Api.Common`. `Items`, `Page`, `PageSize` and `TotalCount` are stored; `TotalPages`,
+`HasPrevious` and `HasNext` are derived, so no endpoint can report a page count that disagrees with
+its own total.
+
+- `PageRequest.Normalise` is applied to the caller's arguments first: a page below 1 becomes the
+  first page, and a page size above `MaxPageSize` (100) is reduced rather than rejected, so a client
+  cannot ask the database for an unbounded set.
+- `PageRequest.ClampTo(totalCount)` is applied *after* the count query and before the `Skip`.
+  Whether a page is past the end is not knowable until the rows have been counted, and the answer is
+  the last page rather than an empty one — an empty page beside a `TotalPages` of 1 is a response
+  that contradicts itself, and it is a worse answer than the one the caller was obviously reaching
+  for. A result set with no rows has no last page to fall back to, so an empty list is page 1, which
+  keeps `HasPrevious` false in the only case where there is nothing to read.
+- Each service clamps for itself. The shared type makes the convention uniform; it does not reach
+  into six services to enforce it, because a helper that re-ran the filter would be a second query
+  for a decision one line can make.
+
+`GET /api/search` reuses `PageRequest` but caps its own page size at 30, because a search page is
+six queries rather than one and the extra rows serve nobody who would scroll them. That cap is
+applied in the controller rather than through `Normalise`, which would silently hand back 24-row
+pages.
+
+### Global search
+
+`GET /api/search` is `[AllowAnonymous]`. The header search box has to work before someone has an
+account, and the endpoint cannot reach anything private in any case, because it has no other way to
+read a row: every module's public list and detail, and search itself, filter through
+`PublicContentScope`. One place states what a reader may see, so a visibility rule cannot be changed
+in a module and missed in search — the failure mode being a search result for a page that no longer
+serves it, which looks fine in isolation from both sides.
+
+Six tables with six different column lists cannot be unioned in SQL, so `SearchService` takes at most
+`SearchLimits.CandidateCap` (50) bounded candidates from each source, ranks them together in memory,
+and pages the merged set. No source is counted: a `COUNT` over the whole matched set is the one query
+here that grows without limit as the catalogue does, so `TotalCount` is the number of candidates
+returned, not the number of matches in existence.
+
+That is why `SearchResponse.Truncated` exists. It is measured on the rows SQL returned rather than on
+the rows that survived ranking — ranking drops rows matching only a low-value haystack, so a source
+that filled its cap and ranked just under it has still hidden matches. A client rendering "4 matches"
+when four were shown is telling the truth; "4 results in Nepal Hub" is a claim the server cannot
+support.
+
+Ranking and filtering agree on what a match is because both go through `SearchText.Normalise`, which
+strips diacritics and lowercases. MySQL matches on `utf8mb4_0900_ai_ci`, so a reader typing `CAFÉ`
+is meant to find `cafe`; an `Ordinal` comparison would score that row as a non-match and push it off
+the page.
 
 ## 6. Authentication and security (implemented for Phase 1)
 

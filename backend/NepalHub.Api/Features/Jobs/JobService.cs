@@ -114,12 +114,13 @@ public sealed class JobService(
             request.WorkMode);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = request.Paging.ClampTo(totalCount);
 
         var ordered = ApplyPublicOrder(request.Sort, query);
 
         var items = await ordered
-            .Skip(request.Paging.Skip)
-            .Take(request.Paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(job => new JobSummaryResponse(
                 job.Id,
                 job.Slug,
@@ -137,7 +138,7 @@ public sealed class JobService(
                 job.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<JobSummaryResponse>(items, request.Paging.Page, request.Paging.PageSize, totalCount);
+        return new PagedResult<JobSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>
@@ -250,12 +251,13 @@ public sealed class JobService(
             today);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         var items = await query
             .OrderByDescending(job => job.UpdatedAt)
             .ThenBy(job => job.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(job => new JobAdminSummaryResponse(
                 job.Id,
                 job.Slug,
@@ -272,7 +274,7 @@ public sealed class JobService(
                 job.CreatedByUser == null ? null : job.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<JobAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<JobAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<JobAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)
@@ -431,10 +433,7 @@ public sealed class JobService(
     /// day is not over, and an applicant applying on the deadline date is not too late.
     /// </summary>
     private IQueryable<Job> PublicScope(DateOnly today) =>
-        dbContext.Jobs
-            .AsNoTracking()
-            .Where(job => job.IsPublished)
-            .Where(job => job.ApplicationDeadline >= today);
+        NepalHub.Api.Data.PublicContentScope.Jobs(dbContext.Jobs, today);
 
     private static IQueryable<Job> ApplyFilters(
         IQueryable<Job> query,

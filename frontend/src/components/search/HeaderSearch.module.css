@@ -1,0 +1,77 @@
+.form {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+  position: relative;
+  flex: 1 1 14rem;
+  max-width: 26rem;
+}
+
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-sm);
+}
+
+.input::placeholder {
+  color: var(--nh-text-muted);
+}
+
+.input:focus-visible {
+  border-color: var(--nh-primary);
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.submit {
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-primary);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-primary);
+  color: var(--nh-text-inverse);
+  font-family: inherit;
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.submit:hover {
+  background-color: var(--nh-primary-hover);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 2px;
+}
+
+.hint {
+  position: absolute;
+  top: calc(100% + var(--nh-space-1));
+  left: 0;
+  margin: 0;
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border-radius: var(--nh-radius-sm);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-md);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+  white-space: nowrap;
+}

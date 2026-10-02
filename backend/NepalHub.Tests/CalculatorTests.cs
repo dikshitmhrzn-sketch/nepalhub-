@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using NepalHub.Api.Common;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Calculators;
@@ -39,30 +40,67 @@ public sealed class CalculatorCatalogueTests(NepalHubApiFactory factory) : IClas
         Assert.True(page.HasNext);
 
         var second = await ReadPageAsync(client, "/api/calculators?page=2&pageSize=2");
-        Assert.Equal(1, second.Items.Count);
+        Assert.Single(second.Items);
         Assert.True(second.HasPrevious);
         Assert.False(second.HasNext);
         Assert.Empty(page.Items.Select(item => item.Slug).Intersect(second.Items.Select(item => item.Slug)));
     }
 
     [Theory]
-    [InlineData(0, 10, 1, 10)]
-    [InlineData(-5, 10, 1, 10)]
-    [InlineData(1, 500, 1, 100)]
-    [InlineData(1, 0, 1, 24)]
-    [InlineData(2, 10, 2, 10)]
+    [InlineData(0, 10, 10)]
+    [InlineData(-5, 10, 10)]
+    [InlineData(1, 500, 100)]
+    [InlineData(1, 0, 24)]
+    [InlineData(2, 10, 10)]
+    [InlineData(9999, 10, 10)]
     public async Task An_out_of_range_page_request_is_clamped_rather_than_rejected(
         int requestedPage,
         int requestedPageSize,
-        int expectedPage,
         int expectedPageSize)
     {
         using var client = factory.CreateClient();
+
+        // The catalogue is small enough that a single page holds it, but the last page is still read
+        // back from the endpoint so the case stays honest if the catalogue grows.
+        var baseline = await ReadPageAsync(client, $"/api/calculators?page=1&pageSize={expectedPageSize}");
+        var lastPage = PageRequest.TotalPagesFor(baseline.TotalCount, expectedPageSize);
+        var expectedPage = Math.Clamp(requestedPage < 1 ? 1 : requestedPage, 1, lastPage);
 
         var result = await ReadPageAsync(client, $"/api/calculators?page={requestedPage}&pageSize={requestedPageSize}");
 
         Assert.Equal(expectedPage, result.Page);
         Assert.Equal(expectedPageSize, result.PageSize);
+        Assert.True(result.Page <= lastPage, "The clamped page must never be past the last page with rows.");
+    }
+
+    [Fact]
+    public async Task A_page_past_the_end_returns_the_last_page_rather_than_an_empty_one()
+    {
+        using var client = factory.CreateClient();
+
+        var first = await ReadPageAsync(client, "/api/calculators?page=1&pageSize=1");
+        Assert.True(first.TotalCount > 0, "The catalogue needs at least one published calculator for this to mean anything.");
+
+        var last = await ReadPageAsync(client, $"/api/calculators?page={first.TotalCount}&pageSize=1");
+
+        Assert.Equal(first.TotalCount, last.Page);
+        Assert.Single(last.Items);
+        Assert.Equal(first.TotalCount, last.TotalPages);
+        Assert.False(last.HasNext);
+    }
+
+    [Fact]
+    public async Task A_search_that_matches_nothing_answers_on_page_one_with_no_items()
+    {
+        using var client = factory.CreateClient();
+
+        var page = await ReadPageAsync(client, "/api/calculators?search=zzzznomatchzzzz&page=7&pageSize=10");
+
+        Assert.Equal(1, page.Page);
+        Assert.Equal(0, page.TotalCount);
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalPages);
+        Assert.False(page.HasNext);
     }
 
     [Fact]

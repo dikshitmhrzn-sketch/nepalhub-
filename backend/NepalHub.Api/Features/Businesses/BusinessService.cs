@@ -118,14 +118,15 @@ public sealed class BusinessService(
             request.Verified);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = request.Paging.ClampTo(totalCount);
 
         // The district and the week's hours are loaded for the page rather than projected in SQL,
         // because the card needs both the province name and a clock comparison. That is only two
         // extra joins on at most one page of rows, which is the trade this module accepts; the job
         // board projects in SQL because its summary carries neither.
         var items = await ApplyPublicOrder(request.Sort, query)
-            .Skip(request.Paging.Skip)
-            .Take(request.Paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Include(business => business.District)
                 .ThenInclude(district => district!.Province)
             .Include(business => business.OpeningHours)
@@ -136,7 +137,7 @@ public sealed class BusinessService(
             .Select(business => ToSummaryResponse(business, now))
             .ToList();
 
-        return new PagedResult<BusinessSummaryResponse>(summaries, request.Paging.Page, request.Paging.PageSize, totalCount);
+        return new PagedResult<BusinessSummaryResponse>(summaries, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>
@@ -233,12 +234,13 @@ public sealed class BusinessService(
             filter);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         var items = await query
             .OrderByDescending(business => business.UpdatedAt)
             .ThenBy(business => business.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(business => new BusinessAdminSummaryResponse(
                 business.Id,
                 business.Slug,
@@ -251,7 +253,7 @@ public sealed class BusinessService(
                 business.CreatedByUser == null ? null : business.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<BusinessAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<BusinessAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<BusinessAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)
@@ -453,9 +455,7 @@ public sealed class BusinessService(
     /// no equivalent here.
     /// </summary>
     private IQueryable<Business> PublicScope() =>
-        dbContext.Businesses
-            .AsNoTracking()
-            .Where(business => business.IsPublished);
+        NepalHub.Api.Data.PublicContentScope.Businesses(dbContext.Businesses);
 
     private static IQueryable<Business> ApplyFilters(
         IQueryable<Business> query,

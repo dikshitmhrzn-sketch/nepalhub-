@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 
+import { HeaderSearch } from '@/components/search/HeaderSearch';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -33,7 +34,15 @@ const navigation: NavigationItem[] = [
   { label: 'Manage events', to: '/admin/events', requiresStaff: true },
 ];
 
-const plannedModules = ['Search'];
+// Search is reached from the header box on every page rather than from a link here, which would be a
+// tenth item in a row that already wraps on a phone.
+
+const footerLinks: NavigationItem[] = [
+  { label: 'Search', to: '/search' },
+  { label: 'Jobs', to: '/jobs' },
+  { label: 'Offers', to: '/deals' },
+  { label: 'Events', to: '/events' },
+];
 
 function AccountActions() {
   const { status, user, signOut } = useAuth();
@@ -84,6 +93,11 @@ function AccountActions() {
 
 export function AppShell() {
   const { status, isStaff } = useAuth();
+  const location = useLocation();
+
+  // The search page has its own larger box, so the header's is left out there rather than putting
+  // two identical search boxes on one screen.
+  const showHeaderSearch = location.pathname !== '/search';
 
   return (
     <div className={styles.shell}>
@@ -128,6 +142,12 @@ export function AppShell() {
 
           <AccountActions />
         </Container>
+
+        {showHeaderSearch ? (
+          <Container className={styles.searchRow}>
+            <HeaderSearch />
+          </Container>
+        ) : null}
       </header>
 
       <main id="main-content" className={styles.main}>
@@ -140,16 +160,18 @@ export function AppShell() {
             <p>Nepal Hub — one useful website for everyday Nepal.</p>
             <p>
               Accounts, calculators, the daily quiz, the Student Hub, the job board, the business
-              directory, offers and events are live.
+              directory, offers, events and search are live.
             </p>
           </div>
 
           <div>
-            <p className={styles.plannedLabel}>Planned modules</p>
-            <ul className={styles.planned}>
-              {plannedModules.map((module) => (
-                <li key={module} className={styles.plannedItem} aria-disabled="true">
-                  {module}
+            <p className={styles.footerLabel}>Looking for something?</p>
+            <ul className={styles.footerLinks}>
+              {footerLinks.map((link) => (
+                <li key={link.to}>
+                  <NavLink to={link.to} className={styles.footerLink}>
+                    {link.label}
+                  </NavLink>
                 </li>
               ))}
             </ul>

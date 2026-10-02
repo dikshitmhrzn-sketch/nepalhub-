@@ -62,8 +62,8 @@ public sealed class EventsTests(NepalHubApiFactory factory) : IClassFixture<Nepa
             },
             StringComparer.Ordinal);
 
-        var page = await api.GetAsync<PagedResponse<EventSummaryResponse>>($"{PublicPath}?pageSize=100");
-        var found = page.Items.Where(item => seeded.Contains(item.Slug)).ToList();
+        var live = await ReadAllPublicAsync(api);
+        var found = live.Where(item => seeded.Contains(item.Slug)).ToList();
 
         Assert.Equal(seeded.Count, found.Count);
 
@@ -79,9 +79,9 @@ public sealed class EventsTests(NepalHubApiFactory factory) : IClassFixture<Nepa
         using var client = factory.CreateClient();
         var api = new AuthApiClient(client);
 
-        var page = await api.GetAsync<PagedResponse<EventSummaryResponse>>($"{PublicPath}?pageSize=100");
+        var live = await ReadAllPublicAsync(api);
 
-        var provinces = page.Items
+        var provinces = live
             .Select(item => item.ProvinceName)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -789,6 +789,40 @@ public sealed class EventsTests(NepalHubApiFactory factory) : IClassFixture<Nepa
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("csrf", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Every event still on the calendar, walking the pages rather than asking for a hundred and
+    /// hoping.
+    /// <para>
+    /// The public list is capped at a hundred rows and the default order is by start time, so a single
+    /// large page is only the whole calendar while the calendar is smaller than a page. Staff tests
+    /// publish events of their own and those rows persist, so a coverage assertion asked of the first
+    /// hundred starts failing once the accumulated rows reach the cap — and because they are dated
+    /// from the moment they were created, they sort ahead of the seeded ones rather than behind them.
+    /// </para>
+    /// </summary>
+    private static async Task<IReadOnlyList<EventSummaryResponse>> ReadAllPublicAsync(AuthApiClient api)
+    {
+        const int PageSize = 100;
+
+        var items = new List<EventSummaryResponse>();
+        var pageNumber = 1;
+
+        while (true)
+        {
+            var page = await api.GetAsync<PagedResponse<EventSummaryResponse>>(
+                $"{PublicPath}?pageSize={PageSize}&page={pageNumber}");
+
+            items.AddRange(page.Items);
+
+            if (items.Count >= page.TotalCount || page.Items.Count == 0)
+            {
+                return items;
+            }
+
+            pageNumber++;
+        }
     }
 }
 

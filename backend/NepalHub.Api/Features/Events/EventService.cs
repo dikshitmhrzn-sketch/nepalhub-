@@ -121,13 +121,14 @@ public sealed class EventService(
             request.Category);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = request.Paging.ClampTo(totalCount);
 
         // The district, its province and the host business are loaded for the page rather than
         // projected in SQL, because the card shows the province name and the business name. That is two
         // extra joins on at most one page of rows, which is the trade this module accepts.
         var items = await ApplyPublicOrder(request.Sort, query)
-            .Skip(request.Paging.Skip)
-            .Take(request.Paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Include(calendarEvent => calendarEvent.District)
                 .ThenInclude(district => district!.Province)
             .Include(calendarEvent => calendarEvent.Business)
@@ -138,7 +139,7 @@ public sealed class EventService(
             .Select(calendarEvent => ToSummaryResponse(calendarEvent, now))
             .ToList();
 
-        return new PagedResult<EventSummaryResponse>(summaries, request.Paging.Page, request.Paging.PageSize, totalCount);
+        return new PagedResult<EventSummaryResponse>(summaries, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>
@@ -226,12 +227,13 @@ public sealed class EventService(
             filter);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         var items = await query
             .OrderByDescending(calendarEvent => calendarEvent.UpdatedAt)
             .ThenBy(calendarEvent => calendarEvent.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(calendarEvent => new EventAdminSummaryResponse(
                 calendarEvent.Id,
                 calendarEvent.Slug,
@@ -248,7 +250,7 @@ public sealed class EventService(
                 calendarEvent.CreatedByUser == null ? null : calendarEvent.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<EventAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<EventAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<EventAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)
@@ -467,9 +469,7 @@ public sealed class EventService(
     /// past the reader's reach for most of the day it matters.
     /// </summary>
     private IQueryable<Event> PublicScope(DateTime now) =>
-        dbContext.Events
-            .AsNoTracking()
-            .Where(calendarEvent => calendarEvent.IsPublished && calendarEvent.EndsAt >= now);
+        NepalHub.Api.Data.PublicContentScope.Events(dbContext.Events, now);
 
     private static IQueryable<Event> ApplyFilters(
         IQueryable<Event> query,

@@ -7,4 +7,6 @@ public static class RateLimitPolicies
     public const string Calculate = "calculate";
 
     public const string Quiz = "quiz";
+
+    public const string Search = "search";
 }

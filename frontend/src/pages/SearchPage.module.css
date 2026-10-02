@@ -1,0 +1,136 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-5);
+  padding-top: var(--nh-space-6);
+  padding-bottom: var(--nh-space-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nh-font-size-2xl);
+  line-height: var(--nh-line-height-tight);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--nh-text-muted);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.input {
+  flex: 1 1 18rem;
+  min-width: 0;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-family: inherit;
+  font-size: var(--nh-font-size-md);
+}
+
+.input:focus-visible {
+  border-color: var(--nh-primary);
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 1px;
+}
+
+.submit {
+  padding: var(--nh-space-3) var(--nh-space-5);
+  border: var(--nh-border-width) solid var(--nh-primary);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-primary);
+  color: var(--nh-text-inverse);
+  font-family: inherit;
+  font-size: var(--nh-font-size-md);
+  font-weight: var(--nh-font-weight-medium);
+  cursor: pointer;
+}
+
+.submit:hover {
+  background-color: var(--nh-primary-hover);
+}
+
+.submit:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Takes its own row rather than sitting after the button, so a long hint wraps under a narrow
+   viewport instead of stretching the form out past the button. */
+.hint {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}
+
+.count {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.countNote {
+  display: block;
+  margin-top: var(--nh-space-1);
+  font-size: var(--nh-font-size-xs);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+  padding-top: var(--nh-space-3);
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+  margin: 0;
+  padding-bottom: var(--nh-space-2);
+  border-bottom: var(--nh-border-width) solid var(--nh-border);
+  font-size: var(--nh-font-size-lg);
+  line-height: var(--nh-line-height-tight);
+}
+
+.groupCount {
+  padding: 0 var(--nh-space-2);
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-surface-muted);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.more {
+  margin: var(--nh-space-3) 0 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}

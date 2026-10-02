@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="NepalHub.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="EntityFrameworkCore.NamingConventions" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.31" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.31" />

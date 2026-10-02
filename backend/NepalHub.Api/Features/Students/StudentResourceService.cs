@@ -103,12 +103,13 @@ public sealed class StudentResourceService(
             request.Level);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = request.Paging.ClampTo(totalCount);
 
         var ordered = ApplyPublicOrder(request.Sort, query);
 
         var items = await ordered
-            .Skip(request.Paging.Skip)
-            .Take(request.Paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(resource => new ResourceSummaryResponse(
                 resource.Id,
                 resource.Slug,
@@ -122,7 +123,7 @@ public sealed class StudentResourceService(
                 resource.UpdatedAt))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<ResourceSummaryResponse>(items, request.Paging.Page, request.Paging.PageSize, totalCount);
+        return new PagedResult<ResourceSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>
@@ -209,12 +210,13 @@ public sealed class StudentResourceService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         var items = await query
             .OrderByDescending(resource => resource.UpdatedAt)
             .ThenBy(resource => resource.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(resource => new ResourceAdminSummaryResponse(
                 resource.Id,
                 resource.Slug,
@@ -229,7 +231,7 @@ public sealed class StudentResourceService(
                 resource.CreatedByUser == null ? null : resource.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<ResourceAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<ResourceAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<ResourceAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)
@@ -405,10 +407,7 @@ public sealed class StudentResourceService(
     // ------------------------------------------------------------------ internals
 
     private IQueryable<StudentResource> PublicScope(DateOnly today) =>
-        dbContext.StudentResources
-            .AsNoTracking()
-            .Where(resource => resource.IsPublished)
-            .Where(resource => resource.ExpiresOn == null || resource.ExpiresOn >= today);
+        NepalHub.Api.Data.PublicContentScope.StudentResources(dbContext.StudentResources, today);
 
     private static IQueryable<StudentResource> ApplyFilters(
         IQueryable<StudentResource> query,

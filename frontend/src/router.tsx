@@ -25,6 +25,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { SearchPage } from '@/pages/SearchPage';
 import { StudentResourcePage } from '@/pages/StudentResourcePage';
 import { StudentsPage } from '@/pages/StudentsPage';
 import { ToolsPage } from '@/pages/ToolsPage';
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
       { path: 'events', element: <EventsPage /> },
       { path: 'events/:slug', element: <EventPage /> },
       { path: 'calculators/:slug', element: <CalculatorPage /> },
+      { path: 'search', element: <SearchPage /> },
       {
         element: <RequireAuth />,
         children: [{ path: 'account', element: <AccountPage /> }],

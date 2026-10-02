@@ -327,14 +327,15 @@ public sealed class QuizService(
         }
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         // The option counts are aggregated as correlated subqueries rather than by loading
         // every option, so a thousand-question pool costs what a ten-question one does.
         var summaries = await query
             .OrderByDescending(question => question.UpdatedAt)
             .ThenBy(question => question.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(question => new
             {
                 question.Id,
@@ -350,7 +351,7 @@ public sealed class QuizService(
 
         if (summaries.Count == 0)
         {
-            return new PagedResult<QuizQuestionAdminSummaryResponse>([], paging.Page, paging.PageSize, totalCount);
+            return new PagedResult<QuizQuestionAdminSummaryResponse>([], paged.Page, paged.PageSize, totalCount);
         }
 
         var ids = summaries.Select(summary => summary.Id).ToList();
@@ -375,7 +376,7 @@ public sealed class QuizService(
                 summary.Author))
             .ToList();
 
-        return new PagedResult<QuizQuestionAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<QuizQuestionAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<QuizQuestionAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)

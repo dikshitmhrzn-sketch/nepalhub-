@@ -18,9 +18,10 @@ public class NepalHubApiFactory : WebApplicationFactory<Program>
 {
     public const string ValidPassword = "Passw0rd!";
 
-    private readonly int _authRateLimitPermitLimit;
+private readonly int _authRateLimitPermitLimit;
     private readonly int _calculateRateLimitPermitLimit;
     private readonly int _quizRateLimitPermitLimit;
+    private readonly int _searchRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -30,12 +31,18 @@ public class NepalHubApiFactory : WebApplicationFactory<Program>
     protected NepalHubApiFactory(
         int authRateLimitPermitLimit,
         int calculateRateLimitPermitLimit = 10_000,
-        int quizRateLimitPermitLimit = 10_000)
+        int quizRateLimitPermitLimit = 10_000,
+        int searchRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
         _quizRateLimitPermitLimit = quizRateLimitPermitLimit;
-        TestDatabase.PrepareAsync(_authRateLimitPermitLimit, _calculateRateLimitPermitLimit, _quizRateLimitPermitLimit)
+        _searchRateLimitPermitLimit = searchRateLimitPermitLimit;
+        TestDatabase.PrepareAsync(
+                _authRateLimitPermitLimit,
+                _calculateRateLimitPermitLimit,
+                _quizRateLimitPermitLimit,
+                _searchRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 
@@ -143,6 +150,20 @@ public sealed class QuizLimitedApiFactory : NepalHubApiFactory
     /// </summary>
     public void LowerSubmitQuota(int permitLimit) =>
         Services.GetRequiredService<QuizRateLimitOptions>().PermitLimit = permitLimit;
+}
+
+/// <summary>
+/// A host whose search endpoint rejects almost immediately, for the same
+/// reason as <see cref="RateLimitedApiFactory"/>.
+/// </summary>
+public sealed class SearchLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public SearchLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, PermitLimit)
+    {
+    }
 }
 
 /// <summary>

@@ -577,7 +577,7 @@ public class QuizTests(NepalHubApiFactory factory) : IClassFixture<NepalHubApiFa
         foreach (var question in questions)
         {
             Assert.InRange(question.Options.Count, 2, 6);
-            Assert.Single(question.Options.Where(option => option.IsCorrect));
+            Assert.Single(question.Options, option => option.IsCorrect);
             Assert.True(
                 question.Explanation.Trim().Length >= 10,
                 $"Question '{question.Text}' is published without a usable explanation.");

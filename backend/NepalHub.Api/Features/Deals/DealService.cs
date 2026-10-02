@@ -120,13 +120,14 @@ public sealed class DealService(
             request.DistrictId);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = request.Paging.ClampTo(totalCount);
 
         // The district and its province are loaded for the page rather than projected in SQL, because
         // the card shows the province name. That is one extra join on at most one page of rows, and the
         // job board projects in SQL because its summary carries neither.
         var items = await ApplyPublicOrder(request.Sort, query)
-            .Skip(request.Paging.Skip)
-            .Take(request.Paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Include(deal => deal.District)
                 .ThenInclude(district => district!.Province)
             .Include(deal => deal.Business)
@@ -137,7 +138,7 @@ public sealed class DealService(
             .Select(deal => ToSummaryResponse(deal, today))
             .ToList();
 
-        return new PagedResult<DealSummaryResponse>(summaries, request.Paging.Page, request.Paging.PageSize, totalCount);
+        return new PagedResult<DealSummaryResponse>(summaries, paged.Page, paged.PageSize, totalCount);
     }
 
     /// <summary>
@@ -223,12 +224,13 @@ public sealed class DealService(
             filter);
 
         var totalCount = await query.CountAsync(cancellationToken);
+        var paged = paging.ClampTo(totalCount);
 
         var items = await query
             .OrderByDescending(deal => deal.UpdatedAt)
             .ThenBy(deal => deal.Id)
-            .Skip(paging.Skip)
-            .Take(paging.PageSize)
+            .Skip(paged.Skip)
+            .Take(paged.PageSize)
             .Select(deal => new DealAdminSummaryResponse(
                 deal.Id,
                 deal.Slug,
@@ -245,7 +247,7 @@ public sealed class DealService(
                 deal.CreatedByUser == null ? null : deal.CreatedByUser.Email))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<DealAdminSummaryResponse>(items, paging.Page, paging.PageSize, totalCount);
+        return new PagedResult<DealAdminSummaryResponse>(items, paged.Page, paged.PageSize, totalCount);
     }
 
     internal async Task<DealAdminResponse?> FindForAdminAsync(Guid id, CancellationToken cancellationToken)
@@ -455,15 +457,8 @@ public sealed class DealService(
 
     // ------------------------------------------------------------------ internals
 
-    /// <summary>
-    /// Published and not ended, on the Nepal calendar. The end comparison is inclusive because an offer
-    /// is live through its last day: someone reading at six in the evening on the final date is
-    /// exactly the reader this page exists for.
-    /// </summary>
     private IQueryable<Deal> PublicScope(DateOnly today) =>
-        dbContext.Deals
-            .AsNoTracking()
-            .Where(deal => deal.IsPublished && deal.EndsOn >= today);
+        NepalHub.Api.Data.PublicContentScope.Deals(dbContext.Deals, today);
 
     private static IQueryable<Deal> ApplyFilters(
         IQueryable<Deal> query,

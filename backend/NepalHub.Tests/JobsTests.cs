@@ -438,18 +438,25 @@ public sealed class JobBoardTests(NepalHubApiFactory factory) : IClassFixture<Ne
     }
 
     [Theory]
-    [InlineData(0, 10, 1, 10)]
-    [InlineData(-5, 10, 1, 10)]
-    [InlineData(1, 500, 1, 100)]
-    [InlineData(1, 0, 1, 24)]
-    [InlineData(3, 10, 3, 10)]
+    [InlineData(0, 10, 10)]
+    [InlineData(-5, 10, 10)]
+    [InlineData(1, 500, 100)]
+    [InlineData(1, 0, 24)]
+    [InlineData(3, 10, 10)]
+    [InlineData(9999, 10, 10)]
     public async Task An_out_of_range_page_request_is_clamped_rather_than_rejected(
         int requestedPage,
         int requestedPageSize,
-        int expectedPage,
         int expectedPageSize)
     {
         using var client = factory.CreateClient();
+
+        // How many rows are public today decides the last page, and that count moves as the seed
+        // windows close, so the expectation is read back from the endpoint instead of being written
+        // into the case list where it would silently rot.
+        var baseline = await ReadPageAsync<JobSummaryResponse>(client, $"{PublicPath}?page=1&pageSize={expectedPageSize}");
+        var lastPage = PageRequest.TotalPagesFor(baseline.TotalCount, expectedPageSize);
+        var expectedPage = Math.Clamp(requestedPage < 1 ? 1 : requestedPage, 1, lastPage);
 
         var page = await ReadPageAsync<JobSummaryResponse>(
             client,
@@ -457,6 +464,39 @@ public sealed class JobBoardTests(NepalHubApiFactory factory) : IClassFixture<Ne
 
         Assert.Equal(expectedPage, page.Page);
         Assert.Equal(expectedPageSize, page.PageSize);
+        Assert.True(page.Page <= lastPage, "The clamped page must never be past the last page with rows.");
+    }
+
+    [Fact]
+    public async Task A_page_past_the_end_returns_the_last_page_rather_than_an_empty_one()
+    {
+        using var client = factory.CreateClient();
+
+        var first = await ReadPageAsync<JobSummaryResponse>(client, $"{PublicPath}?page=1&pageSize=1");
+        Assert.True(first.TotalCount > 0, "The board needs at least one public job for this to mean anything.");
+
+        var last = await ReadPageAsync<JobSummaryResponse>(client, $"{PublicPath}?page={first.TotalCount}&pageSize=1");
+
+        Assert.Equal(first.TotalCount, last.Page);
+        Assert.Single(last.Items);
+        Assert.Equal(first.TotalCount, last.TotalPages);
+        Assert.False(last.HasNext);
+    }
+
+    [Fact]
+    public async Task A_search_that_matches_nothing_answers_on_page_one_with_no_groups()
+    {
+        using var client = factory.CreateClient();
+
+        var page = await ReadPageAsync<JobSummaryResponse>(
+            client,
+            $"{PublicPath}?search=zzzznomatchzzzz&page=7&pageSize=10");
+
+        Assert.Equal(1, page.Page);
+        Assert.Equal(0, page.TotalCount);
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalPages);
+        Assert.False(page.HasNext);
     }
 
     [Fact]

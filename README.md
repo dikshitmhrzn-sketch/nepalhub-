@@ -24,7 +24,7 @@ tickets and bookings are not started, by design.
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 468 integration tests against the real `nepalhub_test` database |
+| Tests | 526 integration tests against the real `nepalhub_test` database |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
@@ -558,21 +558,23 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-468 tests pass, of which 60 cover Offers and 54 cover Events:
+526 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
 | `AuthenticationTests.cs` | 15 |
 | `BusinessTests.cs` | 105 |
-| `CalculatorTests.cs` | 42 |
+| `CalculatorTests.cs` | 45 |
 | `DealTests.cs` | 60 |
 | `EventTests.cs` | 54 |
 | `HealthEndpointTests.cs` | 1 |
-| `JobsTests.cs` | 83 |
+| `JobsTests.cs` | 86 |
 | `QuizTests.cs` | 35 |
 | `RateLimitingTests.cs` | 2 |
 | `ReferenceDataTests.cs` | 4 |
-| `StudentHubTests.cs` | 67 |
+| `SearchTests.cs` | 31 |
+| `StudentHubTests.cs` | 68 |
+| `TestDatabaseTests.cs` | 20 |
 
 ---
 

@@ -226,7 +226,7 @@ without an owner account.
       o'clock in every reader's browser
 - [x] 15 seeded deals and 15 seeded events, including a draft, an already-expired offer and a finished
       event, so every state is visible in a fresh install rather than only in the tests (114
-      integration tests for the two modules, 468 total)
+      integration tests for the two modules, 506 total)
 
 Deliberately not in this slice: payments, tickets, bookings, RSVPs, reviews, image uploads, owner
 portals, claims, subscriptions, saved offers, notifications and maps. An offer has no price to pay
@@ -240,11 +240,74 @@ records the column each of those would need.
 
 ## Phase 7 — Global search, gamification and admin
 
-- [ ] Cross-module search index
+### Phase 7a — Global search and shared pagination ✅
+
+One search box that reaches every public module, plus the shared pagination convention the earlier
+phases were written towards and the test-database isolation the suite turned out to need.
+
+- [x] `PublicContentScope` (`NepalHub.Api/Data/PublicContentScope.cs`) states once what a reader may
+      see — published, unexpired, unfinished — and every module's public list and detail routes
+      through it. Search has no other way to read a row, so a search result cannot drift from the
+      module page serving it. The reasoning for each rule moved with the rule rather than staying
+      behind with the service that first needed it
+- [x] `GET /api/search`, anonymous by design: the header box has to work before someone has an
+      account, and every module it reads is already public. `q` of 2–100 characters after
+      normalisation, optional `module`, `page`/`pageSize`. A term that normalises to nothing is a
+      missing query, not a search for nothing
+- [x] Six tables with six different column lists cannot be unioned in SQL — there is no shared key
+      and each projects different columns — so the work is three steps: at most
+      `SearchLimits.CandidateCap` (50) candidates from each source, rank them together, page the
+      merged result. No source is counted, because a `COUNT` over the whole matched set is the one
+      query here that grows without limit as the catalogue does; a request therefore touches at most
+      six bounded, indexed queries
+- [x] `truncated` is measured on the rows SQL returned, not on the rows that survived ranking.
+      Ranking drops rows that matched only in a low-value haystack, so a source that filled its cap
+      and ranked just under it has still hidden matches from the page; measuring after ranking would
+      under-report truncation in exactly the case the flag exists to warn about. The UI reads it and
+      renders "N strongest matches" rather than claiming a total it cannot support
+- [x] Ranking compares diacritic-stripped, lowercased text on both sides, because MySQL matches on
+      `utf8mb4_0900_ai_ci` and a reader typing `CAFÉ` is meant to find `cafe`. Comparing the same
+      strings with `Ordinal` would score a row the database had already matched as a non-match and
+      push it off the page
+- [x] `LIKE` wildcards in a public term are escaped, so searching `%` matches a literal `%` and
+      nothing else. Queries run sequentially, not concurrently, because an `AppDbContext` is not
+      thread-safe and six at once would throw rather than save real time at this size
+- [x] Search caps its page size at 30 rather than the shared 100, because a page here is six
+      queries and four extra pages of work serves no reader who would scroll it. It reuses
+      `PageRequest` for the rest rather than inventing a second paging convention
+- [x] Every list service now applies `PageRequest.ClampTo(totalCount)` between the count query and
+      the `Skip`, so a request for page 999 of a two-page list is answered with the last page rather
+      than an empty page beside a `TotalPages` of 1 — a response that contradicts itself. Applied to
+      calculators, resources, jobs, businesses, deals and events, public and staff alike
+- [x] `Search` rate-limit policy at 60/minute/IP, configurable through `Search:RateLimit:*`. Harder
+      than calculation on purpose: a calculation is one row of arithmetic, whereas one search is six
+      queries, and an unthrottled loop of them is the cheapest way to make the whole API slow
+- [x] Header search box on every page and a `/search` results page with grouped results and a module
+      tab strip. The header box is suppressed on `/search` itself, so the page never shows two
+      identical search boxes, and search is a footer link rather than a tenth item in a nav that
+      already wraps on a phone
+- [x] 31 integration tests for search, covering every module's visibility boundary, the truncation
+      contract, wildcards, term normalisation, paging and the rate limit
+- [x] The test database is dropped and rebuilt from the migrations once per run, then reseeded by
+      the application. Without it every run left its own published rows behind, the catalogue grew
+      without bound, and a coverage assertion asked of the first page started failing for reasons
+      that had nothing to do with the seed data. Rebuilding also re-dates the seed set, which is
+      inserted once and never re-dated, so its expiry windows stay valid
+- [x] That reset is guarded, and the guard is tested: `nepalhub` is refused however it was reached,
+      including through an explicitly mis-set `ConnectionStrings__Test`, and anything other than
+      `nepalhub_test` has to have been named by hand. `TestDatabaseTests.cs` exercises the decision
+      as a pure function of its arguments, taking no fixture, so 20 tests can cover it without any
+      of them connecting to a server. `NepalHubTests__KeepData=1` skips the reset
+
+### Phase 7b and 7c — gamification, admin and monetisation (not started)
+
 - [ ] Badges and a leaderboard, both read models over the XP the quiz already records
 - [ ] Admin screens, reports queue and audit log (the `admin` and `moderator` roles and the
       `admin-only` / `staff-only` policies already exist)
 - [ ] Abuse protection across the remaining public writes
+
+Cross-module search is delivered as a live six-query search rather than a materialised index: there
+is no search-index table, and one is not warranted until a query is slow enough to notice.
 
 ## Phase 8 — Mobile
 

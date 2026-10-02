@@ -55,8 +55,8 @@ public sealed class DealsTests(NepalHubApiFactory factory) : IClassFixture<Nepal
             },
             StringComparer.Ordinal);
 
-        var page = await api.GetAsync<PagedResponse<DealSummaryResponse>>($"{PublicPath}?pageSize=100");
-        var found = page.Items.Where(item => seeded.Contains(item.Slug)).ToList();
+        var active = await ReadAllPublicAsync(api);
+        var found = active.Where(item => seeded.Contains(item.Slug)).ToList();
 
         // Every seeded active offer is on the public page. A missing one means the expiry filter is
         // hiding content that should be live, which is the failure this module is most prone to.
@@ -898,6 +898,40 @@ public sealed class DealsTests(NepalHubApiFactory factory) : IClassFixture<Nepal
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("csrf", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Every live offer, walking the pages rather than asking for a hundred and hoping.
+    /// <para>
+    /// The public list is capped at a hundred rows and the default order is by end date, so a single
+    /// large page is only the whole catalogue while the catalogue is smaller than a page. Staff
+    /// tests publish offers of their own and those rows persist, so "the seeded offers are all
+    /// here" has to be asked of every row rather than of the first hundred: read one page and the
+    /// test starts failing once the accumulated rows reach the cap, for a reason that has nothing to
+    /// do with the seed data.
+    /// </para>
+    /// </summary>
+    private static async Task<IReadOnlyList<DealSummaryResponse>> ReadAllPublicAsync(AuthApiClient api)
+    {
+        const int PageSize = 100;
+
+        var items = new List<DealSummaryResponse>();
+        var pageNumber = 1;
+
+        while (true)
+        {
+            var page = await api.GetAsync<PagedResponse<DealSummaryResponse>>(
+                $"{PublicPath}?pageSize={PageSize}&page={pageNumber}");
+
+            items.AddRange(page.Items);
+
+            if (items.Count >= page.TotalCount || page.Items.Count == 0)
+            {
+                return items;
+            }
+
+            pageNumber++;
+        }
     }
 }
 

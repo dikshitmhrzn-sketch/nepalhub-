@@ -1,0 +1,55 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+  padding: var(--nh-space-1) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-surface);
+  color: var(--nh-text-muted);
+  font-family: inherit;
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  cursor: pointer;
+}
+
+.tab:hover:not(:disabled) {
+  border-color: var(--nh-border-strong);
+  color: var(--nh-text);
+}
+
+.tabActive,
+.tabActive:hover:not(:disabled) {
+  border-color: var(--nh-primary);
+  background-color: var(--nh-primary-soft);
+  color: var(--nh-primary);
+}
+
+.tab:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--nh-focus-ring);
+  outline-offset: 2px;
+}
+
+.count {
+  padding: 0 var(--nh-space-2);
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-surface-muted);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabActive .count {
+  background-color: var(--nh-surface);
+}

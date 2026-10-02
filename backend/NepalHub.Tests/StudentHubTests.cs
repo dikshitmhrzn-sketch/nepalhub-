@@ -359,18 +359,24 @@ public sealed class StudentResourceCatalogueTests(NepalHubApiFactory factory) : 
     }
 
     [Theory]
-    [InlineData(0, 10, 1, 10)]
-    [InlineData(-5, 10, 1, 10)]
-    [InlineData(1, 500, 1, 100)]
-    [InlineData(1, 0, 1, 24)]
-    [InlineData(3, 10, 3, 10)]
+    [InlineData(0, 10, 10)]
+    [InlineData(-5, 10, 10)]
+    [InlineData(1, 500, 100)]
+    [InlineData(1, 0, 24)]
+    [InlineData(3, 10, 10)]
+    [InlineData(9999, 10, 10)]
     public async Task An_out_of_range_page_request_is_clamped_rather_than_rejected(
         int requestedPage,
         int requestedPageSize,
-        int expectedPage,
         int expectedPageSize)
     {
         using var client = factory.CreateClient();
+
+        // The last page moves as seeded windows close, so it is read back from the endpoint rather
+        // than written into the case list where it would silently rot.
+        var baseline = await ReadPageAsync<ResourceSummaryResponse>(client, $"{PublicPath}?page=1&pageSize={expectedPageSize}");
+        var lastPage = PageRequest.TotalPagesFor(baseline.TotalCount, expectedPageSize);
+        var expectedPage = Math.Clamp(requestedPage < 1 ? 1 : requestedPage, 1, lastPage);
 
         var page = await ReadPageAsync<ResourceSummaryResponse>(
             client,
@@ -378,6 +384,7 @@ public sealed class StudentResourceCatalogueTests(NepalHubApiFactory factory) : 
 
         Assert.Equal(expectedPage, page.Page);
         Assert.Equal(expectedPageSize, page.PageSize);
+        Assert.True(page.Page <= lastPage, "The clamped page must never be past the last page with rows.");
     }
 
     [Fact]

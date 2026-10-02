@@ -20,6 +20,7 @@ using NepalHub.Api.Features.Deals;
 using NepalHub.Api.Features.Events;
 using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Quiz;
+using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,6 +39,16 @@ var calculateRateLimitPermitLimit = builder.Configuration.GetValue("Calculate:Ra
 var calculateRateLimitWindow = builder.Configuration.GetValue("Calculate:RateLimit:WindowSeconds", 60)
     is { } calculateWindowSeconds
     ? TimeSpan.FromSeconds(calculateWindowSeconds)
+    : TimeSpan.FromMinutes(1);
+
+// Search is limited harder than calculation. A calculation is one row of arithmetic, whereas one
+// search runs six queries, and an unthrottled loop of them is the cheapest way to make the whole
+// API slow. The ceiling is still generous enough to type a query per keystroke while someone is
+// still typing, which is what the header form does with its debounce.
+var searchRateLimitPermitLimit = builder.Configuration.GetValue("Search:RateLimit:PermitLimit", 60);
+var searchRateLimitWindow = builder.Configuration.GetValue("Search:RateLimit:WindowSeconds", 60)
+    is { } searchWindowSeconds
+    ? TimeSpan.FromSeconds(searchWindowSeconds)
     : TimeSpan.FromMinutes(1);
 
 // Bound once here and injected into the service as well, so the numbers the API advertises
@@ -179,6 +190,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    // Search is a read, so a page of results is cheap, but a page of results is six queries and one
+    // request per submitted search. The quota is per IP and generous for human use; the point is to
+    // stop a loop, not to ration searches.
+    options.AddPolicy(RateLimitPolicies.Search, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = searchRateLimitPermitLimit,
+            Window = searchRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     // Only the submit endpoint is limited. Reading a day's questions is a cheap, idempotent
     // GET, and a player reloading the page must never be treated as abuse.
     //
@@ -216,6 +240,7 @@ builder.Services.AddScoped<JobService>();
 builder.Services.AddScoped<BusinessService>();
 builder.Services.AddScoped<DealService>();
 builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<SearchService>();
 
 if (databaseConfigured)
 {
