@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 
 import { BusinessCard } from '@/components/businesses/BusinessCard';
 import { BusinessFilters, type BusinessFilterValues } from '@/components/businesses/BusinessFilters';
+import { FeaturedStrip } from '@/components/businesses/FeaturedStrip';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { Pagination } from '@/components/ui/Pagination';
@@ -105,6 +106,13 @@ export function BusinessesPage() {
           your computer. Every listing is written and checked by our staff.
         </p>
       </header>
+
+      {/*
+        The paid placements sit between the introduction and the directory: labelled, at most
+        six, alphabetical. A strip nobody holds — or one that could not be fetched — renders
+        nothing at all, so the directory below is exactly as it was.
+      */}
+      <FeaturedStrip />
 
       {reference.status === 'error' ? (
         <StateMessage

@@ -145,7 +145,19 @@ public sealed class StaffDashboardController(
             // outside both groups above: someone has complained, and the queue is where the
             // complaint goes.
             OpenReports: await dbContext.Reports
-                .CountAsync(report => report.Status == ReportStatus.Open, cancellationToken));
+                .CountAsync(report => report.Status == ReportStatus.Open, cancellationToken),
+
+            // The two queues 7e added, both counted the same way: pending rows only, from the
+            // same tables their own queue pages read. Claims are moderation work any staff
+            // member can close; subscription requests are the money-shaped decisions reserved
+            // for administrators, and the screens behind them gate on their own roles — this
+            // number is a hint to look, never the thing that decides who may.
+            PendingClaims: await dbContext.BusinessClaims
+                .CountAsync(claim => claim.Status == BusinessClaimStatus.Pending, cancellationToken),
+            SubscriptionRequests: await dbContext.SubscriptionRequests
+                .CountAsync(
+                    request => request.Status == SubscriptionRequestStatus.Pending,
+                    cancellationToken));
 
         return Ok(ApiResponse<DashboardSummary>.Ok(new DashboardSummary(counts, attention)));
     }
@@ -186,7 +198,9 @@ public sealed record DashboardAttention(
     DraftCounts Drafts,
     StaleCounts StaleWhilePublished,
     int UnverifiedBusinesses,
-    int OpenReports);
+    int OpenReports,
+    int PendingClaims,
+    int SubscriptionRequests);
 
 public sealed record DashboardSummary(
     DashboardCounts Counts,

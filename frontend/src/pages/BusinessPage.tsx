@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router';
 
 import { ReportButton } from '@/components/reports/ReportButton';
+import { ClaimPanel } from '@/components/claims/ClaimPanel';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -225,6 +226,11 @@ export function BusinessPage() {
               : 'This listing has not been checked by our staff yet, so treat the details as a starting point rather than a promise.'}
           </p>
         </div>
+        {/*
+          Ownership is asserted, never assumed: a reader who recognises their own business
+          claims it here, and staff decide. The panel never grants access — it only files.
+        */}
+        <ClaimPanel slug={detail.slug} />
         <ReportButton targetType="Business" targetId={detail.id} />
       </article>
     </Container>

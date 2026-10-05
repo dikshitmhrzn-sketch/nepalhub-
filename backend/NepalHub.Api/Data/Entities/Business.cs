@@ -5,8 +5,9 @@ namespace NepalHub.Api.Data.Entities;
 /// identically; a table per category would mean a copy of every query and a client that has to
 /// guess which one to ask.
 ///
-/// This phase is staff-published copy only. There is no owner account and no claim flow: the row
-/// records who a staff member checked it as, and that is the entire trust model.
+/// Staff publish the copy, and an owner account is attached afterwards by approving a claim:
+/// the row records who a staff member checked it as, and whoever's claim was approved becomes
+/// <see cref="OwnerUserId"/>. Null forever on a listing nobody has claimed, which is normal.
 /// </summary>
 public sealed class Business
 {
@@ -98,6 +99,15 @@ public sealed class Business
     public Guid? CreatedByUserId { get; set; }
 
     public ApplicationUser? CreatedByUser { get; set; }
+
+    /// <summary>
+    /// Whoever owns the listing, set when staff approve their claim. Nullable and set null on
+    /// delete: losing the owner's account must not take the listing, which readers already plan
+    /// around, with it.
+    /// </summary>
+    public Guid? OwnerUserId { get; set; }
+
+    public ApplicationUser? OwnerUser { get; set; }
 
     /// <summary>
     /// At most seven rows, one per weekday. Empty is meaningful and normal: a lot of businesses

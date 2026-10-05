@@ -24,6 +24,8 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _searchRateLimitPermitLimit;
     private readonly int _reportRateLimitPermitLimit;
     private readonly int _logoutRateLimitPermitLimit;
+    private readonly int _claimRateLimitPermitLimit;
+    private readonly int _bookingRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -36,7 +38,9 @@ private readonly int _authRateLimitPermitLimit;
         int quizRateLimitPermitLimit = 10_000,
         int searchRateLimitPermitLimit = 10_000,
         int reportRateLimitPermitLimit = 10_000,
-        int logoutRateLimitPermitLimit = 10_000)
+        int logoutRateLimitPermitLimit = 10_000,
+        int claimRateLimitPermitLimit = 10_000,
+        int bookingRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
@@ -44,13 +48,17 @@ private readonly int _authRateLimitPermitLimit;
         _searchRateLimitPermitLimit = searchRateLimitPermitLimit;
         _reportRateLimitPermitLimit = reportRateLimitPermitLimit;
         _logoutRateLimitPermitLimit = logoutRateLimitPermitLimit;
+        _claimRateLimitPermitLimit = claimRateLimitPermitLimit;
+        _bookingRateLimitPermitLimit = bookingRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
                 _quizRateLimitPermitLimit,
                 _searchRateLimitPermitLimit,
                 _reportRateLimitPermitLimit,
-                _logoutRateLimitPermitLimit)
+                _logoutRateLimitPermitLimit,
+                _claimRateLimitPermitLimit,
+                _bookingRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 
@@ -199,6 +207,34 @@ public sealed class LogoutLimitedApiFactory : NepalHubApiFactory
 
     public LogoutLimitedApiFactory()
         : base(10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
+    {
+    }
+}
+
+/// <summary>
+/// A host whose claim endpoint rejects almost immediately, so the filing quota can be
+/// asserted without a test claiming hundreds of listings.
+/// </summary>
+public sealed class ClaimLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public ClaimLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
+    {
+    }
+}
+
+/// <summary>
+/// A host whose booking endpoint rejects almost immediately, for the same reason: the quota
+/// exists so a loop cannot take every place, and a test must not have to take them to see it.
+/// </summary>
+public sealed class BookingLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public BookingLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
     {
     }
 }

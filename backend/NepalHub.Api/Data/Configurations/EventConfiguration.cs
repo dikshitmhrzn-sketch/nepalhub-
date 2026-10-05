@@ -27,6 +27,16 @@ public sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.Property(calendarEvent => calendarEvent.Venue).HasMaxLength(240);
         builder.Property(calendarEvent => calendarEvent.RegistrationUrl).HasMaxLength(500);
 
+        // Nullable on purpose: an event with no capacity does not count seats, and a default
+        // of some number would claim a limit the organiser never set.
+        builder.Property(calendarEvent => calendarEvent.Capacity);
+
+        // The one column the capacity check increments, so it defaults to zero rather than
+        // to a value a staff member would have to remember to write.
+        builder.Property(calendarEvent => calendarEvent.RegistrationCount)
+            .HasDefaultValue(0)
+            .IsRequired();
+
         builder.Property(calendarEvent => calendarEvent.Category)
             .HasConversion<int>()
             .IsRequired();

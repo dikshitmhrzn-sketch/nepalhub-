@@ -39,6 +39,10 @@ export interface DashboardAttention {
   unverifiedBusinesses: number;
   /** Reports nobody has closed yet — the moderation queue's own open total. */
   openReports: number;
+  /** Ownership claims nobody has decided — the claims queue's own pending total. */
+  pendingClaims: number;
+  /** Plan requests nobody has decided — the subscription queue's pending total. */
+  subscriptionRequests: number;
 }
 
 export interface DashboardSummary {

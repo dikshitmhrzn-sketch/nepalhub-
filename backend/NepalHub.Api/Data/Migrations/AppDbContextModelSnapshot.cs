@@ -549,6 +549,10 @@ namespace NepalHub.Api.Data.Migrations
                         .HasColumnType("varchar(160)")
                         .HasColumnName("name");
 
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("owner_user_id");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
@@ -583,6 +587,9 @@ namespace NepalHub.Api.Data.Migrations
                     b.HasIndex("CreatedByUserId")
                         .HasDatabaseName("ix_businesses_created_by_user_id");
 
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_businesses_owner_user_id");
+
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("ix_businesses_slug");
@@ -603,6 +610,70 @@ namespace NepalHub.Api.Data.Migrations
                         .HasDatabaseName("ix_businesses_is_published_name");
 
                     b.ToTable("businesses", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("business_id");
+
+                    b.Property<Guid>("ClaimantUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("claimant_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Evidence")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("evidence");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_business_claims");
+
+                    b.HasIndex("ClaimantUserId")
+                        .HasDatabaseName("ix_business_claims_claimant_user_id");
+
+                    b.HasIndex("ReviewedByUserId")
+                        .HasDatabaseName("ix_business_claims_reviewed_by_user_id");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_business_claims_status_created_at");
+
+                    b.HasIndex("BusinessId", "ClaimantUserId", "Status")
+                        .HasDatabaseName("ix_business_claims_business_claimant_status");
+
+                    b.ToTable("business_claims", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessOpeningHours", b =>
@@ -633,6 +704,75 @@ namespace NepalHub.Api.Data.Migrations
                         .HasName("pk_business_hours");
 
                     b.ToTable("business_hours", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("business_id");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<DateOnly>("EndsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("ends_on");
+
+                    b.Property<Guid?>("GrantedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("granted_by_user_id");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("plan_id");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date")
+                        .HasColumnName("starts_on");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Active")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SubscriptionRequestId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("subscription_request_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_business_subscriptions");
+
+                    b.HasIndex("GrantedByUserId")
+                        .HasDatabaseName("ix_business_subscriptions_granted_by_user_id");
+
+                    b.HasIndex("PlanId")
+                        .HasDatabaseName("ix_business_subscriptions_plan_id");
+
+                    b.HasIndex("SubscriptionRequestId")
+                        .HasDatabaseName("ix_business_subscriptions_subscription_request_id");
+
+                    b.HasIndex("BusinessId", "Status")
+                        .HasDatabaseName("ix_business_subscriptions_business_id_status");
+
+                    b.HasIndex("Status", "EndsOn")
+                        .HasDatabaseName("ix_business_subscriptions_status_ends_on");
+
+                    b.ToTable("business_subscriptions", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
@@ -1555,6 +1695,10 @@ namespace NepalHub.Api.Data.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("business_id");
 
+                    b.Property<int?>("Capacity")
+                        .HasColumnType("int")
+                        .HasColumnName("capacity");
+
                     b.Property<int>("Category")
                         .HasColumnType("int")
                         .HasColumnName("category");
@@ -1592,6 +1736,12 @@ namespace NepalHub.Api.Data.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("varchar(160)")
                         .HasColumnName("organiser");
+
+                    b.Property<int>("RegistrationCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("registration_count");
 
                     b.Property<string>("RegistrationUrl")
                         .HasMaxLength(500)
@@ -1661,6 +1811,60 @@ namespace NepalHub.Api.Data.Migrations
                         .HasDatabaseName("ix_events_is_published_starts_at");
 
                     b.ToTable("events", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.EventBooking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AttendeeUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("attendee_user_id");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("event_id");
+
+                    b.Property<int>("Quantity")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1)
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Confirmed")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_event_bookings");
+
+                    b.HasIndex("AttendeeUserId")
+                        .HasDatabaseName("ix_event_bookings_attendee_user_id");
+
+                    b.HasIndex("EventId", "AttendeeUserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_bookings_event_attendee");
+
+                    b.HasIndex("EventId", "Status")
+                        .HasDatabaseName("ix_event_bookings_event_id_status");
+
+                    b.ToTable("event_bookings", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Job", b =>
@@ -1771,6 +1975,69 @@ namespace NepalHub.Api.Data.Migrations
                         .HasDatabaseName("ix_jobs_is_published_work_mode");
 
                     b.ToTable("jobs", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("PeriodDays")
+                        .HasColumnType("int")
+                        .HasColumnName("period_days");
+
+                    b.Property<int>("PriceNpr")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("price_npr");
+
+                    b.Property<string>("Tier")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("tier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.HasKey("Id")
+                        .HasName("pk_plans");
+
+                    b.HasIndex("Tier")
+                        .IsUnique()
+                        .HasDatabaseName("ix_plans_tier");
+
+                    b.ToTable("plans", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Province", b =>
@@ -2234,6 +2501,77 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("resources", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.SubscriptionRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("business_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("plan_id");
+
+                    b.Property<Guid>("RequesterUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("requester_user_id");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_subscription_requests");
+
+                    b.HasIndex("PlanId")
+                        .HasDatabaseName("ix_subscription_requests_plan_id");
+
+                    b.HasIndex("RequesterUserId")
+                        .HasDatabaseName("ix_subscription_requests_requester_user_id");
+
+                    b.HasIndex("ReviewedByUserId")
+                        .HasDatabaseName("ix_subscription_requests_reviewed_by_user_id");
+
+                    b.HasIndex("BusinessId", "Status")
+                        .HasDatabaseName("ix_subscription_requests_business_id_status");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_subscription_requests_status_created_at");
+
+                    b.ToTable("subscription_requests", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.UserBadgeAward", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2354,9 +2692,46 @@ namespace NepalHub.Api.Data.Migrations
                         .IsRequired()
                         .HasConstraintName("businesses_fk_district_id");
 
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("businesses_fk_owner_user_id");
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("District");
+
+                    b.Navigation("OwnerUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessClaim", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_claims_fk_business_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "Claimant")
+                        .WithMany()
+                        .HasForeignKey("ClaimantUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_claims_fk_claimant_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("business_claims_fk_reviewed_by_user_id");
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Claimant");
+
+                    b.Navigation("ReviewedBy");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessOpeningHours", b =>
@@ -2369,6 +2744,43 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("business_hours_fk_business_id");
 
                     b.Navigation("Business");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessSubscription", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_subscriptions_fk_business_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "GrantedByUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("business_subscriptions_fk_granted_by_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("business_subscriptions_fk_plan_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.SubscriptionRequest", "SubscriptionRequest")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionRequestId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("business_subscriptions_fk_subscription_request_id");
+
+                    b.Navigation("Business");
+
+                    b.Navigation("GrantedByUser");
+
+                    b.Navigation("Plan");
+
+                    b.Navigation("SubscriptionRequest");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
@@ -2468,6 +2880,27 @@ namespace NepalHub.Api.Data.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("District");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.EventBooking", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "Attendee")
+                        .WithMany()
+                        .HasForeignKey("AttendeeUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("event_bookings_fk_attendee_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("event_bookings_fk_event_id");
+
+                    b.Navigation("Attendee");
+
+                    b.Navigation("Event");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Job", b =>
@@ -2592,6 +3025,44 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("resources_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.SubscriptionRequest", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("subscription_requests_fk_business_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Plan", "Plan")
+                        .WithMany()
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("subscription_requests_fk_plan_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "Requester")
+                        .WithMany()
+                        .HasForeignKey("RequesterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("subscription_requests_fk_requester_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("subscription_requests_fk_reviewed_by_user_id");
+
+                    b.Navigation("Business");
+
+                    b.Navigation("Plan");
+
+                    b.Navigation("Requester");
+
+                    b.Navigation("ReviewedBy");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.UserBadgeAward", b =>

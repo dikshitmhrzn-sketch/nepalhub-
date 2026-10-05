@@ -71,6 +71,19 @@ public sealed record EventDetailResponse(
     DateTime EndsAt,
     bool IsOngoing,
     string? RegistrationUrl,
+
+    /// <summary>Places this event can hold, or null for an event with no cap.</summary>
+    int? Capacity,
+
+    /// <summary>Places currently held. Derived from the same counter the booking path latches.</summary>
+    int RegistrationCount,
+
+    /// <summary>
+    /// Spots left, or null when the event is uncapped. Never negative: a race the counter
+    /// lost shows as zero, not as minus one, so the reader is never asked to divide by a
+    /// number the page itself produced.
+    /// </summary>
+    int? RemainingSpots,
     DateTime UpdatedAt);
 
 /// <summary>
@@ -113,6 +126,8 @@ public sealed record EventAdminResponse(
     DateTime StartsAt,
     DateTime EndsAt,
     string? RegistrationUrl,
+    int? Capacity,
+    int RegistrationCount,
     bool IsPublished,
     bool IsFinished,
     DateTime CreatedAt,
@@ -174,6 +189,14 @@ public sealed class SaveEventRequest
     /// </summary>
     [StringLength(500, ErrorMessage = "The registration link must be 500 characters or fewer.")]
     public string? RegistrationUrl { get; init; }
+
+    /// <summary>
+    /// How many places can be held, or null for an event with no cap. The booking latch reads
+    /// this column directly, so "no capacity" means unlimited places rather than zero — and a
+    /// zero would be an event nobody is allowed to attend, so it is refused rather than stored.
+    /// </summary>
+    [Range(1, 1_000_000, ErrorMessage = "Capacity must be at least one place. Leave it empty for an event with no cap.")]
+    public int? Capacity { get; init; }
 
     [Required(ErrorMessage = "Choose when the event starts.")]
     public DateTime? StartsAt { get; init; }

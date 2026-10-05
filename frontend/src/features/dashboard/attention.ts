@@ -20,9 +20,10 @@ export interface AttentionSection {
 }
 
 /**
- * The seven management pages, in the order the modules were built. The dashboard is the one
- * screen that offers all of them at once, which is the point of it: staff land here and go
- * straight to the module they were looking for instead of hunting through the header nav.
+ * The management pages plus the three queues, in the order the modules were built. The
+ * dashboard is the one screen that offers all of them at once, which is the point of it:
+ * staff land here and go straight to the module they were looking for instead of hunting
+ * through the header nav.
  *
  * The targets are the plain `/admin/*` routes. Those pages keep their filters in component
  * state rather than in the URL, so a link carrying `?status=draft` would silently land on
@@ -37,6 +38,8 @@ export const quickLinks: QuickLink[] = [
   { key: 'deals', label: 'Manage offers', to: '/admin/deals' },
   { key: 'events', label: 'Manage events', to: '/admin/events' },
   { key: 'reports', label: 'Open the report queue', to: '/admin/reports' },
+  { key: 'claims', label: 'Open the claims queue', to: '/admin/claims' },
+  { key: 'subscriptionRequests', label: 'Open plan requests', to: '/admin/subscription-requests' },
 ];
 
 const quickLinkTargets: Record<string, string> = Object.fromEntries(
@@ -53,7 +56,8 @@ const quickLinkTargets: Record<string, string> = Object.fromEntries(
  * ignore the section — which is exactly the section that matters when it is not zero.
  */
 export function attentionSections(summary: DashboardSummary): AttentionSection[] {
-  const { drafts, staleWhilePublished, unverifiedBusinesses, openReports } = summary.needsAttention;
+  const { drafts, staleWhilePublished, unverifiedBusinesses, openReports, pendingClaims, subscriptionRequests } =
+    summary.needsAttention;
 
   const draftRows: AttentionRow[] = [
     { key: 'businesses', label: 'Draft businesses', count: drafts.businesses, to: quickLinkTargets.businesses },
@@ -115,10 +119,23 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
 
   const reportRows: AttentionRow[] = [
     { key: 'openReports', label: 'Open reports', count: openReports, to: quickLinkTargets.reports },
+    {
+      key: 'pendingClaims',
+      label: 'Ownership claims waiting',
+      count: pendingClaims,
+      to: quickLinkTargets.claims,
+    },
+    {
+      key: 'subscriptionRequests',
+      label: 'Plan requests waiting',
+      count: subscriptionRequests,
+      to: quickLinkTargets.subscriptionRequests,
+    },
   ];
 
   // Reports come first: a member has complained about something and nobody has looked at
-  // it yet, which is the only row here with a reader waiting on the other side of it.
+  // it yet, which is the only row here with a reader waiting on the other side of it. The
+  // two queues behind it are the same kind of work — somebody asked, nobody has answered.
   const sections: AttentionSection[] = [
     { key: 'reports', title: 'Waiting for a decision', rows: reportRows.filter(nonZero) },
     { key: 'drafts', title: 'Waiting to be published', rows: draftRows.filter(nonZero) },

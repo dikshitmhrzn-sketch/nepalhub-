@@ -12,5 +12,9 @@ public static class RateLimitPolicies
 
     public const string Report = "report";
 
+    public const string Claim = "claim";
+
+    public const string Booking = "booking";
+
     public const string Search = "search";
 }

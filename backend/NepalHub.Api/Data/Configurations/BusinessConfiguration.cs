@@ -60,6 +60,15 @@ public sealed class BusinessConfiguration : IEntityTypeConfiguration<Business>
             .OnDelete(DeleteBehavior.SetNull)
             .HasConstraintName("businesses_fk_created_by_user_id");
 
+        // Set null rather than cascade: an owner account going away must not take the
+        // listing with it. Readers already plan around the row, and staff can approve a
+        // successor's claim afterwards, which the null makes possible.
+        builder.HasOne(business => business.OwnerUser)
+            .WithMany()
+            .HasForeignKey(business => business.OwnerUserId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .HasConstraintName("businesses_fk_owner_user_id");
+
         builder.HasIndex(business => business.Slug)
             .IsUnique()
             .HasDatabaseName("ix_businesses_slug");
@@ -89,5 +98,9 @@ public sealed class BusinessConfiguration : IEntityTypeConfiguration<Business>
 
         builder.HasIndex(business => business.CreatedByUserId)
             .HasDatabaseName("ix_businesses_created_by_user_id");
+
+        // "Which listings does this account manage" is the account page's own read.
+        builder.HasIndex(business => business.OwnerUserId)
+            .HasDatabaseName("ix_businesses_owner_user_id");
     }
 }

@@ -45,6 +45,7 @@ function toRequest(detail: EventAdmin): SaveEventRequest {
     registrationUrl: detail.registrationUrl,
     startsAt: detail.startsAt,
     endsAt: detail.endsAt,
+    capacity: detail.capacity,
     isPublished: detail.isPublished,
   };
 }
@@ -119,6 +120,7 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
       venue: form.venue?.trim() || null,
       registrationUrl: form.registrationUrl?.trim() || null,
       districtCode: form.districtCode || null,
+      capacity: form.capacity !== null && form.capacity > 0 ? Math.floor(form.capacity) : null,
     };
 
     try {
@@ -521,6 +523,39 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
           </span>
           {fieldErrors.registrationUrl ? (
             <span className={styles.fieldError}>{fieldErrors.registrationUrl}</span>
+          ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="event-capacity">
+            Capacity
+          </label>
+          <input
+            className={styles.input}
+            id="event-capacity"
+            name="capacity"
+            type="number"
+            min={1}
+            max={1000000}
+            placeholder="No limit"
+            value={form.capacity ?? ''}
+            aria-invalid={fieldErrors.capacity ? true : undefined}
+            aria-describedby="event-capacity-hint"
+            onChange={(changeEvent) => {
+              const parsed = Number(changeEvent.target.value);
+              patch({
+                capacity:
+                  changeEvent.target.value === '' || Number.isNaN(parsed) ? null : parsed,
+              });
+            }}
+          />
+          <span className={styles.help} id="event-capacity-hint">
+            How many places readers can hold here, one to four at a time each. Leave it empty for
+            an event with no cap. The count itself is kept by the site as people book — it cannot
+            be typed in, and the capacity cannot be lowered below the places already held.
+          </span>
+          {fieldErrors.capacity ? (
+            <span className={styles.fieldError}>{fieldErrors.capacity}</span>
           ) : null}
         </div>
       </fieldset>

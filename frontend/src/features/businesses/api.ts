@@ -34,6 +34,15 @@ export function getBusiness(slug: string, signal?: AbortSignal): Promise<Busines
   return apiClient.get<BusinessDetail>(`/businesses/${encodeURIComponent(slug)}`, { signal });
 }
 
+/**
+ * The featured strip above the directory: up to six published, verified listings with a
+ * live featured window, alphabetical. An empty answer is normal — nobody's slot covers
+ * today — and the caller renders nothing rather than an empty shelf.
+ */
+export function listFeatured(signal?: AbortSignal): Promise<BusinessSummary[]> {
+  return apiClient.get<BusinessSummary[]>('/businesses/featured', { signal });
+}
+
 export function listStaffBusinesses(
   query: BusinessAdminListQuery,
   signal?: AbortSignal,

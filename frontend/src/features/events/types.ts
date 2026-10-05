@@ -58,6 +58,15 @@ export interface EventDetail extends Omit<EventSummary, 'createdAt'> {
   description: string;
   businessSlug: string | null;
   registrationUrl: string | null;
+
+  /** Places this event can hold, or null for an event with no cap. */
+  capacity: number | null;
+
+  /** Places currently held — the same counter the booking path latches. */
+  registrationCount: number;
+
+  /** Spots left, or null when uncapped. Never negative: a lost race shows as zero. */
+  remainingSpots: number | null;
   updatedAt: string;
 }
 
@@ -98,6 +107,8 @@ export interface EventAdmin
   venue: string | null;
   endsAt: string;
   registrationUrl: string | null;
+  capacity: number | null;
+  registrationCount: number;
   isFinished: boolean;
   createdAt: string;
   updatedAt: string;
@@ -125,6 +136,13 @@ export interface SaveEventRequest {
   registrationUrl: string | null;
   startsAt: string;
   endsAt: string;
+
+  /**
+   * Places the event can hold. Null means no cap, and the field the form sends is a
+   * number or nothing — "0" would be a capacity of zero, which is a different statement
+   * from "uncapped" and a wrong one.
+   */
+  capacity: number | null;
   isPublished: boolean;
 }
 
@@ -214,6 +232,7 @@ export function emptyEventRequest(): SaveEventRequest {
     registrationUrl: null,
     startsAt: defaultStart(),
     endsAt: defaultEnd(),
+    capacity: null,
     isPublished: false,
   };
 }

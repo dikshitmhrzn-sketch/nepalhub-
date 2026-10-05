@@ -41,3 +41,65 @@ public sealed class RateLimitingTests : IClassFixture<RateLimitedApiFactory>
         }
     }
 }
+
+/// <summary>
+/// Filing a claim writes into the staff queue, so it is bounded per IP like filing a report:
+/// a loop of claims is exactly the flood the queue exists to not be handed.
+/// </summary>
+public sealed class ClaimRateLimitingTests(ClaimLimitedApiFactory factory)
+    : IClassFixture<ClaimLimitedApiFactory>
+{
+    [Fact]
+    public async Task Filing_claims_stops_at_the_quota()
+    {
+        var api = new AuthApiClient(factory.CreateSignedInClientAsync(TestData.UniqueEmail("claim-limit")));
+
+        for (var attempt = 0; attempt < ClaimLimitedApiFactory.PermitLimit; attempt++)
+        {
+            var business = await OwnershipApi.CreateBusinessAsync(factory);
+            using var allowed = await api.PostAsync(
+                $"/api/businesses/{business.Slug}/claim",
+                new { evidence = (string?)null });
+            Assert.Equal(HttpStatusCode.Created, allowed.StatusCode);
+        }
+
+        var extra = await OwnershipApi.CreateBusinessAsync(factory);
+        var limited = await api.PostForSnapshotAsync(
+            $"/api/businesses/{extra.Slug}/claim",
+            new { evidence = (string?)null });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+    }
+}
+
+/// <summary>
+/// Booking takes a scarce seat, so it shares the claim's per-IP hour: three places in, the
+/// fourth attempt is refused whatever the event's own capacity says.
+/// </summary>
+public sealed class BookingRateLimitingTests(BookingLimitedApiFactory factory)
+    : IClassFixture<BookingLimitedApiFactory>
+{
+    [Fact]
+    public async Task Booking_stops_at_the_quota()
+    {
+        var calendarEvent = await BookingApi.CreateEventAsync(factory, capacity: 1_000);
+
+        for (var attempt = 0; attempt < BookingLimitedApiFactory.PermitLimit; attempt++)
+        {
+            var attendee = factory.CreateSignedInClientAsync(TestData.UniqueEmail("seat-limit"));
+            using var allowed = await new AuthApiClient(attendee).PostAsync(
+                $"/api/events/{calendarEvent.Slug}/booking",
+                new { quantity = 1 });
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        var extra = factory.CreateSignedInClientAsync(TestData.UniqueEmail("seat-limit"));
+        var limited = await new AuthApiClient(extra).PostForSnapshotAsync(
+            $"/api/events/{calendarEvent.Slug}/booking",
+            new { quantity = 1 });
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+    }
+}

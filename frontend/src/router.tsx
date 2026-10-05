@@ -8,12 +8,14 @@ import { AccountPage } from '@/pages/AccountPage';
 import { AuditLogPage } from '@/pages/admin/AuditLogPage';
 import { BusinessesAdminPage } from '@/pages/admin/BusinessesAdminPage';
 import { CalculatorAdminPage } from '@/pages/admin/CalculatorAdminPage';
+import { ClaimsAdminPage } from '@/pages/admin/ClaimsAdminPage';
 import { DealsAdminPage } from '@/pages/admin/DealsAdminPage';
 import { EventsAdminPage } from '@/pages/admin/EventsAdminPage';
 import { JobsAdminPage } from '@/pages/admin/JobsAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
 import { ReportsAdminPage } from '@/pages/admin/ReportsAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
+import { SubscriptionRequestsAdminPage } from '@/pages/admin/SubscriptionRequestsAdminPage';
 import { UsersAdminPage } from '@/pages/admin/UsersAdminPage';
 import { BusinessPage } from '@/pages/BusinessPage';
 import { BusinessesPage } from '@/pages/BusinessesPage';
@@ -27,6 +29,7 @@ import { JobPage } from '@/pages/JobPage';
 import { JobsPage } from '@/pages/JobsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { MyBusinessPage } from '@/pages/MyBusinessPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
@@ -60,7 +63,11 @@ export const router = createBrowserRouter([
       { path: 'search', element: <SearchPage /> },
       {
         element: <RequireAuth />,
-        children: [{ path: 'account', element: <AccountPage /> }],
+        children: [
+          { path: 'account', element: <AccountPage /> },
+          { path: 'my-business', element: <MyBusinessPage /> },
+          { path: 'my-business/:slug', element: <MyBusinessPage /> },
+        ],
       },
       {
         element: <RequireStaff />,
@@ -74,11 +81,13 @@ export const router = createBrowserRouter([
           { path: 'admin/deals', element: <DealsAdminPage /> },
           { path: 'admin/events', element: <EventsAdminPage /> },
           { path: 'admin/reports', element: <ReportsAdminPage /> },
+          { path: 'admin/claims', element: <ClaimsAdminPage /> },
           {
             element: <RequireAdmin />,
             children: [
               { path: 'admin/users', element: <UsersAdminPage /> },
               { path: 'admin/audit-log', element: <AuditLogPage /> },
+              { path: 'admin/subscription-requests', element: <SubscriptionRequestsAdminPage /> },
             ],
           },
         ],

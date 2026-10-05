@@ -40,6 +40,8 @@ function summaryWith(attention: Partial<DashboardAttention>): DashboardSummary {
       staleWhilePublished: { ...zeroStale, ...(attention.staleWhilePublished ?? {}) },
       unverifiedBusinesses: attention.unverifiedBusinesses ?? 0,
       openReports: attention.openReports ?? 0,
+      pendingClaims: attention.pendingClaims ?? 0,
+      subscriptionRequests: attention.subscriptionRequests ?? 0,
     },
   };
 }
@@ -97,7 +99,7 @@ describe('attentionSections', () => {
     }
   });
 
-  it('offers every management page exactly once', () => {
+  it('offers every management page and queue exactly once', () => {
     expect(quickLinks.map((link) => link.to)).toEqual([
       '/admin/calculators',
       '/admin/quiz',
@@ -107,6 +109,8 @@ describe('attentionSections', () => {
       '/admin/deals',
       '/admin/events',
       '/admin/reports',
+      '/admin/claims',
+      '/admin/subscription-requests',
     ]);
   });
 
@@ -118,5 +122,45 @@ describe('attentionSections', () => {
     expect(sections[0]!.rows).toEqual([
       { key: 'openReports', label: 'Open reports', count: 5, to: '/admin/reports' },
     ]);
+  });
+
+  it('keeps the two decision queues behind the report row, in reading order', () => {
+    const sections = attentionSections(
+      summaryWith({ openReports: 2, pendingClaims: 3, subscriptionRequests: 4 }),
+    );
+
+    expect(sections.map((section) => section.key)).toEqual(['reports']);
+    expect(sections[0]!.rows).toEqual([
+      { key: 'openReports', label: 'Open reports', count: 2, to: '/admin/reports' },
+      {
+        key: 'pendingClaims',
+        label: 'Ownership claims waiting',
+        count: 3,
+        to: '/admin/claims',
+      },
+      {
+        key: 'subscriptionRequests',
+        label: 'Plan requests waiting',
+        count: 4,
+        to: '/admin/subscription-requests',
+      },
+    ]);
+  });
+
+  it('drops a queue row with nothing waiting while keeping the other', () => {
+    const sections = attentionSections(summaryWith({ pendingClaims: 1 }));
+
+    expect(sections[0]!.rows.map((row) => row.key)).toEqual(['pendingClaims']);
+  });
+
+  it('sends every decision row to a page the quick links offer', () => {
+    const targets = new Set(quickLinks.map((link) => link.to));
+    const sections = attentionSections(
+      summaryWith({ openReports: 1, pendingClaims: 1, subscriptionRequests: 1 }),
+    );
+
+    for (const row of sections.flatMap((section) => section.rows)) {
+      expect(targets.has(row.to)).toBe(true);
+    }
   });
 });

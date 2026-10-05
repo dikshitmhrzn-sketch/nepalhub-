@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '@/lib/apiClient';
 
-import { getBusiness, listBusinesses } from './api';
+import { getBusiness, listBusinesses, listFeatured } from './api';
 import type {
   BusinessDetail,
   BusinessListQuery,
@@ -117,6 +117,61 @@ export function useBusiness(slug: string) {
       }
     })();
   }, [slug]);
+
+  useEffect(() => {
+    load();
+
+    return () => {
+      activeRequest.current?.abort();
+    };
+  }, [load]);
+
+  return { ...state, reload: load };
+}
+
+export type FeaturedBusinessesState =
+  | { status: 'loading'; data: null; error: null }
+  | { status: 'success'; data: BusinessSummary[]; error: null }
+  | { status: 'error'; data: null; error: ApiError };
+
+const featuredInitialState: FeaturedBusinessesState = {
+  status: 'loading',
+  data: null,
+  error: null,
+};
+
+/**
+ * Loads the featured strip. A failed fetch reports itself as an error, and the page
+ * deliberately renders nothing for it: the strip is an advert above the directory, and
+ * the directory below must not go down because the advert could not be loaded.
+ */
+export function useFeaturedBusinesses() {
+  const [state, setState] = useState<FeaturedBusinessesState>(featuredInitialState);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  const load = useCallback(() => {
+    activeRequest.current?.abort();
+
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setState(featuredInitialState);
+
+    void (async () => {
+      try {
+        const data = await listFeatured(controller.signal);
+
+        if (!controller.signal.aborted) {
+          setState({ status: 'success', data, error: null });
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setState({ status: 'error', data: null, error: toApiError(error) });
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     load();

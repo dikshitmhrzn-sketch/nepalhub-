@@ -128,6 +128,12 @@ public sealed record BusinessHoursResponse(
     TimeOnly? ClosesAt);
 
 /// <summary>One business in full, for a reader who has opened it.</summary>
+/// <remarks>
+/// <see cref="IsOwner"/> is the one per-visitor field: whether the caller manages this
+/// listing, so the page can offer the owner's editor instead of a claim button. Derived by
+/// comparing the loaded owner id against the caller and stored nowhere, because two readers
+/// of one row must not disagree about who owns it.
+/// </remarks>
 public sealed record BusinessDetailResponse(
     Guid Id,
     string Slug,
@@ -143,7 +149,8 @@ public sealed record BusinessDetailResponse(
     bool IsVerified,
     bool? IsOpenNow,
     IReadOnlyList<BusinessHoursResponse> OpeningHours,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    bool IsOwner);
 
 /// <summary>
 /// The staff list row. Drafts are included here, which is the entire difference from the public

@@ -428,12 +428,69 @@ counting towards, and the rate limits the two new public writes needed.
       behind `RequireStaff`; `/admin/users` and `/admin/audit-log` behind a new `RequireAdmin`.
       25 frontend tests, including the report form's lifecycle and its two special-case answers
 
-### Phase 7e — Monetisation (not started)
+### Phase 7e — Monetisation ✅
 
-- [ ] Business subscriptions and payments through a gateway adapter behind an interface; no card
-      data in this database
-- [ ] Event tickets and bookings, which need the payment decision first
-- [ ] The `businesses.owner_user_id` column that employer-owned postings and claims depend on
+Ownership, plans and bookings: the three ways a listing or an event earns something, built around
+the queues staff already work through. No money moves in this phase — a request and an approval
+replace checkout — and the payment seam exists so 7f can wire a provider without rewriting any
+of these decisions.
+
+- [x] The `businesses.owner_user_id` column (`AddBusinessOwnership`): one owner per listing as a
+      service-level rule, because MySQL has no partial unique index, and approval is the only thing
+      that moves ownership — a filed claim grants no access of its own
+- [x] Claims: `POST /api/businesses/{slug}/claim` (signed in, `Claim:RateLimit` 10/hour per IP),
+      optional 500-character evidence; a draft and an unknown slug both answer 404 so the endpoint
+      cannot be used to discover unpublished listings, and the conflicts `already_owner` /
+      `already_owned` / `already_claimed` each get their own code. The staff queue
+      (`GET /api/admin/business-claims`, approve/reject, `StaffOnly`) settles rivals, grants the
+      `business` role and writes `business.claim_*` to the audit trail in the same save; the review
+      note lives on the claim row, not in the audit `after`
+- [x] The owner's screen (`GET`/`PUT /api/account/businesses/{slug}`, signed in, scoped to the
+      caller's own listings so someone else's answers the same 404): description, contact details
+      and the whole opening week only — name, slug, category, district, publish and verify are
+      staff's, shown read-only. Owner saves are deliberately not audited: the trail is for actions
+      on other people's rows
+- [x] Plans (`PlanSeeder`: Free 30 days / NPR 0, Featured 30 days / NPR 3,000): the public
+      `GET /api/plans` catalogue; per-listing state derived on read against `INepalDateProvider`, so
+      an expired window reports itself without a job; one `Active` row per business and the
+      extension rule `max(current_end, today) + period`. Free is granted on the spot; Featured lands
+      in `GET/POST /api/admin/subscription-requests` (**AdminOnly**, until a provider's webhook
+      resolves into the same queue) and approval opens or rolls the window with a single
+      `subscription.*` audit entry naming both rows. Direct grant/cancel at
+      `/api/admin/subscriptions` (AdminOnly)
+- [x] The featured strip: `GET /api/businesses/featured` — published ∧ verified ∧ a live featured
+      window, up to six, ordered `Name` then `Id` so nobody bought a ranking, on the reserved slug
+      `featured`
+- [x] Bookings: `POST`/`DELETE /api/events/{slug}/booking` (signed in, `Booking:RateLimit`
+      20/hour per IP), quantity 1–4, an atomic conditional-UPDATE latch on `registration_count` that
+      releases on failure, and book/cancel only while the Nepal start time is ahead. Cancelling
+      stamps the row rather than deleting it and rebooking reactivates the same row, so the
+      attendee can never hold two places. **Bookings write no audit entries** — the trail stays
+      admin/staff actions by design. Event detail carries `capacity`, `registrationCount` and
+      `remainingSpots` (never negative), and capacity cannot be lowered below places already held
+- [x] Staff attendance (`GET /api/admin/events/{id}/bookings`, `StaffOnly`): the live counter
+      plus rows, cancelled included, because "someone cancelled" is half the questions staff ask
+- [x] The dashboard carries both queues: `needsAttention.pendingClaims` and
+      `subscriptionRequests` sit under "Waiting for a decision" beside open reports, and both
+      queues join the quick links
+- [x] Three migrations (`AddBusinessOwnership`, `AddBusinessSubscriptions`, `AddEventBookings`)
+      applied to the dev database; payments remain behind `IPaymentGateway` + `PaymentSettings`
+      with no provider wired (7f)
+- [x] Frontend: `features/{ownership,subscriptions,bookings}`; `/my-business` (list, editor with the
+      whole week, plan panel) behind `RequireAuth`; a claim panel on the listing page whose four
+      answers are written out as sentences; the labelled featured strip above the directory that
+      renders nothing when nobody holds a slot or the fetch fails; a booking panel with the 1–4
+      stepper, remaining spots and the release path; `/admin/claims` (RequireStaff) and
+      `/admin/subscription-requests` (RequireAdmin) with URL-owned windows; the capacity field in
+      the staff event editor. Gates: `dotnet build` 0/0, **614/614** backend tests, frontend
+      typecheck and build clean, **50/50** frontend tests
+
+### Phase 7f — Payments (stub, not started)
+
+- [ ] Real checkout, webhooks and a `payment_transactions` table; refunds and paid tickets. The
+      request queue from 7e is where a provider's webhook resolves, so approval logic stays written
+      once. No card data in this database — the seam (`IPaymentGateway`, `PaymentSettings`) exists
+- [ ] Free event bookings stay free; paid attendance only becomes a question here
 
 ## Phase 8 — Mobile
 

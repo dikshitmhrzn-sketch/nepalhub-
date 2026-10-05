@@ -46,6 +46,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
+    public DbSet<BusinessClaim> BusinessClaims => Set<BusinessClaim>();
+
+    public DbSet<Plan> Plans => Set<Plan>();
+
+    public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();
+
+    public DbSet<SubscriptionRequest> SubscriptionRequests => Set<SubscriptionRequest>();
+
+    public DbSet<EventBooking> EventBookings => Set<EventBooking>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

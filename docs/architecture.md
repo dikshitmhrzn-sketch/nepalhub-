@@ -97,6 +97,28 @@ NepalHub.Api/
     │   │                                   queue ordering, and closing beside its audit row
     │   └── ReportContracts.cs              reasons, statuses and the queue's read model
     ├── Reference/       provinces and districts, the only place location lists come from
+    ├── Ownership/       who manages a listing — asserted by a person, decided by staff
+    │   ├── BusinessClaimController.cs          signed-in filing, rate-limited per member
+    │   ├── BusinessClaimsAdminController.cs    staff-only queue; approval writes the owner
+    │   ├── AccountBusinessesController.cs      the owner's own listings: read and save
+    │   ├── OwnershipService.cs                 claim rules, rival settlement, owner scoping
+    │   └── OwnershipContracts.cs               claim, queue and owner-editor DTOs
+    ├── Subscriptions/   plans and granted windows: what a listing buys
+    │   ├── PlansController.cs                  the catalogue, anonymous
+    │   ├── FeaturedBusinessesController.cs     the strip above the directory, anonymous
+    │   ├── AccountSubscriptionController.cs    state and a plan request for one listing
+    │   ├── SubscriptionRequestsAdminController.cs  the request queue (admin-only)
+    │   ├── SubscriptionsAdminController.cs     direct grant and cancel (admin-only)
+    │   ├── SubscriptionService.cs              entitlement from dates, the extension rule
+    │   ├── SubscriptionRules.cs                the shared live-featured predicate
+    │   └── SubscriptionContracts.cs            catalogue, state and queue DTOs
+    ├── Bookings/        one person holding a place at an event, free in this phase
+    │   ├── EventBookingsController.cs          book and cancel, rate-limited per member
+    │   ├── EventBookingsAdminController.cs     staff-only attendance list
+    │   ├── BookingService.cs                   the atomic latch against registration_count
+    │   └── BookingContracts.cs                 booking read model
+    ├── Payments/        7f's seam, deliberately empty
+    │   └── IPaymentGateway.cs                  one interface; no provider, no secrets, no cards
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
         ├── CalculatorAdminController.cs    staff-only CRUD
@@ -170,10 +192,13 @@ deleting public copy a reader may have saved. The business *name* survives with 
 `businessSlug` is withheld for an unpublished business, because that is a read-model decision rather
 than a column — a link to a 404 is worse than no link, but a name with no link is still true.
 
-**Neither module collects anything.** There is no payment, ticket, coupon, capacity or price column,
-because a deal is redeemed at a counter and an event is registered with its organiser: the useful thing
-this site can offer is a trustworthy link out, shape-checked as `https` and never fetched. The same
-reason there is no cover image — image storage has not had its disk-versus-object-storage decision yet.
+**A deal collects nothing; an event collects seats, not money.** There is no payment, ticket, coupon
+or price column, because a deal is redeemed at a counter and money has nowhere to go until a provider
+exists (7f) — the useful thing this site can offer is a trustworthy link out, shape-checked as
+`https` and never fetched. Events are the deliberate exception to "collect nothing": `capacity` and a
+stored `registration_count` let a reader hold a place here, because seat availability the organiser's
+own page cannot answer for. The same reason there is no cover image — image storage has not had its
+disk-versus-object-storage decision yet.
 
 **Reference data is fetched, not hard-coded.** The province and district lists come from
 `Features/Reference` and are the single source for the board's location filters and the editor's
@@ -203,6 +228,40 @@ the UI happened not to show is still a bug. The streak criterion reads the store
 than recounting days, so a badge and the streak shown on the account page cannot disagree about whether
 seven days were consecutive.
 
+**Ownership is asserted, never assigned.** Staff still create, publish and verify every listing —
+the owner column changes what happens *after* publication. A signed-in person files a claim
+(`already_claimed` / `already_owner` are refused in the service, where the reason can be named), and
+the claim grants no access of its own: approval is the single thing that moves `owner_user_id`, and
+it does so by writing the owner, granting the `business` role, settling the rival claims and
+appending `business.claim_approved` to the audit trail in one `SaveChanges`, so a rolled-back approval
+leaves no half-state. The owner's editor is a whitelist of contact-and-hours fields rather than the
+staff editor, because "may edit this listing" and "may publish or verify it" are different grants.
+There is no unique index on (business, claimant): a rejected claimant who corrects their evidence
+must be able to try again, and a database that refuses the second row gives no reason at all.
+
+**Entitlement is derived from the Nepal day, exactly like every other clock in this system.**
+Whether a listing is featured is `ends_on >= today` read through `INepalDateProvider` — the same
+argument as the job board's `ClosingSoon` and the events' `is_ongoing`, and for the same reason: a
+stored liveness flag is wrong the morning after. At most one row per business can be live, enforced
+in the service because two overlapping rows would make the answer depend on which one a query
+happened to find; re-granting extends by `max(current_end, today) + period_days` rather than
+stacking. The featured strip is capped and sorted alphabetically so a slot is a position, not a rank,
+and it renders nothing when the fetch fails rather than a stale top of the directory. The purchase UX
+is a queue, not a checkout: `POST` a request and an admin approves it, and the payment seam
+(`Features/Payments/IPaymentGateway.cs`) exists so a provider's webhook can later resolve into that
+same queue — approval logic written once instead of twice. Plans are rows edited through an
+idempotent startup seeder rather than `HasData`, because staff are meant to change the price without
+a migration.
+
+**A booking is a latch, not a check.** Availability is decided by one atomic conditional `UPDATE`
+against `events.registration_count` that either succeeds or does not, with the counter released if
+the claim fails; a read-then-write would let two tabs both take the last seat. The unique
+(event, attendee) index means a person has one row for all time — cancelling stamps it, rebooking
+reactivates it — so a place can never be held twice by one account even racing itself. Bookings take
+no audit rows on purpose: the trail exists for admin and staff actions, and a reader taking a seat is
+neither. Two rate limits guard the write (`Claim` 10/hour, `Booking` 20/hour per IP), running before
+authentication so an anonymous flood cannot spend the budget a signed-in person needs.
+
 Rules that keep this maintainable:
 
 - Entities are not exposed as API models. Each feature defines its own request/response records.
@@ -218,7 +277,8 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
-│                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/, badges/)
+│                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/, badges/,
+│                   claims/, subscriptions/, bookings/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
@@ -373,7 +433,10 @@ the page.
   current identity, so the frontend discards it after sign-in and sign-out.
 - **Authorisation:** role-based policies (`user`, `business`, `moderator`, `admin`) enforced by
   `[Authorize(Policy = ...)]` with `admin-only` and `staff-only` policies, plus resource-level
-  ownership checks in services. Business accounts can only edit their own listings.
+  ownership checks in services. Business accounts can only edit their own listings. The queues are
+  split by consequence: the claims queue is `staff-only` (it moves ownership, a fact staff already
+  curate), while subscription requests and direct grant/cancel are `admin-only` (they are the site's
+  money-equivalent), and event attendance is `staff-only`.
 - **Default deny:** a fallback authorisation policy means every endpoint requires a signed-in user
   unless it opts out with `[AllowAnonymous]`, so a new controller is protected the moment it is added.
 - **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations;
@@ -384,18 +447,23 @@ the page.
   arithmetic while still letting a person work through a calculator normally. Logout gets its own 20/
   minute (`Logout:RateLimit:PermitLimit`) because it is an unsafe request that tears down a session,
   and report filing gets 10/hour (`Report:RateLimit:PermitLimit`) because it is the public write a
-  signed-in member can repeat — three in the suite's window is already a queue nobody can read. Read-
-  only endpoints are not limited. Public write endpoints (quiz answers, business claims) reuse the
-  same mechanism.
+  signed-in member can repeat — three in the suite's window is already a queue nobody can read. Claim
+  filing gets 10/hour (`Claim:RateLimit:PermitLimit`) and event booking 20/hour
+  (`Booking:RateLimit:PermitLimit`), both per IP and both registered *before* authentication, so an
+  anonymous flood cannot spend the budget a signed-in person needs. Read-only endpoints are not
+  limited. Public write endpoints (quiz answers) reuse the same mechanism.
 - **Errors:** Identity failures are translated into stable field codes (`email_taken`,
   `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.
   A wrong password and an unknown account return the same `401 invalid_credentials`.
 - **Email:** accounts are created already confirmed because no mail provider is connected yet.
   Verification and password-reset emails arrive with the notifications work.
-- **Admin actions** that change other users' data are written to an audit log: moderation and user
-  administration append through `IAuditLog.Record` into `admin_audit_logs` inside the same
-  `SaveChanges` as the change itself, with JSON `before`/`after` snapshots, and the rows are never
-  updated. The log is read back only by `admin-only` at `GET /api/admin/audit-log`.
+- **Admin actions** that change other users' data are written to an audit log: moderation, user
+  administration, claim approvals and subscription grants/cancels append through `IAuditLog.Record`
+  into `admin_audit_logs` inside the same `SaveChanges` as the change itself, with JSON
+  `before`/`after` snapshots, and the rows are never updated. Owner edits, claim filings, plan
+  requests and event bookings are deliberately *not* audited — the trail is for decisions staff make
+  about other people's accounts, not for a person acting on their own. The log is read back only by
+  `admin-only` at `GET /api/admin/audit-log`.
 
 ## 7. Deployment target
 

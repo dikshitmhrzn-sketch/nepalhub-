@@ -340,10 +340,11 @@ month later.
 ## Module 7 — Businesses (live)
 
 Two tables, added by `20261001101158_AddBusinesses`. This is the first slice of the business
-directory, and it is **staff-managed listings only**: there is no business account, no owner column
-and no claim flow, because a portal has nothing to attach to until someone can register as a
-business. `database.md` keeps the monetisation tables below as a later phase rather than pre-creating
-them empty.
+directory, and it landed **staff-managed listings only**: no business account, no owner column and no
+claim flow, because a portal has nothing to attach to until someone can register as a business. Phase
+7e kept that rule — staff still create, publish and verify every row — and added the missing
+attachment points: `owner_user_id` and the claim queue (Module 11), the plan tables (Module 12), all
+below rather than pre-created empty at the time.
 
 `businesses` is one row per listing. A table per category would mean a copy of every query and a
 client that has to guess which one to ask.
@@ -482,9 +483,11 @@ Six decisions are worth stating because they look odd in the schema and are not:
   that 500s because an unrelated row was deleted. The business *name* survives with it; only the
   public `businessSlug` is withheld for an unlisted business, and that is a read-model decision rather
   than a column.
-- **No `cover_url`, `price`, `coupon_code`, `ticket_price` or capacity.** There is no image storage
-  decision yet, an offer's headline is text in the business's own words rather than a price pair, and
-  an event collects nothing on this site — it points at the organiser's own page.
+- **No `cover_url`, `price`, `coupon_code` or `ticket_price`; capacity is the deliberate
+  exception.** There is no image storage decision yet and an offer's headline is text in the
+  business's own words rather than a price pair. An event used to collect nothing at all, but
+  Module 13 gave it `capacity` and `registration_count` — seats a reader can hold *on this site* —
+  while `ticket_price` stays out of the table until a payment provider exists (7f).
 
 Indexes: `ix_deals_slug` (unique) and one composite per public filter, each leading with
 `is_published` because every public read tests that first —
@@ -617,35 +620,187 @@ Indexes: `ix_admin_audit_logs_created_at` (newest-first reads),
 The leaderboard is a read model over Module 1 and adds no table of its own; the reasoning lives with
 the phase that built it rather than here.
 
+## Module 11 — Ownership and claims (live)
+
+Added by `20261005103010_AddBusinessOwnership`: one nullable column on the live `businesses` table,
+plus the queue table that fills it. The directory starts as staff-written copy, so ownership is
+asserted and decided rather than handed out — nothing about a filed claim is taken on trust.
+
+### `businesses.owner_user_id`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `owner_user_id` | `char(36)` nullable | FK → `users`, `ON DELETE SET NULL`, `ix_businesses_owner_user_id`. The account that manages the listing; NULL for staff-written rows nobody has claimed. Deleting an account leaves the listing standing and unowned rather than pointing at nothing |
+
+### `business_claims`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `business_id` | `char(36)` | FK → `businesses`, `ON DELETE CASCADE` |
+| `claimant_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE` — a deleted account takes its claims with it |
+| `evidence` | `varchar(500)` nullable | How the claimant is connected to the listing, in their own words |
+| `status` | `varchar(20)` | `BusinessClaimStatus` by name: `Pending` (default), `Approved`, `Rejected` |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `reviewed_by_user_id` | `char(36)` nullable | FK → `users`, `ON DELETE SET NULL` — deleting a moderator must not re-open who owns a listing |
+| `reviewed_at` | `datetime(6)` nullable | The instant staff decided |
+| `review_note` | `varchar(500)` | What staff recorded when deciding. Lives on the claim row, not in the audit `after` |
+
+**No unique index on (business, claimant).** A rejected claimant who corrects their evidence
+should be able to try again, and a database that refuses the second row would give no reason at
+all. The one-pending-claim rule is checked in the service, where the refusal can be named
+(`already_claimed`) alongside `already_owner` and `already_owned`.
+
+Approval is the only thing that moves `owner_user_id`: it settles the rival claims, grants the
+`business` role and writes `business.claim_approved` to the audit trail in the same `SaveChanges`.
+A filed claim grants no access of its own.
+
+Indexes: `ix_business_claims_status_created_at` (the queue: pending first, newest first) and
+`ix_business_claims_business_claimant_status` (has this person already asked about this listing).
+
+## Module 12 — Plans and subscriptions (live)
+
+Added by `20261005104909_AddBusinessSubscriptions`. Three tables: what a plan *is*, one granted
+window over a listing, and the queue an owner puts a request in. No money moves against any of
+them in this phase — the request queue is the checkout, and a future provider's webhook resolves
+into the same queue rather than a second approval path.
+
+### `plans`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default — seeded, not client-supplied |
+| `tier` | `varchar(20)` | `PlanTier` by name: `Free`, `Featured`. **Unique** (`ix_plans_tier`) — one row per tier, so "the featured plan" is a lookup |
+| `name` | `varchar(80)` | Display name, e.g. `Featured` |
+| `description` | `varchar(500)` nullable | What the plan buys, on the catalogue |
+| `period_days` | `int` | How long one grant lasts |
+| `price_npr` | `int` | Whole rupees, default 0. A **catalogue** figure: it exists so a future checkout can read the same row |
+| `is_active` | `bool` | Default 1. Inactive plans are hidden rather than labelled |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `updated_at` | `datetime(6)` | `CURRENT_TIMESTAMP(6)` on insert and update |
+
+Plans are never deleted — past subscriptions point at them — and are edited in place rather than
+replaced. Seeded: Free (30 days, NPR 0) and Featured (30 days, NPR 3,000).
+
+### `business_subscriptions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `business_id` | `char(36)` | FK → `businesses`, `ON DELETE CASCADE` |
+| `plan_id` | `char(36)` | FK → `plans`, `ON DELETE RESTRICT` — a subscription must never be able to take its plan out of the table |
+| `starts_on` | `date` | First day the subscription counts, in Nepal |
+| `ends_on` | `date` | Last day, inclusive. Extending moves this forward |
+| `status` | `varchar(20)` | `BusinessSubscriptionStatus` by name: `Active` (default), `Cancelled` |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `granted_by_user_id` | `char(36)` nullable | FK → `users`, `ON DELETE SET NULL` — deleting an admin must not cancel what it granted |
+| `subscription_request_id` | `char(36)` nullable | FK → `subscription_requests`, `ON DELETE SET NULL`. Null for a direct grant |
+| `cancelled_at` | `datetime(6)` nullable | When the window was stopped; the row is kept as the record |
+
+**Entitlement is derived, never stored as a liveness flag:** whether a listing is featured is
+`ends_on >= today` against `INepalDateProvider`'s Nepal day, so an expired row reports itself
+without a job. At most one row per business can be live — enforced in the service, because two
+overlapping rows would make "is this listing featured" depend on which one the query happened to
+find — and re-granting extends by `max(current_end, today) + period_days`.
+
+Indexes: `ix_business_subscriptions_business_id_status` (is anything live for this listing — the
+directory asks on every read) and `ix_business_subscriptions_status_ends_on` (expiry sweeps and
+"ending soon").
+
+### `subscription_requests`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `business_id` | `char(36)` | FK → `businesses`, `ON DELETE CASCADE` |
+| `plan_id` | `char(36)` | FK → `plans`, `ON DELETE RESTRICT` — approval writes a subscription pointing here forever after |
+| `requester_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE` |
+| `note` | `varchar(500)` nullable | What the owner wants, in their own words |
+| `status` | `varchar(20)` | `SubscriptionRequestStatus` by name: `Pending` (default), `Approved`, `Rejected` |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `reviewed_by_user_id` | `char(36)` | FK → `users`, `ON DELETE SET NULL` — deleting an admin must not silently drop the requests it decided |
+| `reviewed_at` | `datetime(6)` nullable | The instant it left the queue |
+| `review_note` | `varchar(500)` | What the admin recorded — the closest thing to a receipt this phase has |
+
+Approving settles the queue row **and** writes the subscription in the same `SaveChanges`, with
+one `subscription.approved` audit entry naming both; a plan deactivated since the request answers
+409 rather than being granted anyway.
+
+Indexes: `ix_subscription_requests_status_created_at` (the admin queue) and
+`ix_subscription_requests_business_id_status` (is there already a request waiting for this
+listing — the `request_pending` refusal).
+
+## Module 13 — Event bookings (live)
+
+Added by `20261005104931_AddEventBookings`, which also gave the live `events` table the two
+columns the counter needs. Taking a place happens on this site; paying for one does not — that is
+7f, and `events.ticket_price` stays out of the table until then.
+
+### `events.capacity` and `events.registration_count`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `capacity` | `int` nullable | Places the event can hold. NULL means no cap — the nullable column is the distinction between "uncapped" and "zero seats", and a "0" would be a wrong answer to a question nobody asked |
+| `registration_count` | `int` | Default 0. Places currently held — **a stored counter, deliberately not a row count**, so deleting an account or a booking never has to find and adjust every event it touched |
+
+Availability is decided by an atomic conditional `UPDATE` against `registration_count`, released
+if it fails: the counter is what both the capacity check and the reader's "12 spots left" read,
+and two queries that disagree about availability is how an event sells out twice. The reader's
+`remainingSpots` is derived at read time and clamped at zero, never negative.
+
+### `event_bookings`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `event_id` | `char(36)` | FK → `events`, `ON DELETE CASCADE` |
+| `attendee_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE`. The event's stored counter is what survives a deletion, precisely so nothing has to chase rows |
+| `quantity` | `int` | Default 1. One to four in this phase; the column is a number for later |
+| `status` | `varchar(20)` | `EventBookingStatus` by name: `Confirmed` (default), `Cancelled` |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `cancelled_at` | `datetime(6)` nullable | Cancelling toggles the row rather than deleting it, so the record of who had a place survives |
+
+**Unique `ix_event_bookings_event_attendee` (event_id, attendee_user_id):** one row per person
+per event for all time, cancelled or not. Booking again reactivates the same row, so a place can
+never be held twice by one account even from two tabs racing — and the rebooking keeps its
+original id, which is what "your place is back" means on the page.
+
+Bookings write **no audit rows**: the trail is for admin and staff actions, and a reader booking
+a seat is not one of those.
+
+Indexes: `ix_event_bookings_event_attendee` (unique) and `ix_event_bookings_event_id_status`
+(the staff attendee list and the event's own "who is coming").
+
 ## Planned modules
 
-Nothing below exists in the database yet. Each will be added as its own migration when its module is
-built.
+Everything below this line is still absent from the database. Each will be added as its own
+migration when its module is built. (Ownership, plans, subscriptions and bookings were listed here
+once — they are live as Modules 11–13 above.)
 
 ### Businesses, monetisation and claims
 
-The live `businesses` and `business_hours` tables above are the first slice. What a later phase adds
-depends on the business-account decision, and is listed here as a record of the intent rather than a
-plan:
+The live `businesses` and `business_hours` tables above are the first slice, now extended with
+`owner_user_id` (Module 11). What a later phase adds is listed here as a record of the intent
+rather than a plan:
 
-- `businesses.owner_user_id` → `users`, nullable — the account that owns and edits the listing. This
-  is the column the current table deliberately lacks, and the one claim approval would populate.
 - `business_categories` — a tree via `parent_id`. The live schema uses a `BusinessCategory` enum
   instead, because a fixed set of twelve labels is searchable, translatable and impossible to orphan;
   a tree is worth it only when staff need to define categories at runtime.
 - `business_images` — `business_id`, `url`, `sort_order`, with the disk-versus-object-storage decision
   made first
-- `business_subscriptions` — `business_id`, `plan` (free/featured/premium), `status`, price, currency,
-  `starts_at`, `ends_at`, `cancelled_at`, provider reference
 - `businesses.latitude`/`longitude` (`decimal(10,7)`) with a composite index, added with the maps
   integration and only once there is a way to place a pin that is not invented
 - ratings: `rating_average`, `rating_count`, `view_count`, and the `business_reviews` table behind them
 
-Payments are handled by a gateway adapter behind an interface; only the provider's opaque transaction
-id and the resulting entitlement are stored. No card data ever touches this database.
+Payments are handled by a gateway adapter behind an interface (`Features/Payments/IPaymentGateway`
+exists as the seam); only the provider's opaque transaction id and the resulting entitlement are
+stored. No card data ever touches this database. When a provider exists, a `payment_transactions`
+table and webhook handling (7f) resolve into the live `subscription_requests` queue rather than a
+second approval path.
 
 `jobs.business_id` stays nullable and null on staff-written rows. It is reserved for employer-owned
-postings, which needs the owner column above.
+postings, which needs the `owner_user_id` column that now exists — the claim approval path shows
+the shape.
 
 ### Content modules
 
@@ -658,12 +813,12 @@ Everything else below is still design.
 | `jobs.business_id` | nullable → `businesses`, for employer-owned postings; null on staff-written rows |
 | `jobs.salary_min`, `jobs.salary_max`, `jobs.currency` | nullable, added only when there is a rule for what a verified range means |
 | `deals.redemption_codes`, `deals.redemption_uses` | only if offers ever become redeemable on this site rather than at the counter; a code table needs a rule about who mints codes |
-| `events.ticket_price`, `events.capacity`, `events.registration_count` | only with a payment provider and a decision about who the money goes to; an event here points at the organiser's own page |
-| `businesses.owner_user_id` → `deals`/`events` | ownership of an offer or event, which needs the owner column in the businesses table above |
+| `events.ticket_price` | only with a payment provider (7f). `events.capacity` and `events.registration_count` are live as Module 13 — seats are held here, payments are not taken here |
+| `businesses.owner_user_id` → `deals`/`events` | ownership of an offer or event, reusing the `owner_user_id` column and claim path of Module 11 |
 
-Offers and events deliberately collect nothing on this site. A deal is redeemed at a counter and an
-event is registered with its organiser, so the honest value of both is a link out — which is why
-`redemption_url` and `registration_url` exist and why no payment, ticket or capacity column does.
+Offers deliberately collect nothing on this site. A deal is redeemed at a counter and an event's
+seat is confirmed without a price, so the honest value of both is a link out — which is why
+`redemption_url` and `registration_url` exist and why no payment or ticket column does.
 
 ### Progression
 

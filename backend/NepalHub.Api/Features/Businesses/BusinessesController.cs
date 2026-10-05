@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data.Entities;
@@ -9,16 +10,18 @@ namespace NepalHub.Api.Features.Businesses;
 /// The public directory of local businesses.
 ///
 /// A class-level <c>[AllowAnonymous]</c> is safe here for the same reason it is on the job
-/// controller: every action on this controller is a public read. Nothing in this phase is
-/// per-visitor, because saved businesses are a later phase and there are no owner accounts. If a
-/// personal action is ever added here it must be a separate controller with the attribute removed,
-/// since the attribute is collected across all endpoint metadata.
+/// controller: every action on this controller is a public read. Claiming a listing is a
+/// personal action, so it lives on <c>Ownership.BusinessClaimController</c> instead — the
+/// attribute is collected across all endpoint metadata, and one anonymous action would make
+/// every action on this controller anonymous too.
 /// </summary>
 [ApiController]
 [Route("api/businesses")]
 [Produces("application/json")]
 [AllowAnonymous]
-public sealed class BusinessesController(BusinessService businessService) : ControllerBase
+public sealed class BusinessesController(
+    BusinessService businessService,
+    UserManager<ApplicationUser> userManager) : ControllerBase
 {
     /// <summary>
     /// The directory. Drafts are excluded by the service, not by anything the caller can influence.
@@ -80,7 +83,8 @@ public sealed class BusinessesController(BusinessService businessService) : Cont
 
     /// <summary>
     /// One business. A draft and a slug that never existed both return the same 404, so this
-    /// endpoint cannot be used to discover which slugs are real but not yet public.
+    /// endpoint cannot be used to discover which slugs are real but not yet public. The one
+    /// per-visitor field is the caller's own ownership flag, which never widens what is shown.
     /// </summary>
     [HttpGet("{slug}")]
     [ProducesResponseType<ApiResponse<BusinessDetailResponse>>(StatusCodes.Status200OK)]
@@ -89,7 +93,8 @@ public sealed class BusinessesController(BusinessService businessService) : Cont
         string slug,
         CancellationToken cancellationToken)
     {
-        var business = await businessService.FindBySlugAsync(slug, cancellationToken);
+        var viewer = await userManager.GetUserAsync(User);
+        var business = await businessService.FindBySlugAsync(slug, viewer?.Id, cancellationToken);
 
         if (business is null)
         {

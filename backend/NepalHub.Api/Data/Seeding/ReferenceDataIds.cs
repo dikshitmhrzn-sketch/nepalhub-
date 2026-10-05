@@ -32,6 +32,8 @@ internal static class ReferenceDataIds
 
     internal static Guid Badge(string code) => Derive($"badge:{code}");
 
+    internal static Guid Plan(string tier) => Derive($"plan:{tier}");
+
     private static Guid Derive(string name)
     {
         var nameBytes = Encoding.UTF8.GetBytes(name);

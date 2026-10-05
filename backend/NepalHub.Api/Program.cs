@@ -15,6 +15,7 @@ using NepalHub.Api.Data.Seeding;
 using NepalHub.Api.Features.Admin;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Badges;
+using NepalHub.Api.Features.Bookings;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
 using NepalHub.Api.Features.Businesses;
@@ -23,9 +24,11 @@ using NepalHub.Api.Features.Events;
 using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Leaderboard;
 using NepalHub.Api.Features.Moderation;
+using NepalHub.Api.Features.Ownership;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
+using NepalHub.Api.Features.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,6 +76,25 @@ var reportRateLimitPermitLimit = builder.Configuration.GetValue("Report:RateLimi
 var reportRateLimitWindow = builder.Configuration.GetValue("Report:RateLimit:WindowSeconds", 3600)
     is { } reportWindowSeconds
     ? TimeSpan.FromSeconds(reportWindowSeconds)
+    : TimeSpan.FromHours(1);
+
+// Claiming a listing lands in a staff queue, so it is bounded like filing a report rather than
+// like reading a page: one person legitimately claims a handful of listings they own, while a
+// loop claiming hundreds is exactly the flood the queue exists to not be handed.
+var claimRateLimitPermitLimit = builder.Configuration.GetValue("Claim:RateLimit:PermitLimit", 10);
+var claimRateLimitWindow = builder.Configuration.GetValue("Claim:RateLimit:WindowSeconds", 3600)
+    is { } claimWindowSeconds
+    ? TimeSpan.FromSeconds(claimWindowSeconds)
+    : TimeSpan.FromHours(1);
+
+// Booking takes a scarce seat, so it is bounded like a claim per IP rather than per account:
+// the loop worth stopping books places it never intends to attend, and a person's own account
+// is not what a scripted flood uses. The quota is double the claim's because booking and then
+// releasing a place are two calls, and both must stay possible inside an hour of normal use.
+var bookingRateLimitPermitLimit = builder.Configuration.GetValue("Booking:RateLimit:PermitLimit", 20);
+var bookingRateLimitWindow = builder.Configuration.GetValue("Booking:RateLimit:WindowSeconds", 3600)
+    is { } bookingWindowSeconds
+    ? TimeSpan.FromSeconds(bookingWindowSeconds)
     : TimeSpan.FromHours(1);
 
 // Bound once here and injected into the service as well, so the numbers the API advertises
@@ -250,6 +272,30 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    // Claims share the report's reasoning and its hour-long window: both write into a queue a
+    // person works through, so the quota counts submissions per IP, not people per account.
+    options.AddPolicy(RateLimitPolicies.Claim, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = claimRateLimitPermitLimit,
+            Window = claimRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    // Booking shares the claim's per-IP hour: both spend something scarce into a queue or a
+    // counter, and both are worth the same protection against a loop.
+    options.AddPolicy(RateLimitPolicies.Booking, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = bookingRateLimitPermitLimit,
+            Window = bookingRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     // Only the submit endpoint is limited. Reading a day's questions is a cheap, idempotent
     // GET, and a player reloading the page must never be treated as abuse.
     //
@@ -301,6 +347,19 @@ builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddScoped<IAuditLog>(provider => provider.GetRequiredService<AuditLogService>());
 builder.Services.AddScoped<ReportService>();
 builder.Services.AddScoped<UserAdminService>();
+
+// Claims and the queue that decides them. Scoped like every other feature service, so the
+// claim, the audit entry recording its approval and the ownership change it makes are all
+// tracked by the one AppDbContext of the request.
+builder.Services.AddScoped<OwnershipService>();
+
+// Plans, entitlement and the request queue, sharing that same request-scoped context for
+// the same reason: a grant and its audit line commit together or not at all.
+builder.Services.AddScoped<SubscriptionService>();
+
+// Bookings hold the event counter and the attendee row in one transaction, so they need the
+// same single request-scoped context: the latch and the row it pays for must commit together.
+builder.Services.AddScoped<BookingService>();
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.
@@ -374,6 +433,12 @@ if (databaseConfigured)
 
     // The business seeder needs no date: opening hours are wall-clock times that do not expire.
     await BusinessSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        CancellationToken.None);
+
+    // Plans are reference data, inserted once by tier and never touched again, so a staff
+    // price edit or a deactivated plan survives a restart.
+    await PlanSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         CancellationToken.None);
 

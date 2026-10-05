@@ -99,6 +99,20 @@ public sealed class Event
     public string? RegistrationUrl { get; set; }
 
     /// <summary>
+    /// How many places the organiser has, when they are counting. Null means the event does
+    /// not count seats — most events need no more than a link — so an event with no capacity
+    /// accepts bookings until it starts without anyone having to invent a number first.
+    /// </summary>
+    public int? Capacity { get; set; }
+
+    /// <summary>
+    /// Places already taken, maintained by an atomic increment rather than by counting
+    /// bookings. The capacity check, the attendee list's total and the reader's "spots left"
+    /// all read this one column, so two of them can never disagree about a sell-out.
+    /// </summary>
+    public int RegistrationCount { get; set; }
+
+    /// <summary>
     /// Whether readers can see this row. Retracting an event is always allowed; deleting a published
     /// one is not, so the record of what was public is not simply lost.
     /// </summary>

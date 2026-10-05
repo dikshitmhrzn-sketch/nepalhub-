@@ -43,7 +43,9 @@ internal static class Dashboard
         DraftsView Drafts,
         StaleView StaleWhilePublished,
         int UnverifiedBusinesses,
-        int OpenReports);
+        int OpenReports,
+        int PendingClaims,
+        int SubscriptionRequests);
 
     internal sealed record SummaryView(CountsView Counts, AttentionView NeedsAttention);
 }
@@ -211,6 +213,28 @@ public class StaffDashboardTests(NepalHubApiFactory factory) : IClassFixture<Nep
     }
 
     [Fact]
+    public async Task The_two_queues_7e_added_are_their_pending_rows()
+    {
+        using var client = await factory.CreateStaffClientAsync(Roles.Admin);
+        var api = new AuthApiClient(client);
+
+        var summary = await api.GetAsync<Dashboard.SummaryView>(Path);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Same rule as the report count above: pending work only, from the same tables the
+        // queue pages read, so the hint on the dashboard and the queue itself cannot drift.
+        Assert.Equal(
+            await dbContext.BusinessClaims.CountAsync(claim => claim.Status == BusinessClaimStatus.Pending),
+            summary.NeedsAttention.PendingClaims);
+        Assert.Equal(
+            await dbContext.SubscriptionRequests.CountAsync(
+                request => request.Status == SubscriptionRequestStatus.Pending),
+            summary.NeedsAttention.SubscriptionRequests);
+    }
+
+    [Fact]
     public async Task The_seeded_catalogue_actually_has_something_to_report()
     {
         using var client = await factory.CreateStaffClientAsync(Roles.Moderator);
@@ -316,6 +340,9 @@ public class StaffDashboardTests(NepalHubApiFactory factory) : IClassFixture<Nep
             drafts.QuizQuestions, drafts.Calculators,
             stale.Jobs, stale.Deals, stale.StudentResources, stale.Events,
             summary.NeedsAttention.UnverifiedBusinesses,
+            summary.NeedsAttention.OpenReports,
+            summary.NeedsAttention.PendingClaims,
+            summary.NeedsAttention.SubscriptionRequests,
         ];
 
         Assert.All(values, value => Assert.True(value >= 0, $"A dashboard count was {value}."));

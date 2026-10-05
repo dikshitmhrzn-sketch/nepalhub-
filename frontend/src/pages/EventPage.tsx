@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router';
 
 import { ReportButton } from '@/components/reports/ReportButton';
+import { BookingPanel } from '@/components/bookings/BookingPanel';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -60,6 +61,11 @@ export function EventPage() {
   const detail = event.data;
   const venue = formatVenue(detail.venue, detail.districtName);
 
+  // The client's clock only decides what the panel offers; the server has the final word
+  // on every booking, using Nepal time. An event that has begun reads as started here too,
+  // so the button never appears for a reader who could only be refused it.
+  const started = new Date(detail.startsAt).getTime() <= Date.now();
+
   return (
     <Container as="section" className={styles.page}>
       <Link to="/events" className={styles.backLink}>
@@ -97,9 +103,31 @@ export function EventPage() {
             <dt className={styles.factLabel}>Organiser</dt>
             <dd className={styles.factValue}>{detail.organiser ?? 'Not stated'}</dd>
           </div>
+
+          <div className={styles.fact}>
+            <dt className={styles.factLabel}>Places</dt>
+            <dd className={styles.factValue}>
+              {detail.capacity === null
+                ? 'No limit stated'
+                : `${detail.remainingSpots ?? 0} of ${detail.capacity} left`}
+            </dd>
+          </div>
         </dl>
 
         <p className={styles.when}>{describeWhen(detail.startsAt, detail.endsAt, detail.isOngoing)}</p>
+
+        {/*
+          Taking a place lives here rather than behind the organiser's own link: the counter
+          beside it is this site's, and the panel disappears entirely for an uncapped event
+          or one that has begun.
+        */}
+        <BookingPanel
+          slug={detail.slug}
+          capacity={detail.capacity}
+          remainingSpots={detail.remainingSpots}
+          started={started}
+          onChanged={event.reload}
+        />
 
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>About this event</h2>

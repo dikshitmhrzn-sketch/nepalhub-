@@ -410,6 +410,22 @@ public sealed class EventService(
         var districtId = await ResolveRequiredDistrictAsync(request.DistrictCode, cancellationToken);
         var businessId = await ResolveOptionalBusinessAsync(request.BusinessSlug, cancellationToken);
 
+        // The counter is the truth about how many places are held, so a cap beneath it would
+        // publish an event that is already over-subscribed while the people holding places are
+        // told they have one. Refuse the shrink rather than overselling the row the other way.
+        if (request.Capacity is { } capacity && capacity < calendarEvent.RegistrationCount)
+        {
+            return new EventSaveOutcome(
+                EventSaveStatus.Invalid,
+                FieldErrors:
+                [
+                    new FieldError(
+                        "capacity",
+                        "out_of_range",
+                        $"This event already holds {calendarEvent.RegistrationCount} places, so the capacity cannot go below that. Raise it, or wait for places to be released."),
+                ]);
+        }
+
         ApplyCommonFields(calendarEvent, request, districtId, businessId);
         calendarEvent.StartsAt = request.StartsAt!.Value;
         calendarEvent.EndsAt = request.EndsAt!.Value;
@@ -563,6 +579,7 @@ public sealed class EventService(
         calendarEvent.DistrictId = districtId;
         calendarEvent.Venue = Blank(request.Venue);
         calendarEvent.RegistrationUrl = NormaliseRegistrationUrl(request.RegistrationUrl);
+        calendarEvent.Capacity = request.Capacity;
         calendarEvent.IsPublished = request.IsPublished;
     }
 
@@ -783,7 +800,20 @@ public sealed class EventService(
         calendarEvent.EndsAt,
         IsOngoing(calendarEvent, now),
         calendarEvent.RegistrationUrl,
+        calendarEvent.Capacity,
+        calendarEvent.RegistrationCount,
+        RemainingSpots(calendarEvent),
         calendarEvent.UpdatedAt);
+
+    /// <summary>
+    /// Spots left as the reader's screen computes them: the cap minus the counter, floored
+    /// at zero. Null means uncapped rather than sold out — an event with no capacity has an
+    /// unlimited number of places and saying "0 left" about it would be a lie.
+    /// </summary>
+    private static int? RemainingSpots(Event calendarEvent) =>
+        calendarEvent.Capacity is { } capacity
+            ? Math.Max(capacity - calendarEvent.RegistrationCount, 0)
+            : null;
 
     /// <summary>
     /// The business slug a reader may be given, or null when there is nothing to link to.
@@ -821,6 +851,8 @@ public sealed class EventService(
             calendarEvent.StartsAt,
             calendarEvent.EndsAt,
             calendarEvent.RegistrationUrl,
+            calendarEvent.Capacity,
+            calendarEvent.RegistrationCount,
             calendarEvent.IsPublished,
             calendarEvent.EndsAt < now,
             calendarEvent.CreatedAt,
@@ -847,6 +879,7 @@ public sealed class EventService(
         DistrictCode = calendarEvent.District?.Code,
         Venue = calendarEvent.Venue,
         RegistrationUrl = calendarEvent.RegistrationUrl,
+        Capacity = calendarEvent.Capacity,
         StartsAt = calendarEvent.StartsAt,
         EndsAt = calendarEvent.EndsAt,
         IsPublished = calendarEvent.IsPublished,

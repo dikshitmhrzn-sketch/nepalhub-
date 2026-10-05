@@ -32,6 +32,20 @@ public static class AuditActions
     public const string UserRoleGranted = "user.role_granted";
 
     public const string UserRoleRevoked = "user.role_revoked";
+
+    public const string BusinessClaimApproved = "business.claim_approved";
+
+    public const string BusinessClaimRejected = "business.claim_rejected";
+
+    public const string SubscriptionGranted = "subscription.granted";
+
+    public const string SubscriptionExtended = "subscription.extended";
+
+    public const string SubscriptionCancelled = "subscription.cancelled";
+
+    public const string SubscriptionRequestApproved = "subscription_request.approved";
+
+    public const string SubscriptionRequestRejected = "subscription_request.rejected";
 }
 
 /// <summary>

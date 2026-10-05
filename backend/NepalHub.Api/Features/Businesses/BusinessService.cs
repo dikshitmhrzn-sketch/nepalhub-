@@ -3,8 +3,10 @@ using MySqlConnector;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
+using NepalHub.Api.Features.Ownership;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Students;
+using NepalHub.Api.Features.Subscriptions;
 
 namespace NepalHub.Api.Features.Businesses;
 
@@ -82,6 +84,13 @@ public sealed class BusinessService(
 
     private const int MaxOpeningHourRows = 7;
 
+    /// <summary>
+    /// How many listings the paid strip carries. Small enough that it reads as a short
+    /// recommendation rather than as a second directory, and capped in the query so the
+    /// strip's cost does not grow with how many listings buy the slot.
+    /// </summary>
+    private const int FeaturedStripLimit = 6;
+
     private const string WebsiteField = "website";
     private const string PhoneField = "phone";
     private const string EmailField = "email";
@@ -141,11 +150,45 @@ public sealed class BusinessService(
     }
 
     /// <summary>
+    /// The featured strip: at most six published, verified listings whose paid window covers
+    /// today in Nepal, alphabetical. It sits above the directory rather than inside it — the
+    /// main list keeps the order a reader understands, and the paid placement is honestly
+    /// labelled instead of quietly rearranging what they came for.
+    /// </summary>
+    internal async Task<IReadOnlyList<BusinessSummaryResponse>> ListFeaturedAsync(
+        CancellationToken cancellationToken)
+    {
+        var now = Now();
+        var liveBusinessIds = SubscriptionRules.LiveBusinessIds(
+            dbContext.BusinessSubscriptions,
+            dates.Today);
+
+        var items = await PublicScope()
+            .Where(business => business.IsVerified && liveBusinessIds.Contains(business.Id))
+            .OrderBy(business => business.Name)
+            .ThenBy(business => business.Id)
+            .Take(FeaturedStripLimit)
+            .Include(business => business.District)
+                .ThenInclude(district => district!.Province)
+            .Include(business => business.OpeningHours)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
+        return items
+            .Select(business => ToSummaryResponse(business, now))
+            .ToList();
+    }
+
+    /// <summary>
     /// One business as a reader sees it. Returns null for a draft and for a slug that never
     /// existed, identically, so this endpoint cannot be used to find out which slugs are real but not
-    /// yet public.
+    /// yet public. <paramref name="viewerId"/> only adds the caller's own ownership flag; it never
+    /// widens what is visible, because the row itself still comes from the public scope.
     /// </summary>
-    internal async Task<BusinessDetailResponse?> FindBySlugAsync(string slug, CancellationToken cancellationToken)
+    internal async Task<BusinessDetailResponse?> FindBySlugAsync(
+        string slug,
+        Guid? viewerId,
+        CancellationToken cancellationToken)
     {
         var now = Now();
 
@@ -156,7 +199,7 @@ public sealed class BusinessService(
                 .ThenInclude(district => district!.Province)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return business is null ? null : ToDetailResponse(business, now);
+        return business is null ? null : ToDetailResponse(business, now, viewerId);
     }
 
     /// <summary>
@@ -447,6 +490,129 @@ public sealed class BusinessService(
         return BusinessDeleteStatus.Deleted;
     }
 
+    // ---------------------------------------------------------------- owner writes
+
+    /// <summary>
+    /// One owned listing, for the owner's editor. Scoped by ownership in the query itself
+    /// rather than by a check a caller could forget, so somebody else's listing answers the
+    /// same null as an address that never existed and this cannot be used to probe for them.
+    /// </summary>
+    internal async Task<OwnerBusinessResponse?> FindOwnedAsync(
+        string slug,
+        Guid ownerUserId,
+        CancellationToken cancellationToken)
+    {
+        var business = await dbContext.Businesses
+            .Include(item => item.OpeningHours)
+            .Include(item => item.District)
+            .FirstOrDefaultAsync(
+                item => item.Slug == slug && item.OwnerUserId == ownerUserId,
+                cancellationToken);
+
+        return business is null ? null : ToOwnerResponse(business);
+    }
+
+    /// <summary>
+    /// The owner's edit, deliberately narrower than the staff save: no slug, name, category,
+    /// district, publish flag or verify badge, and none of the publish rules either. An owner
+    /// corrects what a listing says; staff decide what it is and whether anyone should trust
+    /// it, and an editor that lets an owner self-verify would erase that line.
+    /// </summary>
+    internal async Task<OwnerSaveOutcome> UpdateOwnedAsync(
+        string slug,
+        Guid ownerUserId,
+        SaveOwnerBusinessRequest request,
+        CancellationToken cancellationToken)
+    {
+        var business = await dbContext.Businesses
+            .Include(item => item.OpeningHours)
+            .FirstOrDefaultAsync(
+                item => item.Slug == slug && item.OwnerUserId == ownerUserId,
+                cancellationToken);
+
+        if (business is null)
+        {
+            return new OwnerSaveOutcome(OwnerEditStatus.NotFound);
+        }
+
+        var errors = ValidateOwnerEdit(request);
+        if (errors.Count > 0)
+        {
+            return new OwnerSaveOutcome(OwnerEditStatus.Invalid, FieldErrors: errors);
+        }
+
+        business.Description = request.Description.Trim();
+        business.Address = Blank(request.Address);
+        business.Phone = Blank(request.Phone);
+        business.Email = Blank(request.Email);
+        business.Website = NormaliseWebsite(request.Website);
+
+        // The same two-save replacement the staff save uses. Hours are keyed by business and
+        // day, so a deleted Monday and a new Monday are the same key: keeping both tracked at
+        // once fails with a tracking conflict rather than with anything about the request,
+        // and the removal is what makes room for the week as a whole.
+        var previousHours = business.OpeningHours.ToList();
+        dbContext.BusinessOpeningHours.RemoveRange(previousHours);
+        business.OpeningHours.Clear();
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        ApplyOpeningHours(business, request.OpeningHours);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new OwnerSaveOutcome(
+            OwnerEditStatus.Updated,
+            await FindOwnedAsync(slug, ownerUserId, cancellationToken));
+    }
+
+    /// <summary>
+    /// The shape and set rules for what an owner may write. The same helpers the staff path
+    /// uses, so an owner and staff member are held to one definition of a phone number, an
+    /// address line and a week of hours rather than to two that drift.
+    /// </summary>
+    private static IReadOnlyList<FieldError> ValidateOwnerEdit(SaveOwnerBusinessRequest request)
+    {
+        var errors = new List<FieldError>();
+
+        if (!string.IsNullOrWhiteSpace(request.Website)
+            && !ExternalUrlPolicy.TryNormalise(request.Website, WebsiteField, out _, out var urlError))
+        {
+            errors.Add(new FieldError(WebsiteField, "invalid", urlError!));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Email) && !IsEmailShaped(request.Email))
+        {
+            errors.Add(new FieldError(
+                EmailField,
+                "invalid",
+                "That does not look like an email address. Check it for a missing @ or a missing dot in the domain."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Phone) && !TryNormalisePhone(request.Phone, out _, out var phoneError))
+        {
+            errors.Add(new FieldError(PhoneField, "invalid", phoneError!));
+        }
+
+        errors.AddRange(ValidateOpeningHours(request.OpeningHours));
+
+        return errors;
+    }
+
+    private static OwnerBusinessResponse ToOwnerResponse(Business business) => new(
+        business.Id,
+        business.Slug,
+        business.Name,
+        business.Description,
+        business.Category,
+        business.District?.Name ?? string.Empty,
+        business.Address,
+        business.Phone,
+        business.Email,
+        business.Website,
+        business.IsPublished,
+        business.IsVerified,
+        ToHoursResponses(business),
+        business.UpdatedAt);
+
     // ------------------------------------------------------------------ internals
 
     /// <summary>
@@ -670,6 +836,17 @@ public sealed class BusinessService(
     {
         var errors = new List<FieldError>();
 
+        // The featured strip is served from this route as a literal segment, and a literal
+        // beats a parameter, so a listing at /api/businesses/featured would be shadowed by
+        // it. Reserving the word costs this one check and keeps both addresses readable.
+        if (request.Slug.Trim().Equals("featured", StringComparison.Ordinal))
+        {
+            errors.Add(new FieldError(
+                "slug",
+                "reserved",
+                "'featured' is a reserved address on this site. Choose another slug."));
+        }
+
         if (string.IsNullOrWhiteSpace(request.DistrictCode))
         {
             errors.Add(new FieldError(
@@ -878,7 +1055,7 @@ public sealed class BusinessService(
         IsOpenNow(business, now),
         business.CreatedAt);
 
-    private static BusinessDetailResponse ToDetailResponse(Business business, DateTime now) => new(
+    private static BusinessDetailResponse ToDetailResponse(Business business, DateTime now, Guid? viewerId) => new(
         business.Id,
         business.Slug,
         business.Name,
@@ -893,7 +1070,8 @@ public sealed class BusinessService(
         business.IsVerified,
         IsOpenNow(business, now),
         ToHoursResponses(business),
-        business.UpdatedAt);
+        business.UpdatedAt,
+        viewerId is not null && business.OwnerUserId == viewerId);
 
     /// <summary>
     /// Hours as an ordered week, always Sunday first, whether or not the business listed that day.

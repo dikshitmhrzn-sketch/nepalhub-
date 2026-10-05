@@ -9,8 +9,8 @@ badges, leaderboards, saved items, business subscriptions and an admin system.
 This repository currently contains **the data layer, real accounts and seven public
 modules - tools/calculators, the daily quiz, the Student Hub, Jobs, Businesses, Offers and Events**. The
 database, authentication, the account pages, all seven modules, the leaderboard, member reports and the
-staff tools behind them are live; payments, business accounts,
-tickets and bookings are not started, by design.
+staff tools behind them are live, along with ownership claims, plan requests and free event
+bookings; payments are not started, by design.
 
 ---
 
@@ -18,24 +18,27 @@ tickets and bookings are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), a leaderboard, a staff dashboard, and staff calculator/quiz/resource/job/business/deal/event/report pages plus admin-only account and audit-log pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports and the audit trail |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 26 application tables plus the EF migration-history table, eleven migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, and staff calculator/quiz/resource/job/business/deal/event/report/claim pages plus admin-only account, audit-log and plan-request pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, plans and subscriptions, and event bookings |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 31 application tables plus the EF migration-history table, fourteen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
-| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see and open reports, and quick links to each management page |
+| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see, open reports, unreviewed claims and plan requests, and quick links to each management page |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 586 integration tests against the real `nepalhub_test` database, plus 25 frontend tests |
+| Tests | 614 integration tests against the real `nepalhub_test` database, plus 50 frontend tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
-| Payments, business accounts, tickets and bookings | Not started |
+| Ownership and claims | A signed-in person claims a staff-written listing; staff approve or reject at `/admin/claims`, and approval writes the owner, grants the `business` role and settles rival claims in one save; the owner edits contact details and hours at `/my-business` |
+| Plans and featured listings | Free and Featured plans (30 days each), seeded as rows staff can edit; an owner requests a plan and an admin approves at `/admin/subscription-requests` (or grants directly); live featured listings get a labelled strip atop the directory, capped at six and alphabetical |
+| Event bookings | Free bookings of 1–4 places against an atomic capacity counter; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` field |
+| Payments | Not started — `Features/Payments/IPaymentGateway.cs` is the seam; the plan-request queue from the previous row is where a provider's webhook will resolve |
 
 ---
 
@@ -74,8 +77,10 @@ nepalhub/
 │       ├── components/
 │       │   ├── auth/          # RequireAuth / RequireStaff / RequireAdmin route guards
 │       │   ├── badges/        # badge card
-│       │   ├── businesses/    # business card, filters, staff editor
+│       │   ├── bookings/      # booking panel (stepper, remaining spots)
+│       │   ├── businesses/    # business card, filters, staff editor, featured strip
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
+│       │   ├── claims/        # claim panel on a listing, staff queue card
 │       │   ├── deals/         # offer card, filters, staff editor
 │       │   ├── events/        # event card, filters, staff editor
 │       │   ├── layout/        # AppShell (header, nav, footer)
@@ -83,11 +88,12 @@ nepalhub/
 │       │   ├── quiz/          # result view, staff question editor
 │       │   ├── reports/       # member report button, staff queue card
 │       │   ├── students/      # resource card, filters, staff editor
+│       │   ├── subscriptions/ # plan request card
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, reports/, useradmin/ ...
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, reports/, subscriptions/, useradmin/ ...
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, admin, staff dashboard)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, my-business, admin, staff dashboard)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── test/              # Vitest setup (Testing Library cleanup after each test)
 │       ├── App.tsx
@@ -432,8 +438,10 @@ See `docs/database.md` for the schema.
 ## Businesses
 
 The fifth public module: a directory of local shops, restaurants, trades and services, written and
-checked by staff. It is a directory and nothing else — there are no business accounts yet, because
-an owner portal has nothing to attach to until someone can register as a business.
+checked by staff. Staff still create, publish and verify every row; what Phase 7e added is the
+attachment point — a claimed listing has an owner who edits its contact details and hours, and a
+featured plan buys a labelled position atop the directory (see "Ownership, plans and bookings"
+below).
 
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
@@ -481,7 +489,8 @@ a draft, a listing checked before it went live, and one that is published withou
 
 Deliberately not in this slice: business accounts, paid subscriptions, featured placement, reviews and
 ratings, image uploads, saved businesses, messaging, maps and claims. Deals arrived as the next module;
-see below.
+claims, plan requests and the featured strip arrived with Phase 7e — see below; reviews, ratings and
+images are still open.
 
 ---
 
@@ -552,15 +561,18 @@ whole of the day it ends. Like `daysRemaining`, that flag is derived per read ra
 **Categories are a fixed enum** — `Community`, `Cultural`, `Sports`, `Education`, `Religious`,
 `Business`, `Exhibition`, `Other` — serialised by name, on the same argument as `BusinessCategory`: a
 fixed set of labels is searchable, translatable and impossible to orphan. `registrationUrl` is
-shape-checked and never fetched; there is no ticket, price, capacity or booking, because the organiser
-collects registrations on their own page.
+shape-checked and never fetched; there is no ticket or price, because the organiser collects
+registrations on their own page — and, since Phase 7e, a reader can also hold a free place right
+here, against the event's own `capacity` (see "Ownership, plans and bookings" below).
 
 15 events are seeded across all eight categories and at least four provinces, including a draft and one
 that has already finished. See `docs/database.md` for the schema.
 
-Deliberately not in either module: payments, tickets, bookings, RSVPs, reviews, image uploads, saved
-offers and notifications. There is nothing to attach them to yet — an offer has no price to pay and an
-event has no ticket — and each is recorded in `docs/database.md` as the column it would need.
+Deliberately not in either module: payments, tickets, RSVPs, reviews, image uploads, saved
+offers and notifications - there is nothing to attach them to yet (an offer has no price to pay and
+an event's ticket price would have nowhere to go), and each is recorded in `docs/database.md` as the
+column it would need. Free bookings did arrive, as `event_bookings` in Phase 7e; paid ones wait for
+a payment provider.
 
 ---
 
@@ -626,9 +638,9 @@ module's staff list asked with no filters, so a card that says 16 jobs and the j
 16" are the same query rather than two queries that happen to agree. Accounts are counted from
 `users`, which is the only figure here with no publish state behind it.
 
-**"Needs attention" carries only numbers somebody can act on**, in three groups: reports nobody has
-decided on yet — the moderation queue's open total, first on the page because a complaint has a
-reader waiting on the other side of it — then rows nobody has published yet, and rows whose publish
+**"Needs attention" carries only numbers somebody can act on**, in three groups: open decisions
+first — reports, since a complaint has a reader waiting on the other side of it, then ownership
+claims and plan requests — then rows nobody has published yet, and rows whose publish
 flag no longer describes what a reader sees - a job past its
 deadline, an offer past its last day, a resource past its expiry, an event that has finished - plus
 live listings that are no longer verified, because unverifying does not retract a listing. Rows with
@@ -643,12 +655,13 @@ is serving: if a rule changes in the scope, this number changes with it.
 The endpoint has no write verb, no caching and no new table. It is a handful of count queries, and
 a number that changes while a reader is looking at it is worse than one that is a few seconds old.
 The frontend is `/admin` behind `RequireStaff`: eight count cards, the attention rows grouped and
-linked, and quick links to the eight management pages - the seven content modules plus the report
-queue. Those links are the plain `/admin/*` routes
+linked, and quick links to the ten management pages - the seven content modules, the report queue,
+the claims queue and the plan-request queue. Those links are the plain `/admin/*` routes
 because those pages keep their filters in component state rather than in the URL - a link carrying
 `?status=draft` would land on the unfiltered list and look precise while being nothing of the sort.
-The report queue, the account list and the audit log are the opposite: their filters live in the URL,
-so a filtered view is a link somebody can paste to a colleague.
+The report queue, the account list, the audit log, the claims queue and the plan-request queue are
+the opposite: their filters live in the URL, so a filtered view is a link somebody can paste to a
+colleague.
 
 ---
 
@@ -682,6 +695,67 @@ the id), so two readers comparing rows see the same order.
 The frontend is `/leaderboard`, in the primary nav. The period tabs own `?period=`, so "this week"
 is a link somebody can send. The board shows the display name only: never an email address as a
 stand-in for a row that somehow has none - that falls back to `Member`.
+
+---
+
+## Ownership, plans and bookings
+
+Phase 7e's three moves: a person can take over a listing they recognise, a listing can buy a
+position, and a reader can hold a place at an event. No money moves against any of them yet — the
+plan-request queue *is* the checkout, and `Features/Payments/IPaymentGateway.cs` is where a provider
+will attach (7f).
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `POST /api/businesses/{slug}/claim` | required | File a claim with up to 500 chars of evidence; `409 already_owner` / `already_claimed` / `already_owned`; 10/hour per IP |
+| `GET /api/admin/business-claims` | `staff-only` | The queue: pending first, `status` filter |
+| `POST /api/admin/business-claims/{id}/approve` | `staff-only` | Writes the owner, grants `business`, settles rival claims, audits — one save |
+| `POST /api/admin/business-claims/{id}/reject` | `staff-only` | Closes it with an optional review note, recorded on the claim row |
+| `GET /api/account/businesses` | required | The listings this account owns, plus its own claims in flight |
+| `GET`/`PUT /api/account/businesses/{slug}` | required | The owner's read and save: description, address, phone, email, website and hours — never publish or verify |
+| `GET /api/plans` | anonymous | The catalogue: Free and Featured, prices staff can edit without a deployment |
+| `GET /api/businesses/featured` | anonymous | The strip: published, verified and live-featured listings, capped at six, alphabetical |
+| `GET /api/account/businesses/{slug}/subscription` | required | This listing's plan state against the Nepal day |
+| `POST /api/account/businesses/{slug}/subscription-requests` | required | Ask for a plan; `409 request_pending` while one waits |
+| `GET`/`POST /api/admin/subscription-requests` | `admin-only` | The queue and its approve/reject |
+| `POST /api/admin/subscriptions/grant`, `POST /api/admin/subscriptions/{id}/cancel` | `admin-only` | Direct grant and cancel, both audited |
+| `POST`/`DELETE /api/events/{slug}/booking` | required | Take or release 1–4 places, 20/hour per IP, only before the event starts |
+| `GET /api/admin/events/{id}/bookings` | `staff-only` | The attendee list |
+
+**A claim grants nothing; approval is the single thing that moves ownership.** Staff still create,
+publish and verify every listing — filing a claim only puts a row in the queue
+(`GET /api/admin/business-claims`, staff-only, pending first and newest first). Approving writes
+`businesses.owner_user_id`, grants the `business` role (effective at the next sign-in, because role
+claims live in the cookie), rejects the rival claims for the same listing and appends
+`business.claim_approved` to the audit trail — all in one `SaveChanges`, so a rolled-back approval
+leaves no half-owner. There is no unique index on (business, claimant): a rejected claimant who
+corrects their evidence can try again, and the service names each refusal rather than the database
+swallowing the row. The owner's screen is `/my-business` — a list of owned listings beside the
+claims in flight, and an editor whose whitelist is contact details and hours. The claim panel on a
+listing page shows the person's own state (filed, approved, rejected) rather than a button that
+would be refused.
+
+**Entitlement is derived, never a flag.** Whether a listing is featured is `ends_on >= today`
+against `INepalDateProvider`, so an expired row reports itself with no background job; one row per
+business can be live, and re-granting extends by `max(current_end, today) + 30 days` rather than
+stacking. Plans are rows (`Free` 30 days / NPR 0, `Featured` 30 days / NPR 3,000) seeded through an
+idempotent startup seeder, so staff can change a price without a migration. Purchasing is a request:
+an owner asks at `/my-business` and an admin decides at `/admin/subscription-requests`
+(**admin-only** — this phase's stand-in for money — with direct grant and cancel at
+`/api/admin/subscriptions`), and each decision writes one `subscription.*` audit entry naming the
+queue row and the subscription it created. The featured strip above the directory is labelled,
+capped at six and sorted alphabetically, so a slot is a position rather than a rank; it renders
+nothing when the fetch fails rather than a stale top of the page.
+
+**A booking is a latch, not a check.** Availability is one atomic conditional update against
+`events.registration_count`; the unique (event, attendee) index means cancelling stamps the row and
+rebooking reactivates it, so a place can never be held twice by the same account even from two tabs.
+Booking and releasing both refuse after the event has started (Nepal clock), quantity is 1–4, and
+event creation carries a `Capacity` that cannot be lowered below the places already held. Attendees
+take no audit rows — the trail is for staff decisions, not a reader taking a seat — and both verbs
+are rate-limited per IP (20/hour). Event detail carries `capacity`, `registrationCount` and a
+`remainingSpots` that never goes negative, with a booking panel beside them; the staff attendee list
+is `GET /api/admin/events/{id}/bookings`.
 
 ---
 
@@ -762,7 +836,7 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-586 tests pass, of which 60 cover Offers and 54 cover Events:
+614 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
@@ -770,6 +844,7 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `AuthenticationTests.cs` | 15 |
 | `BadgeRulesTests.cs` | 10 |
 | `BadgeTests.cs` | 12 |
+| `BookingTests.cs` | 5 |
 | `BusinessTests.cs` | 105 |
 | `CalculatorTests.cs` | 45 |
 | `DealTests.cs` | 60 |
@@ -777,12 +852,14 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `JobsTests.cs` | 86 |
 | `LeaderboardTests.cs` | 9 |
 | `ModerationTests.cs` | 10 |
+| `OwnershipTests.cs` | 8 |
 | `QuizTests.cs` | 35 |
-| `RateLimitingTests.cs` | 2 |
+| `RateLimitingTests.cs` | 4 |
 | `ReferenceDataTests.cs` | 5 |
 | `SearchTests.cs` | 31 |
-| `StaffDashboardTests.cs` | 10 |
+| `StaffDashboardTests.cs` | 11 |
 | `StudentHubTests.cs` | 68 |
+| `SubscriptionTests.cs` | 12 |
 | `TestDatabaseTests.cs` | 20 |
 | `UserAdminTests.cs` | 7 |
 
@@ -794,10 +871,11 @@ cd frontend
 npm test
 ```
 
-25 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
-period tabs and its loading and empty states, and the report button's lifecycle - filing, the
+50 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
+period tabs and its loading and empty states, the report button's lifecycle - filing, the
 duplicate and vanished-target answers it shows as sentences, and cancelling without sending
-anything.
+anything - plus the claim panel's four answers, the claim queue card, the featured strip's
+loading/empty/error silence, and the booking panel from stepper to sold-out and release.
 
 ---
 
