@@ -346,7 +346,42 @@ second place for XP or a quiz count is introduced.
       badge paying extra XP, the award timestamp being the quiz's, and both streak cases driven by a
       pinned clock — seven days in a row earning it, and seven plays with a gap never earning it
 
-### Phase 7c — Leaderboard, admin and monetisation (not started)
+### Phase 7c — Staff dashboard ✅
+
+One staff-only screen over every module: the counts a moderator asks for before deciding what to
+open, and the rows that have a decision waiting. No new table, no migration, no write verb, and no
+second copy of a rule the site already keeps somewhere else.
+
+- [x] `GET /api/admin/dashboard`, `staff-only`, the only dashboard endpoint. The `admin-only`
+      `ping` stays the proof that the stricter policy works; this one is the screen itself
+- [x] Eight counts — users, businesses, jobs, offers, events, resources, quiz questions,
+      calculators — each taken from that module's own staff-list `TotalCount` asked with no
+      filters, so a card and the management page under it are the same query rather than two
+      queries that agree today
+- [x] "Needs attention" in two groups: rows nobody has published yet, and rows whose publish flag
+      no longer describes what a reader sees. Rows at zero are dropped instead of rendered, so the
+      section stays worth reading on a healthy catalogue
+- [x] The stale half is `published − visible`, counted through `PublicContentScope` itself. The
+      date comparison is not restated, so the section cannot drift from what the public site serves
+- [x] Unverifying does not retract a listing, so a live row that lost its verification is reported
+      too — the one case where a published row a reader is being told to trust is one staff has
+      stopped standing behind
+- [x] `/admin` behind `RequireStaff`, a staff-only header link, eight count cards, the attention
+      rows grouped and linked, and quick links to the seven management pages
+- [x] Quick links are the plain `/admin/*` routes: those pages keep their filters in component
+      state rather than in the URL, so a link carrying `?status=draft` would land on the
+      unfiltered list while looking precise
+- [x] 9 integration tests: 401 for an anonymous reader, 403 for a signed-in non-staff account,
+      both staff roles allowed, every count checked against the management page's own total, the
+      draft and stale counts checked against the tables through the scope, the seeded catalogue
+      actually reporting something, and a draft created, published, retracted and deleted with the
+      counts moving and then coming back (557 total)
+- [x] The frontend's first test runner: Vitest with jsdom and Testing Library, added because there
+      was none — justified in one sentence under the standing rule on new packages. 14 tests cover
+      the attention list's zero-filtering, the hook's loading/error/retry/unmount behaviour, and
+      the page's counts, links and error recovery
+
+### Phase 7d — Leaderboard, admin and monetisation (not started)
 
 - [ ] Leaderboard, the other read model over the XP the quiz already records. Cached ranking rows
       per period, refreshed by a background service rather than recomputed on every request
@@ -364,4 +399,5 @@ second place for XP or a quiz count is introduced.
 - No feature is built before its data model and API contract are agreed.
 - No mocked persistence: features use real MySQL through EF Core.
 - New packages are justified in one sentence before being added.
-- `npm run typecheck`, `npm run build`, `dotnet build` and `dotnet test` must pass before any phase is reported done.
+- `npm run typecheck`, `npm run build`, `npm test`, `dotnet build` and `dotnet test` must pass
+  before any phase is reported done.

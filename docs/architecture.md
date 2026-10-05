@@ -75,6 +75,11 @@ NepalHub.Api/
     │   ├── BadgeAwardService.cs        idempotent granting after the quiz commits, and the list
     │   ├── BadgeRules.cs               the criteria as pure arithmetic, no database and no clock
     │   └── BadgeContracts.cs           the read model, locked badges included
+    ├── Admin/           the staff dashboard and the admin ping
+    │   ├── AdminController.cs              admin-only ping, the proof the stricter policy works
+    │   └── StaffDashboardController.cs     staff-only counts over every module, and the rows
+    │                                       that need a decision (stale measured through
+    │                                       Data/PublicContentScope, never restated)
     ├── Reference/       provinces and districts, the only place location lists come from
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
@@ -203,6 +208,7 @@ src/
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
 ├── pages/          route-level components that compose features and components
 ├── styles/         tokens.css (all design values) + global.css (reset and base elements)
+├── test/           Vitest setup: Testing Library cleanup after every test
 ├── App.tsx         RouterProvider
 ├── main.tsx        entry point
 └── router.tsx      route table
@@ -221,6 +227,12 @@ of that split.
 CSS: plain CSS with design tokens (`styles/tokens.css`) plus CSS Modules for component scope. No
 utility framework, no runtime CSS-in-JS. Dark mode and any future rebrand are a single-file change
 because every colour is a variable. Component styles never hard-code a colour, space or duration.
+
+Tests: Vitest with jsdom and Testing Library, configured in `vitest.config.ts` and cleaned up by
+`src/test/setup.ts`, run with `npm test`. Everything a page knows arrives through `api.ts`, so the
+API module is mocked and the tests assert on what a reader would see — counts, link targets, the
+error state and its retry — without a server. Pure logic such as the dashboard's attention-list
+filtering is tested directly, where it lives, rather than through the component that renders it.
 
 Route-level code splitting (`React.lazy`) is intentionally deferred until the route count makes the
 main bundle measurably heavy; add it per module as modules arrive.

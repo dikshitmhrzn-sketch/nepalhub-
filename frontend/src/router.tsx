@@ -26,6 +26,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SearchPage } from '@/pages/SearchPage';
+import { StaffDashboardPage } from '@/pages/StaffDashboardPage';
 import { StudentResourcePage } from '@/pages/StudentResourcePage';
 import { StudentsPage } from '@/pages/StudentsPage';
 import { ToolsPage } from '@/pages/ToolsPage';
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       {
         element: <RequireStaff />,
         children: [
+          { path: 'admin', element: <StaffDashboardPage /> },
           { path: 'admin/calculators', element: <CalculatorAdminPage /> },
           { path: 'admin/quiz', element: <QuizAdminPage /> },
           { path: 'admin/students', element: <ResourceAdminPage /> },

@@ -25,6 +25,7 @@ const navigation: NavigationItem[] = [
   { label: 'Offers', to: '/deals' },
   { label: 'Events', to: '/events' },
   { label: 'Account', to: '/account', requiresAuth: true },
+  { label: 'Dashboard', to: '/admin', requiresStaff: true },
   { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },
   { label: 'Manage quiz', to: '/admin/quiz', requiresStaff: true },
   { label: 'Manage resources', to: '/admin/students', requiresStaff: true },

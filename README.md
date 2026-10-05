@@ -17,15 +17,16 @@ tickets and bookings are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), and staff calculator/quiz/resource/job/business/deal/event pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers and the events calendar |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), a staff dashboard, and staff calculator/quiz/resource/job/business/deal/event pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar and the staff dashboard |
 | MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 24 application tables plus the EF migration-history table, nine migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
+| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts and rows a reader can no longer see, and quick links to each management page |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 548 integration tests against the real `nepalhub_test` database |
+| Tests | 557 integration tests against the real `nepalhub_test` database, plus 14 frontend tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
@@ -64,6 +65,7 @@ nepalhub/
 │   │   └── Features/          # one folder per feature
 │   └── NepalHub.Tests/        # xUnit integration tests (real MySQL)
 ├── frontend/
+│   ├── vitest.config.ts    # test runner: jsdom, the `@` alias, src/test/setup.ts
 │   └── src/
 │       ├── components/
 │       │   ├── auth/          # RequireAuth / RequireStaff route guards
@@ -78,10 +80,11 @@ nepalhub/
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. badges/, deals/, events/, jobs/ and reference/
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. badges/, dashboard/, deals/, events/, jobs/ and reference/
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, admin)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, admin, staff dashboard)
 │       ├── styles/            # tokens.css (design tokens) + global.css
+│       ├── test/              # Vitest setup (Testing Library cleanup after each test)
 │       ├── App.tsx
 │       ├── main.tsx
 │       └── router.tsx
@@ -107,6 +110,8 @@ npm run dev          # http://localhost:5173
 | `npm run dev` | Vite dev server with HMR on port 5173 |
 | `npm run build` | Type-check (`tsc -b`) then production build to `dist/` |
 | `npm run preview` | Serve the production build locally |
+| `npm test` | Run the frontend tests once (Vitest + jsdom + Testing Library) |
+| `npm run test:watch` | The same tests, rerun on save |
 | `npm run typecheck` | Type-check only |
 
 ### Frontend environment variables
@@ -597,6 +602,41 @@ recorded in `docs/database.md`.
 
 ---
 
+## Staff dashboard
+
+One staff-only read of the whole catalogue, for the screen a moderator lands on before deciding what
+to open next.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/admin/dashboard` | `staff-only` | Counts for every module plus the rows that need a decision |
+
+**The eight counts are the management pages' own numbers.** Each one is the `totalCount` of that
+module's staff list asked with no filters, so a card that says 16 jobs and the job board's "1–16 of
+16" are the same query rather than two queries that happen to agree. Accounts are counted from
+`users`, which is the only figure here with no publish state behind it.
+
+**"Needs attention" carries only numbers somebody can act on**, in two groups: rows nobody has
+published yet, and rows whose publish flag no longer describes what a reader sees — a job past its
+deadline, an offer past its last day, a resource past its expiry, an event that has finished — plus
+live listings that are no longer verified, because unverifying does not retract a listing. Rows with
+a count of zero are dropped rather than rendered as a row of zeros: on a healthy catalogue most of
+them are zero, and a list of zeros trains the eye to ignore the one section that matters when it is
+not zero.
+
+**The stale half is `published − visible`, counted through `PublicContentScope` itself.** The date
+comparison is not restated in the dashboard, so the section cannot drift from what the public site
+is serving: if a rule changes in the scope, this number changes with it.
+
+The endpoint has no write verb, no caching and no new table. It is a handful of count queries, and
+a number that changes while a reader is looking at it is worse than one that is a few seconds old.
+The frontend is `/admin` behind `RequireStaff`: eight count cards, the attention rows grouped and
+linked, and quick links to the seven management pages. Those links are the plain `/admin/*` routes
+because those pages keep their filters in component state rather than in the URL — a link carrying
+`?status=draft` would land on the unfiltered list and look precise while being nothing of the sort.
+
+---
+
 ## Tests
 
 ```bash
@@ -609,7 +649,7 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-548 tests pass, of which 60 cover Offers and 54 cover Events:
+557 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
@@ -626,8 +666,21 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `RateLimitingTests.cs` | 2 |
 | `ReferenceDataTests.cs` | 4 |
 | `SearchTests.cs` | 31 |
+| `StaffDashboardTests.cs` | 9 |
 | `StudentHubTests.cs` | 68 |
 | `TestDatabaseTests.cs` | 20 |
+
+The frontend has its own runner — Vitest with jsdom and Testing Library, so a page can be rendered
+and queried without a server:
+
+```bash
+cd frontend
+npm test
+```
+
+14 tests cover the staff dashboard: the attention list's zero-filtering and its link targets, the
+hook's loading / error / retry / unmount behaviour, and the page's counts, quick links, filtered
+attention rows and error recovery.
 
 ---
 
