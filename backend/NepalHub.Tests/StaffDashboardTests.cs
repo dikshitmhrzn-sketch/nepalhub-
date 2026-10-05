@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NepalHub.Api.Data;
+using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Quiz;
 
@@ -41,7 +42,8 @@ internal static class Dashboard
     internal sealed record AttentionView(
         DraftsView Drafts,
         StaleView StaleWhilePublished,
-        int UnverifiedBusinesses);
+        int UnverifiedBusinesses,
+        int OpenReports);
 
     internal sealed record SummaryView(CountsView Counts, AttentionView NeedsAttention);
 }
@@ -188,6 +190,24 @@ public class StaffDashboardTests(NepalHubApiFactory factory) : IClassFixture<Nep
             await dbContext.Businesses.CountAsync(
                 business => business.IsPublished && !business.IsVerified),
             summary.NeedsAttention.UnverifiedBusinesses);
+    }
+
+    [Fact]
+    public async Task The_open_report_count_is_the_reports_waiting_in_the_queue()
+    {
+        using var client = await factory.CreateStaffClientAsync(Roles.Moderator);
+        var api = new AuthApiClient(client);
+
+        var summary = await api.GetAsync<Dashboard.SummaryView>(Path);
+
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // The same rows the moderation queue pages over: open work, not everything that
+        // was ever filed, so the dashboard row and the queue's own total cannot drift.
+        Assert.Equal(
+            await dbContext.Reports.CountAsync(report => report.Status == ReportStatus.Open),
+            summary.NeedsAttention.OpenReports);
     }
 
     [Fact]

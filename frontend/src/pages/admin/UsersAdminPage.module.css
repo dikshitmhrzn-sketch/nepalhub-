@@ -1,0 +1,190 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-5);
+  padding-top: var(--nh-space-6);
+  padding-bottom: var(--nh-space-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nh-font-size-2xl);
+  line-height: var(--nh-line-height-tight);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--nh-text-muted);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--nh-space-3);
+}
+
+.searchField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+  flex: 1 1 16rem;
+}
+
+.selectField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.filterLabel {
+  font-size: var(--nh-font-size-sm);
+  color: var(--nh-text-muted);
+}
+
+.searchInput,
+.select,
+.grantSelect {
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-bg);
+  color: var(--nh-text);
+  font: inherit;
+  font-size: var(--nh-font-size-sm);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+.rowDisabled {
+  background-color: var(--nh-surface-muted);
+}
+
+.identity {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.selfMark {
+  color: var(--nh-text-muted);
+  font-weight: var(--nh-font-weight-regular, 400);
+}
+
+.email {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border-radius: var(--nh-radius-md);
+  font-size: var(--nh-font-size-xs);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.statusActive {
+  background-color: var(--nh-accent-soft);
+  color: var(--nh-accent);
+}
+
+.statusInactive {
+  background-color: var(--nh-surface);
+  color: var(--nh-text-muted);
+}
+
+.roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roleChip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nh-space-1);
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  font-size: var(--nh-font-size-xs);
+}
+
+.roleRemove {
+  border: none;
+  background: none;
+  color: var(--nh-text-muted);
+  cursor: pointer;
+  font-size: var(--nh-font-size-sm);
+  line-height: 1;
+  padding: 0 var(--nh-space-1);
+}
+
+.roleRemove:hover:not(:disabled) {
+  color: var(--nh-text);
+}
+
+.roleRemove:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.grantGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nh-space-2);
+}
+
+.selfNote {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--nh-danger, #b42318);
+  font-size: var(--nh-font-size-sm);
+}

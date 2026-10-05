@@ -22,6 +22,14 @@ public interface INepalDateProvider
     /// against a Nepal schedule rather than a date against a deadline.
     /// </summary>
     DateTime NepalNow { get; }
+
+    /// <summary>
+    /// The UTC instant at which <paramref name="nepalDate"/> began in Nepal. Period windows are
+    /// compared against stored UTC timestamps, so "today" has to become a boundary in the frame
+    /// those timestamps were written in, and a "+06:00" shortcut is off by fifteen minutes for
+    /// the whole window.
+    /// </summary>
+    DateTime UtcStartOfDay(DateOnly nepalDate);
 }
 
 public sealed class NepalDateProvider(TimeProvider timeProvider) : INepalDateProvider
@@ -43,6 +51,17 @@ public sealed class NepalDateProvider(TimeProvider timeProvider) : INepalDatePro
     public DateTime UtcNow => timeProvider.GetUtcNow().UtcDateTime;
 
     public DateTime NepalNow => Now();
+
+    public DateTime UtcStartOfDay(DateOnly nepalDate)
+    {
+        var localMidnight = nepalDate.ToDateTime(TimeOnly.MinValue);
+
+        // Nepal has never observed daylight saving, so the fixed offset is a whole
+        // answer rather than a fallback: midnight in Kathmandu is unambiguous.
+        return Zone is null
+            ? localMidnight - NepalOffset
+            : TimeZoneInfo.ConvertTimeToUtc(localMidnight, Zone);
+    }
 
     private DateTime Now()
     {

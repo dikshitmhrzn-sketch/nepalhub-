@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -155,6 +156,7 @@ export function EventPage() {
           Times are Nepal Standard Time. Nepal Hub stores these details only and never fetches the
           organiser&rsquo;s page, so please check the times with them before travelling.
         </p>
+        <ReportButton targetType="Event" targetId={detail.id} />
       </article>
     </Container>
   );

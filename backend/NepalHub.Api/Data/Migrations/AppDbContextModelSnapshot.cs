@@ -152,6 +152,68 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("user_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.AdminAuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("admin_user_id");
+
+                    b.Property<string>("After")
+                        .HasColumnType("longtext")
+                        .HasColumnName("after");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("longtext")
+                        .HasColumnName("before");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(45)
+                        .HasColumnType("varchar(45)")
+                        .HasColumnName("ip");
+
+                    b.Property<string>("TargetId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_admin_audit_logs");
+
+                    b.HasIndex("AdminUserId")
+                        .HasDatabaseName("ix_admin_audit_logs_admin_user_id");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_admin_audit_logs_created_at");
+
+                    b.HasIndex("TargetType", "TargetId")
+                        .HasDatabaseName("ix_admin_audit_logs_target");
+
+                    b.ToTable("admin_audit_logs", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.ApplicationRole", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1833,6 +1895,9 @@ namespace NepalHub.Api.Data.Migrations
                     b.HasKey("Id")
                         .HasName("pk_quiz_attempts");
 
+                    b.HasIndex("CompletedAt")
+                        .HasDatabaseName("ix_quiz_attempts_completed_at");
+
                     b.HasIndex("DailyQuizId")
                         .HasDatabaseName("ix_quiz_attempts_daily_quiz_id");
 
@@ -1973,6 +2038,80 @@ namespace NepalHub.Api.Data.Migrations
                         .HasDatabaseName("ix_quiz_questions_is_published_id");
 
                     b.ToTable("quiz_questions", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Report", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("reason");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("reporter_user_id");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("resolution_note");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("resolved_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Open")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("target_id");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_reports");
+
+                    b.HasIndex("ResolvedByUserId")
+                        .HasDatabaseName("ix_reports_resolved_by_user_id");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_reports_status_created_at");
+
+                    b.HasIndex("ReporterUserId", "TargetType", "TargetId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_reports_reporter_target");
+
+                    b.ToTable("reports", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.StudentResource", b =>
@@ -2186,6 +2325,18 @@ namespace NepalHub.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("user_tokens_fk_user_id");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.AdminAuditLog", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "AdminUser")
+                        .WithMany()
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("admin_audit_logs_fk_admin_user_id");
+
+                    b.Navigation("AdminUser");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>
@@ -2410,6 +2561,26 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("quiz_questions_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.Report", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("reports_fk_reporter_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("reports_fk_resolved_by_user_id");
+
+                    b.Navigation("Reporter");
+
+                    b.Navigation("ResolvedBy");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.StudentResource", b =>

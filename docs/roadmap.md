@@ -381,13 +381,59 @@ second copy of a rule the site already keeps somewhere else.
       the attention list's zero-filtering, the hook's loading/error/retry/unmount behaviour, and
       the page's counts, links and error recovery
 
-### Phase 7d — Leaderboard, admin and monetisation (not started)
+### Phase 7d — Leaderboard, moderation and abuse protection ✅
 
-- [ ] Leaderboard, the other read model over the XP the quiz already records. Cached ranking rows
-      per period, refreshed by a background service rather than recomputed on every request
-- [ ] Admin screens, reports queue and audit log (the `admin` and `moderator` roles and the
-      `admin-only` / `staff-only` policies already exist)
-- [ ] Abuse protection across the remaining public writes
+The read model over the XP the quiz already records, the moderation queue the staff dashboard was
+counting towards, and the rate limits the two new public writes needed.
+
+- [x] `GET /api/leaderboard`, anonymous: `period=all|today|week`, 100 entries per window. Computed at
+      read time rather than from cached rows — the earlier plan's `leaderboard_entries` table and its
+      refresh service are dropped, and the reversal is recorded here rather than quietly deleted:
+      all-time is a seek over `ix_users_level_xp`, the period boards group `quiz_attempts` over
+      `ix_quiz_attempts_completed_at`, and a refresh job would only buy staleness for a figure that
+      is already correct on demand. The week runs Saturday to Friday on Nepal's clock — Nepal's own
+      weekend-first week — via `INepalDateProvider.UtcStartOfDay`, converted to UTC exactly once per
+      query. Ranks come from the page offset plus the row index, so page two starts at the number it
+      actually occupies; deactivated accounts are excluded in the query, and a blank display name
+      falls back to `Member` rather than to an email address the board must not publish
+- [x] Member reports (`POST /api/reports`): signed-in only, five listing types, closed reason set,
+      optional 500-character note. The target must be publicly visible (`PublicContentScope`), a
+      repeat against the same target is `409 already_reported` — enforced by a unique index, so a
+      double-click cannot produce two rows even if the requests race — and filing sits behind its own
+      rate-limit policy (10 per hour, `Report:RateLimit`). The report stores a pointer and a reason,
+      never a copy of the content it complains about
+- [x] The staff queue (`GET /api/admin/reports`, plus resolve/dismiss): open work first, newest
+      first, with the target's title and slug joined at read time and an exact status filter
+      (`all` is open-first order, not "ignore everything"). Closing a report writes
+      `report.resolved` / `report.dismissed` to the audit trail in the same `SaveChanges` as the
+      decision, so a half-applied close cannot leave a log entry for an action that did not happen
+- [x] The audit trail (`admin_audit_logs`): appended through `IAuditLog.Record` by moderation and
+      user administration only — the subject there is somebody else's account rather than the
+      site's own catalogue — with `before`/`after` as JSON snapshots and rows that are never
+      updated. `GET /api/admin/audit-log` reads it admin-only with exact-match `action` /
+      `targetType` filters
+- [x] User administration (`/api/admin/users`): list with search/status/role filters, activate and
+      deactivate, role grant and revoke. An admin cannot disable or demote themselves
+      (`409 cannot_modify_self`), unknown or repeated roles get their own codes, and because roles
+      live in the auth cookie the affected member signs in again to see the change. Every mutation
+      writes `user.*` to the trail beside the change itself
+- [x] The staff dashboard carries the queue: `needsAttention.openReports` counts open reports, so
+      moderation is a row on `/admin` like every other piece of pending work, and the report queue
+      joins the quick links
+- [x] Logout is rate-limited too (`Logout:RateLimit`, 20/minute): it is an unsafe request that
+      invalidates a session, and it was the remaining public write with no policy of its own
+- [x] Frontend: `/leaderboard` in the primary nav with its period tabs owned by the URL; a Report
+      button on all five listing detail pages, rendered only for a signed-in member, with the 409
+      and 404 answers written out as sentences rather than shown as generic errors; `/admin/reports`
+      behind `RequireStaff`; `/admin/users` and `/admin/audit-log` behind a new `RequireAdmin`.
+      25 frontend tests, including the report form's lifecycle and its two special-case answers
+
+### Phase 7e — Monetisation (not started)
+
+- [ ] Business subscriptions and payments through a gateway adapter behind an interface; no card
+      data in this database
+- [ ] Event tickets and bookings, which need the payment decision first
+- [ ] The `businesses.owner_user_id` column that employer-owned postings and claims depend on
 
 ## Phase 8 — Mobile
 

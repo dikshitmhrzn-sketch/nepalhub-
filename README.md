@@ -1,4 +1,4 @@
-﻿# Nepal Hub
+# Nepal Hub
 
 **One useful website for everyday Nepal.**
 
@@ -7,8 +7,9 @@ hub, jobs, local businesses, deals and events into a single platform — with us
 badges, leaderboards, saved items, business subscriptions and an admin system.
 
 This repository currently contains **the data layer, real accounts and seven public
-modules — tools/calculators, the daily quiz, the Student Hub, Jobs, Businesses, Offers and Events**. The
-database, authentication, the account pages and all seven modules are live; payments, business accounts,
+modules - tools/calculators, the daily quiz, the Student Hub, Jobs, Businesses, Offers and Events**. The
+database, authentication, the account pages, all seven modules, the leaderboard, member reports and the
+staff tools behind them are live; payments, business accounts,
 tickets and bookings are not started, by design.
 
 ---
@@ -17,21 +18,24 @@ tickets and bookings are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), a staff dashboard, and staff calculator/quiz/resource/job/business/deal/event pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar and the staff dashboard |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 24 application tables plus the EF migration-history table, nine migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), a leaderboard, a staff dashboard, and staff calculator/quiz/resource/job/business/deal/event/report pages plus admin-only account and audit-log pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports and the audit trail |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 26 application tables plus the EF migration-history table, eleven migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
-| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts and rows a reader can no longer see, and quick links to each management page |
+| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see and open reports, and quick links to each management page |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 557 integration tests against the real `nepalhub_test` database, plus 14 frontend tests |
+| Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
+| Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
+| Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
+| Tests | 586 integration tests against the real `nepalhub_test` database, plus 25 frontend tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
-| Payments, business accounts, tickets, bookings, leaderboard, reports queue, audit log and user administration | Not started |
+| Payments, business accounts, tickets and bookings | Not started |
 
 ---
 
@@ -68,7 +72,7 @@ nepalhub/
 │   ├── vitest.config.ts    # test runner: jsdom, the `@` alias, src/test/setup.ts
 │   └── src/
 │       ├── components/
-│       │   ├── auth/          # RequireAuth / RequireStaff route guards
+│       │   ├── auth/          # RequireAuth / RequireStaff / RequireAdmin route guards
 │       │   ├── badges/        # badge card
 │       │   ├── businesses/    # business card, filters, staff editor
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
@@ -77,12 +81,13 @@ nepalhub/
 │       │   ├── layout/        # AppShell (header, nav, footer)
 │       │   ├── jobs/          # job card, filters, staff editor
 │       │   ├── quiz/          # result view, staff question editor
+│       │   ├── reports/       # member report button, staff queue card
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. badges/, dashboard/, deals/, events/, jobs/ and reference/
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, reports/, useradmin/ ...
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, admin, staff dashboard)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, admin, staff dashboard)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── test/              # Vitest setup (Testing Library cleanup after each test)
 │       ├── App.tsx
@@ -207,6 +212,10 @@ It is a separate migration because the seventh was already applied to a live dev
 editing an applied migration to look tidier would leave the two out of step.
 The ninth, `20261002162619_AddBadges`, creates `badges` and `user_badges` and seeds the three badge
 definitions through `HasData`.
+The tenth, `20261005042009_AddModeration`, creates `reports` and `admin_audit_logs`.
+The eleventh, `20261005042034_AddQuizAttemptCompletedAtIndex`, adds the single-column index the
+leaderboard's today/week boards filter on - separate from the tenth for the same reason the eighth
+was separate: it is an index, not a table, and a migration named for one job does one job.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -597,8 +606,9 @@ The frontend renders the `icon` key as one text glyph (`trophy` → 🏆), match
 already the letters `NH` and a card's affordance is the character `→`, so three glyphs did not justify a
 dependency. See `docs/database.md` for the schema.
 
-Deliberately not here: a leaderboard, staff-editable badge definitions, XP rewards, and badge art. Each is
-recorded in `docs/database.md`.
+Deliberately not here: staff-editable badge definitions, XP rewards, and badge art. Each is
+recorded in `docs/database.md`. The leaderboard reads the XP these badges sit beside but adds no way
+to earn any of it.
 
 ---
 
@@ -616,9 +626,11 @@ module's staff list asked with no filters, so a card that says 16 jobs and the j
 16" are the same query rather than two queries that happen to agree. Accounts are counted from
 `users`, which is the only figure here with no publish state behind it.
 
-**"Needs attention" carries only numbers somebody can act on**, in two groups: rows nobody has
-published yet, and rows whose publish flag no longer describes what a reader sees — a job past its
-deadline, an offer past its last day, a resource past its expiry, an event that has finished — plus
+**"Needs attention" carries only numbers somebody can act on**, in three groups: reports nobody has
+decided on yet — the moderation queue's open total, first on the page because a complaint has a
+reader waiting on the other side of it — then rows nobody has published yet, and rows whose publish
+flag no longer describes what a reader sees - a job past its
+deadline, an offer past its last day, a resource past its expiry, an event that has finished - plus
 live listings that are no longer verified, because unverifying does not retract a listing. Rows with
 a count of zero are dropped rather than rendered as a row of zeros: on a healthy catalogue most of
 them are zero, and a list of zeros trains the eye to ignore the one section that matters when it is
@@ -631,9 +643,110 @@ is serving: if a rule changes in the scope, this number changes with it.
 The endpoint has no write verb, no caching and no new table. It is a handful of count queries, and
 a number that changes while a reader is looking at it is worse than one that is a few seconds old.
 The frontend is `/admin` behind `RequireStaff`: eight count cards, the attention rows grouped and
-linked, and quick links to the seven management pages. Those links are the plain `/admin/*` routes
-because those pages keep their filters in component state rather than in the URL — a link carrying
+linked, and quick links to the eight management pages - the seven content modules plus the report
+queue. Those links are the plain `/admin/*` routes
+because those pages keep their filters in component state rather than in the URL - a link carrying
 `?status=draft` would land on the unfiltered list and look precise while being nothing of the sort.
+The report queue, the account list and the audit log are the opposite: their filters live in the URL,
+so a filtered view is a link somebody can paste to a colleague.
+
+---
+
+## Leaderboard
+
+The XP the daily quiz already records, read back as a ranking - anonymous, because a board a visitor
+cannot see before signing up is a board nobody checks.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/leaderboard` | anonymous | The top of a window: `period=all` (the default), `today` or `week`, 100 entries per window |
+
+**There is no leaderboard table.** `all` is a seek over `ix_users_level_xp` among active accounts;
+`today` and `week` group `quiz_attempts.XpAwarded` since the window opened, served by
+`ix_quiz_attempts_completed_at`. The plan this phase replaced proposed cached `leaderboard_entries`
+rows refreshed by a background service; they were dropped because every read here is bounded by the
+page size and the count, and a refresh job would only buy staleness for a figure that is already
+correct on demand. The reversal is recorded in `docs/roadmap.md` rather than quietly deleted.
+
+**The week runs Saturday to Friday on Nepal's clock** - the weekend-first week a Kathmandu reader
+expects - converted to UTC exactly once per query by `INepalDateProvider.UtcStartOfDay` instead of
+each row comparing against a local clock it cannot have. A period that is not one of the three is
+`400 period_invalid` rather than a silent fall back to `all`.
+
+**Ranks are absolute positions, not positions within the page**: the page offset plus the row index,
+so page two starts at the number it actually occupies. Deactivated accounts are excluded by the
+query itself - switching an account off removes it from the board without every reader having to
+remember to filter - and ties break deterministically (XP, then when the account was created, then
+the id), so two readers comparing rows see the same order.
+
+The frontend is `/leaderboard`, in the primary nav. The period tabs own `?period=`, so "this week"
+is a link somebody can send. The board shows the display name only: never an email address as a
+stand-in for a row that somehow has none - that falls back to `Member`.
+
+---
+
+## Reports and moderation
+
+A signed-in member can complain about any of the five listing types, and staff work the complaints
+in one queue.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `POST /api/reports` | authenticated | File one report: target, reason, optional note |
+| `GET /api/admin/reports` | staff-only | The queue: open work first, `status=all\|open\|resolved\|dismissed` |
+| `POST /api/admin/reports/{id}/resolve` | staff-only | Close it as acted on, with an optional resolution note |
+| `POST /api/admin/reports/{id}/dismiss` | staff-only | Close it as not acted on, same note |
+
+**The target must be publicly visible.** Filing validates through `PublicContentScope` - published,
+unexpired, unfinished - so a report can only point at something a reader could actually see, and a
+target that has since gone is `404 target_not_found`, which the form shows as its own sentence
+rather than as a generic failure.
+
+**One report per person per target, enforced by the database.** The unique index on
+`(reporter_user_id, target_type, target_id)` means a double-click, a retried request or a second tab
+ends in one row and a `409 already_reported` for the person to read - and a repeat after staff closed
+the first one is refused too: the record of what they thought is already in the queue. Filing sits
+behind its own rate limit as well (10 per hour per member, `Report:RateLimit`), because this is the
+public write a member can repeat.
+
+**Closing a report writes its audit row in the same save.** A report stores a pointer and a reason,
+never a copy of the content it complains about; the queue joins each target's title and slug at read
+time. Resolve and dismiss append `report.resolved` / `report.dismissed` with the note beside it in
+the same `SaveChanges` as the status change, so a rolled-back close cannot leave an entry claiming
+it happened.
+
+The staff screen is `/admin/reports` behind `RequireStaff`, and the open total is a row on the
+dashboard itself. The member's side is a Report button on all five detail pages, rendered only for a
+signed-in visitor, with the duplicate and vanished-target answers written out as sentences.
+
+---
+
+## Accounts and the audit log
+
+Admin-only: the accounts behind the site, and the record of what staff did to them.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/admin/users` | admin-only | The account list: `search`, `status=active\|inactive`, `role`, `page` |
+| `POST /api/admin/users/{id}/activate` | admin-only | Let the account sign in again |
+| `POST /api/admin/users/{id}/deactivate` | admin-only | Block sign-in - an admin cannot do this to themselves (`409 cannot_modify_self`) |
+| `POST /api/admin/users/{id}/roles/grant` | admin-only | Add `user`, `business`, `moderator` or `admin` |
+| `POST /api/admin/users/{id}/roles/revoke` | admin-only | Remove one - also self-guarded |
+| `GET /api/admin/audit-log` | admin-only | The trail: exact-match `action` and `targetType` filters |
+
+**Roles live in the auth cookie**, so a granted or revoked role takes effect the next time the
+member signs in; the API does not pretend the change is instant. Deactivation is immediate, though:
+sign-in reads `IsActive`, so the next attempt is `403 account_disabled` and stays that way until an
+admin activates the account again.
+
+**Every mutation writes to `admin_audit_logs` beside the change itself** - `user.activated`,
+`user.deactivated`, `user.role_granted`, `user.role_revoked`, alongside the moderation actions. The
+trail stores JSON `before`/`after` snapshots rather than per-subject columns, so it can record a
+future subject without a schema change, and rows are appended and never updated. Reading it is
+`admin-only`, not `staff-only`: the log oversees the moderators as much as it records them.
+
+The screens are `/admin/users` and `/admin/audit-log`, behind a `RequireAdmin` route guard nested
+under the staff routes, and both keep their filters in the URL like every other list on the site.
 
 ---
 
@@ -649,10 +762,11 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-557 tests pass, of which 60 cover Offers and 54 cover Events:
+586 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
+| `AbuseProtectionTests.cs` | 2 |
 | `AuthenticationTests.cs` | 15 |
 | `BadgeRulesTests.cs` | 10 |
 | `BadgeTests.cs` | 12 |
@@ -660,15 +774,17 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `CalculatorTests.cs` | 45 |
 | `DealTests.cs` | 60 |
 | `EventTests.cs` | 54 |
-| `HealthEndpointTests.cs` | 1 |
 | `JobsTests.cs` | 86 |
+| `LeaderboardTests.cs` | 9 |
+| `ModerationTests.cs` | 10 |
 | `QuizTests.cs` | 35 |
 | `RateLimitingTests.cs` | 2 |
-| `ReferenceDataTests.cs` | 4 |
+| `ReferenceDataTests.cs` | 5 |
 | `SearchTests.cs` | 31 |
-| `StaffDashboardTests.cs` | 9 |
+| `StaffDashboardTests.cs` | 10 |
 | `StudentHubTests.cs` | 68 |
 | `TestDatabaseTests.cs` | 20 |
+| `UserAdminTests.cs` | 7 |
 
 The frontend has its own runner — Vitest with jsdom and Testing Library, so a page can be rendered
 and queried without a server:
@@ -678,9 +794,10 @@ cd frontend
 npm test
 ```
 
-14 tests cover the staff dashboard: the attention list's zero-filtering and its link targets, the
-hook's loading / error / retry / unmount behaviour, and the page's counts, quick links, filtered
-attention rows and error recovery.
+25 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
+period tabs and its loading and empty states, and the report button's lifecycle - filing, the
+duplicate and vanished-target answers it shows as sentences, and cancelling without sending
+anything.
 
 ---
 

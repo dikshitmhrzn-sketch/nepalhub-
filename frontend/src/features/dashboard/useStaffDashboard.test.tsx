@@ -32,6 +32,7 @@ const summary: DashboardSummary = {
     },
     staleWhilePublished: { jobs: 2, deals: 1, studentResources: 2, events: 0 },
     unverifiedBusinesses: 0,
+    openReports: 0,
   },
 };
 

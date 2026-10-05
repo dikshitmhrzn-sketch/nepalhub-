@@ -13,6 +13,7 @@ interface NavigationItem {
   to: string;
   requiresAuth?: boolean;
   requiresStaff?: boolean;
+  requiresAdmin?: boolean;
 }
 
 const navigation: NavigationItem[] = [
@@ -24,8 +25,10 @@ const navigation: NavigationItem[] = [
   { label: 'Businesses', to: '/businesses' },
   { label: 'Offers', to: '/deals' },
   { label: 'Events', to: '/events' },
+  { label: 'Leaderboard', to: '/leaderboard' },
   { label: 'Account', to: '/account', requiresAuth: true },
   { label: 'Dashboard', to: '/admin', requiresStaff: true },
+  { label: 'Report queue', to: '/admin/reports', requiresStaff: true },
   { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },
   { label: 'Manage quiz', to: '/admin/quiz', requiresStaff: true },
   { label: 'Manage resources', to: '/admin/students', requiresStaff: true },
@@ -33,6 +36,8 @@ const navigation: NavigationItem[] = [
   { label: 'Manage businesses', to: '/admin/businesses', requiresStaff: true },
   { label: 'Manage offers', to: '/admin/deals', requiresStaff: true },
   { label: 'Manage events', to: '/admin/events', requiresStaff: true },
+  { label: 'Accounts', to: '/admin/users', requiresAdmin: true },
+  { label: 'Audit log', to: '/admin/audit-log', requiresAdmin: true },
 ];
 
 // Search is reached from the header box on every page rather than from a link here, which would be a
@@ -93,7 +98,7 @@ function AccountActions() {
 }
 
 export function AppShell() {
-  const { status, isStaff } = useAuth();
+  const { status, isAdmin, isStaff } = useAuth();
   const location = useLocation();
 
   // The search page has its own larger box, so the header's is left out there rather than putting
@@ -119,6 +124,10 @@ export function AppShell() {
             <ul className={styles.navList}>
               {navigation
                 .filter((item) => {
+                  if (item.requiresAdmin) {
+                    return isAdmin;
+                  }
+
                   if (item.requiresStaff) {
                     return isStaff;
                   }

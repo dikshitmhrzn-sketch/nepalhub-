@@ -33,6 +33,7 @@ const summary: DashboardSummary = {
     },
     staleWhilePublished: { jobs: 2, deals: 1, studentResources: 0, events: 0 },
     unverifiedBusinesses: 0,
+    openReports: 0,
   },
 };
 
@@ -123,6 +124,7 @@ describe('StaffDashboardPage', () => {
         },
         staleWhilePublished: { jobs: 0, deals: 0, studentResources: 0, events: 0 },
         unverifiedBusinesses: 0,
+        openReports: 0,
       },
     });
     renderPage();

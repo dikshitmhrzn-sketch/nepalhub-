@@ -37,6 +37,8 @@ export interface DashboardAttention {
   drafts: DraftCounts;
   staleWhilePublished: StaleCounts;
   unverifiedBusinesses: number;
+  /** Reports nobody has closed yet — the moderation queue's own open total. */
+  openReports: number;
 }
 
 export interface DashboardSummary {

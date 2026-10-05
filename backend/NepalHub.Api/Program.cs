@@ -12,6 +12,7 @@ using NepalHub.Api.Common;
 using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Data.Seeding;
+using NepalHub.Api.Features.Admin;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Badges;
 using NepalHub.Api.Features.Calculators;
@@ -20,6 +21,8 @@ using NepalHub.Api.Features.Businesses;
 using NepalHub.Api.Features.Deals;
 using NepalHub.Api.Features.Events;
 using NepalHub.Api.Features.Jobs;
+using NepalHub.Api.Features.Leaderboard;
+using NepalHub.Api.Features.Moderation;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
@@ -36,6 +39,16 @@ var authRateLimitPermitLimit = builder.Configuration.GetValue("Auth:RateLimit:Pe
 var authRateLimitWindow = builder.Configuration.GetValue("Auth:RateLimit:WindowSeconds", 60) is { } windowSeconds
     ? TimeSpan.FromSeconds(windowSeconds)
     : TimeSpan.FromMinutes(1);
+
+// Signing out gets its own counter rather than sharing auth's: signing in and signing
+// out are different acts, and a burst of one must not shut off the other. A signed-out
+// visitor hammering the endpoint is cheap to answer and worth bounding anyway, because
+// each call still tears down a session server-side.
+var logoutRateLimitPermitLimit = builder.Configuration.GetValue("Logout:RateLimit:PermitLimit", 20);
+var logoutRateLimitWindow = builder.Configuration.GetValue("Logout:RateLimit:WindowSeconds", 60)
+    is { } logoutWindowSeconds
+    ? TimeSpan.FromSeconds(logoutWindowSeconds)
+    : TimeSpan.FromMinutes(1);
 var calculateRateLimitPermitLimit = builder.Configuration.GetValue("Calculate:RateLimit:PermitLimit", 60);
 var calculateRateLimitWindow = builder.Configuration.GetValue("Calculate:RateLimit:WindowSeconds", 60)
     is { } calculateWindowSeconds
@@ -51,6 +64,16 @@ var searchRateLimitWindow = builder.Configuration.GetValue("Search:RateLimit:Win
     is { } searchWindowSeconds
     ? TimeSpan.FromSeconds(searchWindowSeconds)
     : TimeSpan.FromMinutes(1);
+
+// Filing a report is a write against a shared queue rather than a read of one, so the
+// quota is deliberately much tighter than search's and counted over an hour: a person
+// with a genuine complaint files a handful, while a loop filing hundreds is exactly the
+// abuse this endpoint exists under.
+var reportRateLimitPermitLimit = builder.Configuration.GetValue("Report:RateLimit:PermitLimit", 10);
+var reportRateLimitWindow = builder.Configuration.GetValue("Report:RateLimit:WindowSeconds", 3600)
+    is { } reportWindowSeconds
+    ? TimeSpan.FromSeconds(reportWindowSeconds)
+    : TimeSpan.FromHours(1);
 
 // Bound once here and injected into the service as well, so the numbers the API advertises
 // and the numbers it awards cannot drift apart.
@@ -181,6 +204,16 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    options.AddPolicy(RateLimitPolicies.Logout, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = logoutRateLimitPermitLimit,
+            Window = logoutRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     options.AddPolicy(RateLimitPolicies.Calculate, context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -200,6 +233,19 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = searchRateLimitPermitLimit,
             Window = searchRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    // Reports are filed per IP, on the same reasoning as auth: one visitor filing a
+    // hundred complaints about the same listing is the problem, and the person's account
+    // is not the thing to throttle when the requests are coming from a loop.
+    options.AddPolicy(RateLimitPolicies.Report, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = reportRateLimitPermitLimit,
+            Window = reportRateLimitWindow,
             QueueLimit = 0,
             AutoReplenishment = true,
         }));
@@ -242,6 +288,19 @@ builder.Services.AddScoped<BusinessService>();
 builder.Services.AddScoped<DealService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<SearchService>();
+
+// Ranks on read, so there is no derived board to refresh and no background job to fall
+// behind: both windows are indexed queries over tables the quiz already maintains.
+builder.Services.AddScoped<LeaderboardService>();
+
+// The audit log shares the request's AppDbContext, which is the whole point: an action
+// and the entry recording it are written by one SaveChanges or not at all. Moderation
+// and user administration take the interface; the concrete class also serves the admin
+// screen's read of the trail.
+builder.Services.AddScoped<AuditLogService>();
+builder.Services.AddScoped<IAuditLog>(provider => provider.GetRequiredService<AuditLogService>());
+builder.Services.AddScoped<ReportService>();
+builder.Services.AddScoped<UserAdminService>();
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.

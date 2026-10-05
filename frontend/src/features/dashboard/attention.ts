@@ -14,7 +14,7 @@ export interface AttentionRow {
 }
 
 export interface AttentionSection {
-  key: 'drafts' | 'stale';
+  key: 'drafts' | 'stale' | 'reports';
   title: string;
   rows: AttentionRow[];
 }
@@ -36,6 +36,7 @@ export const quickLinks: QuickLink[] = [
   { key: 'businesses', label: 'Manage businesses', to: '/admin/businesses' },
   { key: 'deals', label: 'Manage offers', to: '/admin/deals' },
   { key: 'events', label: 'Manage events', to: '/admin/events' },
+  { key: 'reports', label: 'Open the report queue', to: '/admin/reports' },
 ];
 
 const quickLinkTargets: Record<string, string> = Object.fromEntries(
@@ -43,15 +44,16 @@ const quickLinkTargets: Record<string, string> = Object.fromEntries(
 );
 
 /**
- * The rows worth showing, in the two groups a staff member acts on differently: work nobody
- * has published yet, and rows whose publish flag no longer describes what a reader sees.
+ * The rows worth showing, in the three groups a staff member acts on differently:
+ * reports nobody has decided on yet, work nobody has published yet, and rows whose
+ * publish flag no longer describes what a reader sees.
  *
- * Everything with a count of zero is dropped rather than rendered as "0 …": on a healthy
+ * Everything with a count of zero is dropped rather than rendered as "0 — ": on a healthy
  * catalogue most of these are zero, and a list of zeros is noise that trains the eye to
  * ignore the section — which is exactly the section that matters when it is not zero.
  */
 export function attentionSections(summary: DashboardSummary): AttentionSection[] {
-  const { drafts, staleWhilePublished, unverifiedBusinesses } = summary.needsAttention;
+  const { drafts, staleWhilePublished, unverifiedBusinesses, openReports } = summary.needsAttention;
 
   const draftRows: AttentionRow[] = [
     { key: 'businesses', label: 'Draft businesses', count: drafts.businesses, to: quickLinkTargets.businesses },
@@ -111,7 +113,14 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
     },
   ];
 
+  const reportRows: AttentionRow[] = [
+    { key: 'openReports', label: 'Open reports', count: openReports, to: quickLinkTargets.reports },
+  ];
+
+  // Reports come first: a member has complained about something and nobody has looked at
+  // it yet, which is the only row here with a reader waiting on the other side of it.
   const sections: AttentionSection[] = [
+    { key: 'reports', title: 'Waiting for a decision', rows: reportRows.filter(nonZero) },
     { key: 'drafts', title: 'Waiting to be published', rows: draftRows.filter(nonZero) },
     { key: 'stale', title: 'Published rows that need a decision', rows: staleRows.filter(nonZero) },
   ];

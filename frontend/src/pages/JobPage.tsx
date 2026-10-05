@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -148,6 +149,7 @@ export function JobPage() {
             Nepal Hub stores the address only and never fetches it.
           </span>
         </p>
+        <ReportButton targetType="Job" targetId={detail.id} />
       </article>
     </Container>
   );

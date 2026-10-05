@@ -75,11 +75,27 @@ NepalHub.Api/
     │   ├── BadgeAwardService.cs        idempotent granting after the quiz commits, and the list
     │   ├── BadgeRules.cs               the criteria as pure arithmetic, no database and no clock
     │   └── BadgeContracts.cs           the read model, locked badges included
-    ├── Admin/           the staff dashboard and the admin ping
+    ├── Admin/           the staff dashboard, the audit trail and admin-only accounts
     │   ├── AdminController.cs              admin-only ping, the proof the stricter policy works
-    │   └── StaffDashboardController.cs     staff-only counts over every module, and the rows
-    │                                       that need a decision (stale measured through
-    │                                       Data/PublicContentScope, never restated)
+    │   ├── StaffDashboardController.cs     staff-only counts over every module, and the rows
+    │   │                                   that need a decision (stale measured through
+    │   │                                   Data/PublicContentScope, never restated)
+    │   ├── AuditLogController.cs           admin-only read of the trail, exact-match filters
+    │   ├── AuditLogService.cs              IAuditLog: appends to the caller's SaveChanges,
+    │   │                                   and the paged read of what it has recorded
+    │   ├── AuditLogContracts.cs            the trail's DTOs and AuditActions' action names
+    │   ├── UsersAdminController.cs         admin-only list, activate/deactivate, role changes
+    │   └── UserAdminService.cs             the mutations, the self-guard and their audit rows
+    ├── Leaderboard/      the ranking over the XP the quiz already records
+    │   ├── LeaderboardController.cs        anonymous GET, period parsed case-insensitively
+    │   ├── LeaderboardService.cs           read-time ranking; no table and no refresh service
+    │   └── LeaderboardContracts.cs         entries and the all/today/week period
+    ├── Moderation/       member reports and the staff queue
+    │   ├── ReportsController.cs            signed-in filing, rate-limited per member
+    │   ├── ReportsAdminController.cs       staff queue, resolve and dismiss
+    │   ├── ReportService.cs                visibility rules, the unique-target rule,
+    │   │                                   queue ordering, and closing beside its audit row
+    │   └── ReportContracts.cs              reasons, statuses and the queue's read model
     ├── Reference/       provinces and districts, the only place location lists come from
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
@@ -365,14 +381,21 @@ the page.
 - **Rate limiting:** a fixed-window limiter per policy, returning `429 rate_limited`. Auth endpoints
   get 20 requests/minute/IP (`Auth:RateLimit:PermitLimit`) and the public calculation endpoint gets 60
   requests/minute/IP (`Calculate:RateLimit:PermitLimit`), so one visitor cannot burn the server on
-  arithmetic while still letting a person work through a calculator normally. Read-only endpoints are
-  not limited. Public write endpoints (quiz answers, business claims) reuse the same mechanism.
+  arithmetic while still letting a person work through a calculator normally. Logout gets its own 20/
+  minute (`Logout:RateLimit:PermitLimit`) because it is an unsafe request that tears down a session,
+  and report filing gets 10/hour (`Report:RateLimit:PermitLimit`) because it is the public write a
+  signed-in member can repeat — three in the suite's window is already a queue nobody can read. Read-
+  only endpoints are not limited. Public write endpoints (quiz answers, business claims) reuse the
+  same mechanism.
 - **Errors:** Identity failures are translated into stable field codes (`email_taken`,
   `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.
   A wrong password and an unknown account return the same `401 invalid_credentials`.
 - **Email:** accounts are created already confirmed because no mail provider is connected yet.
   Verification and password-reset emails arrive with the notifications work.
-- **Admin actions** that change other users' data are written to an audit log.
+- **Admin actions** that change other users' data are written to an audit log: moderation and user
+  administration append through `IAuditLog.Record` into `admin_audit_logs` inside the same
+  `SaveChanges` as the change itself, with JSON `before`/`after` snapshots, and the rows are never
+  updated. The log is read back only by `admin-only` at `GET /api/admin/audit-log`.
 
 ## 7. Deployment target
 

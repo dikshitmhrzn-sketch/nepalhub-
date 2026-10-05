@@ -1,16 +1,20 @@
 import { createBrowserRouter } from 'react-router';
 
+import { RequireAdmin } from '@/components/auth/RequireAdmin';
 import { RequireAuth } from '@/components/auth/RequireAuth';
 import { RequireStaff } from '@/components/auth/RequireStaff';
 import { AppShell } from '@/components/layout/AppShell';
 import { AccountPage } from '@/pages/AccountPage';
+import { AuditLogPage } from '@/pages/admin/AuditLogPage';
 import { BusinessesAdminPage } from '@/pages/admin/BusinessesAdminPage';
 import { CalculatorAdminPage } from '@/pages/admin/CalculatorAdminPage';
 import { DealsAdminPage } from '@/pages/admin/DealsAdminPage';
 import { EventsAdminPage } from '@/pages/admin/EventsAdminPage';
 import { JobsAdminPage } from '@/pages/admin/JobsAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
+import { ReportsAdminPage } from '@/pages/admin/ReportsAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
+import { UsersAdminPage } from '@/pages/admin/UsersAdminPage';
 import { BusinessPage } from '@/pages/BusinessPage';
 import { BusinessesPage } from '@/pages/BusinessesPage';
 import { CalculatorPage } from '@/pages/CalculatorPage';
@@ -21,6 +25,7 @@ import { EventsPage } from '@/pages/EventsPage';
 import { HomePage } from '@/pages/HomePage';
 import { JobPage } from '@/pages/JobPage';
 import { JobsPage } from '@/pages/JobsPage';
+import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { QuizPage } from '@/pages/QuizPage';
@@ -50,6 +55,7 @@ export const router = createBrowserRouter([
       { path: 'deals/:slug', element: <DealPage /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'events/:slug', element: <EventPage /> },
+      { path: 'leaderboard', element: <LeaderboardPage /> },
       { path: 'calculators/:slug', element: <CalculatorPage /> },
       { path: 'search', element: <SearchPage /> },
       {
@@ -67,6 +73,14 @@ export const router = createBrowserRouter([
           { path: 'admin/businesses', element: <BusinessesAdminPage /> },
           { path: 'admin/deals', element: <DealsAdminPage /> },
           { path: 'admin/events', element: <EventsAdminPage /> },
+          { path: 'admin/reports', element: <ReportsAdminPage /> },
+          {
+            element: <RequireAdmin />,
+            children: [
+              { path: 'admin/users', element: <UsersAdminPage /> },
+              { path: 'admin/audit-log', element: <AuditLogPage /> },
+            ],
+          },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

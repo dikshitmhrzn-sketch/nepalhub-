@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data;
+using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Auth;
 using NepalHub.Api.Features.Businesses;
 using NepalHub.Api.Features.Calculators;
@@ -139,7 +140,12 @@ public sealed class StaffDashboardController(
             // staff member has stopped standing behind.
             UnverifiedBusinesses: await dbContext.Businesses
                 .CountAsync(business => business.IsPublished && !business.IsVerified,
-                    cancellationToken));
+                cancellationToken),
+            // Reports are waiting work rather than waiting publication, which is why they sit
+            // outside both groups above: someone has complained, and the queue is where the
+            // complaint goes.
+            OpenReports: await dbContext.Reports
+                .CountAsync(report => report.Status == ReportStatus.Open, cancellationToken));
 
         return Ok(ApiResponse<DashboardSummary>.Ok(new DashboardSummary(counts, attention)));
     }
@@ -179,7 +185,8 @@ public sealed record StaleCounts(
 public sealed record DashboardAttention(
     DraftCounts Drafts,
     StaleCounts StaleWhilePublished,
-    int UnverifiedBusinesses);
+    int UnverifiedBusinesses,
+    int OpenReports);
 
 public sealed record DashboardSummary(
     DashboardCounts Counts,

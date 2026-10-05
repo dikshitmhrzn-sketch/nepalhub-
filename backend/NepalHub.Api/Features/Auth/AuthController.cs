@@ -147,7 +147,9 @@ public sealed class AuthController(
 
     [HttpPost("logout")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Logout)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<ApiResponse<object>>> Logout()
     {
         await signInManager.SignOutAsync();

@@ -1,10 +1,11 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and nine modules are live.** The schema below is the as-built
+**Status: MySQL 8.4.9 is installed and ten modules are live.** The schema below is the as-built
 result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
 `20260930122740_AddQuiz`, `20260930154447_AddStudentResources`, `20261001041409_AddJobs`,
-`20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`
-and `20261002162619_AddBadges`, not a proposal. Everything from "Planned modules" onwards is still design
+`20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`,
+`20261002162619_AddBadges`, `20261005042009_AddModeration` and `20261005042034_AddQuizAttemptCompletedAtIndex`,
+not a proposal. Everything from "Planned modules" onwards is still design
 only.
 
 ## Local instance
@@ -206,8 +207,10 @@ Two unique indexes carry the integrity model:
 
 Supporting indexes: `ix_daily_quiz_questions_daily_quiz_id_position` (reading a day in order),
 `ix_daily_quiz_questions_question_id`, `ix_quiz_attempts_user_id_completed_at` (quiz history, newest
-first), `ix_quiz_attempts_daily_quiz_id`, `ix_quiz_attempt_answers_question_id` (answers "has this
-question ever been played?" with one probe) and `ix_quiz_attempt_answers_selected_option_id`.
+first), `ix_quiz_attempts_completed_at` (added by `20261005042034` — the leaderboard's today/week
+boards filter on the timestamp alone), `ix_quiz_attempts_daily_quiz_id`,
+`ix_quiz_attempt_answers_question_id` (answers "has this question ever been played?" with one probe)
+and `ix_quiz_attempt_answers_selected_option_id`.
 
 `daily_quiz_questions` and `quiz_attempt_answers` point at questions and options with **RESTRICT**,
 not cascade. A question a player has already seen is part of somebody's history, and the staff
@@ -554,6 +557,66 @@ Indexes: `ix_user_badges_user_id_badge_id` (unique, the idempotency guarantee),
 `quiz_attempts` and the streak is `users.streak_count`, both read at award time. A tally kept on the user
 row would be a second place for the quiz count to live, and it would be the one that drifts.
 
+## Module 10 — Moderation and audit (live)
+
+Added by `20261005042009_AddModeration`. Two tables: what a member complained about, and the
+append-only record of what staff did about it and about other accounts. Both existed before the
+actions they carry started happening, because a trail reconstructed after the fact is a
+reconstruction, not a record.
+
+### `reports`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `reporter_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE` — a deleted account takes its reports with it |
+| `target_type` | `varchar(40)` | `ReportTargetType` by name: `Job`, `Business`, `Deal`, `Event`, `StudentResource` |
+| `target_id` | `char(36)` | The reported row's id. Deliberately **not** a foreign key: one column cannot hold five of them |
+| `reason` | `varchar(40)` | `ReportReason` by name: `Spam`, `Misleading`, `Inappropriate`, `Broken`, `Other` |
+| `note` | `varchar(500)` | Optional, in the reporter's own words |
+| `status` | `varchar(20)` | `ReportStatus` by name: `Open` (default), `Resolved`, `Dismissed` |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+| `resolved_by_user_id` | `char(36)` nullable | FK → `users`, `ON DELETE SET NULL` — closing a report is a fact about the moderator, not about the reporter |
+| `resolved_at` | `datetime(6)` nullable | The instant it left the queue |
+| `resolution_note` | `varchar(500)` | What staff recorded when closing it |
+
+The target id is validated at filing time through `PublicContentScope` — the same visibility rules
+the public detail page uses — so a report can only point at something a reader could actually see.
+A target that later disappears keeps its row: the report is the record of what was reported, not a
+copy of the thing itself, so nothing cascades with it.
+
+Indexes: `ix_reports_reporter_target` (**unique** — one report per person per target, so a
+double-click, a retried request or a second tab is a `409 already_reported` rather than a duplicate
+row, and a repeat after staff closed the first one is refused too) and
+`ix_reports_status_created_at` — the queue's only order, open work first and newest first.
+
+### `admin_audit_logs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default |
+| `admin_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE`. A plain id rather than a name, so a renamed account stays truthful |
+| `action` | `varchar(50)` | Dotted name: `report.resolved`, `report.dismissed`, `user.activated`, `user.deactivated`, `user.role_granted`, `user.role_revoked` |
+| `target_type` | `varchar(40)` | `report` or `user` |
+| `target_id` | `varchar(64)` | Text, so the table needs no polymorphic key |
+| `before` | `LONGTEXT` nullable | JSON snapshot of the subject as it stood |
+| `after` | `LONGTEXT` nullable | JSON snapshot of what it became. Unbounded on purpose — a truncated audit trail reads as a complete one |
+| `ip` | `varchar(45)` nullable | The address the action came from |
+| `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
+
+`IAuditLog.Record` appends to the caller's own `AppDbContext` and does not save: the log row and the
+change it describes land in the same `SaveChanges`, so a rolled-back action leaves no trace and a
+committed one always has its entry. Moderation and user administration write here; the seven content
+modules do not, because their subject is the site's own catalogue rather than somebody else's
+account. Rows are appended and never updated — this table is written once and read, never edited.
+
+Indexes: `ix_admin_audit_logs_created_at` (newest-first reads),
+`ix_admin_audit_logs_admin_user_id` ("what has this administrator ever done?") and
+`ix_admin_audit_logs_target` ("who has ever touched this subject?").
+
+The leaderboard is a read model over Module 1 and adds no table of its own; the reasoning lives with
+the phase that built it rather than here.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
@@ -605,27 +668,25 @@ event is registered with its organiser, so the honest value of both is a link ou
 ### Progression
 
 `users.xp`, `users.level`, `users.streak_count` and `users.last_active_on` are live (Module 1) and are
-written by the quiz. `badges` and `user_badges` are live too (Module 9). What is still planned:
+written by the quiz. `badges` and `user_badges` are live too (Module 9), and the leaderboard reads
+these same columns at request time with a table of its own. This section previously proposed
+`leaderboard_entries` — cached ranking rows per period, refreshed by a background service — and the
+plan was dropped when the board was built: the all-time order is a seek over `ix_users_level_xp`, the
+period boards group `quiz_attempts` over `ix_quiz_attempts_completed_at`, and a refresh job would only
+buy staleness for a figure that is already correct on demand. The reversal is recorded in
+`docs/roadmap.md` rather than quietly deleted.
 
-- `leaderboard_entries` — cached ranking rows per period, refreshed by a background service rather
-  than recomputed on every request
-
-Levels are derived from total XP and cached on the user row, so a leaderboard can be built later
-without a migration. A leaderboard is deliberately not part of the quiz for the same reason the badges
-were not: it needs its own read model, and ranking every account on every request is the one query
-here that grows without limit as the site does.
+Levels stay derived from total XP and cached on the user row, so ranking reads one indexed column and
+never recomputes the level.
 
 ### User data and operations
 
 - `saved_items` — `user_id`, `item_type` (job/event/deal/business), `item_id`, `created_at`
   (unique per user+type+item)
 - `notifications` — `user_id`, `type`, `title`, `body`, `is_read`, `created_at`
-- `reports` — reporter, target type/id, reason, status — feeds moderation
-- `admin_audit_logs` — `admin_user_id`, `action`, `target_type`, `target_id`, `before`, `after`,
-  `ip`, `created_at`
 
-`reports` and `admin_audit_logs` are required before moderation is built, not after, because both
-grow irreversibly once they are in use.
+`reports` and `admin_audit_logs` were listed here once as prerequisites for moderation; they are live
+as Module 10 now, above.
 
 ## Migration discipline
 

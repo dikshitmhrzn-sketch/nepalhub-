@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -224,6 +225,7 @@ export function BusinessPage() {
               : 'This listing has not been checked by our staff yet, so treat the details as a starting point rather than a promise.'}
           </p>
         </div>
+        <ReportButton targetType="Business" targetId={detail.id} />
       </article>
     </Container>
   );

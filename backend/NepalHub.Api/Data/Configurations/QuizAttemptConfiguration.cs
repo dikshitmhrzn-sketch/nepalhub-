@@ -45,5 +45,12 @@ public sealed class QuizAttemptConfiguration : IEntityTypeConfiguration<QuizAtte
 
         builder.HasIndex(attempt => attempt.DailyQuizId)
             .HasDatabaseName("ix_quiz_attempts_daily_quiz_id");
+
+        // The leaderboard's period queries ask "every attempt since a Nepal day or week
+        // boundary, summed per user". The history index above starts at user_id and cannot
+        // serve that seek, so without this one the aggregate scans the whole attempt table
+        // -- the exact query the leaderboard exists to avoid.
+        builder.HasIndex(attempt => attempt.CompletedAt)
+            .HasDatabaseName("ix_quiz_attempts_completed_at");
     }
 }

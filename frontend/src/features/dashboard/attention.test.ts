@@ -39,6 +39,7 @@ function summaryWith(attention: Partial<DashboardAttention>): DashboardSummary {
       drafts: { ...zeroDrafts, ...(attention.drafts ?? {}) },
       staleWhilePublished: { ...zeroStale, ...(attention.staleWhilePublished ?? {}) },
       unverifiedBusinesses: attention.unverifiedBusinesses ?? 0,
+      openReports: attention.openReports ?? 0,
     },
   };
 }
@@ -105,6 +106,17 @@ describe('attentionSections', () => {
       '/admin/businesses',
       '/admin/deals',
       '/admin/events',
+      '/admin/reports',
+    ]);
+  });
+
+  it('puts open reports in their own section, first and waiting for a decision', () => {
+    const sections = attentionSections(summaryWith({ openReports: 5 }));
+
+    expect(sections.map((section) => section.key)).toEqual(['reports']);
+    expect(sections[0]!.title).toBe('Waiting for a decision');
+    expect(sections[0]!.rows).toEqual([
+      { key: 'openReports', label: 'Open reports', count: 5, to: '/admin/reports' },
     ]);
   });
 });

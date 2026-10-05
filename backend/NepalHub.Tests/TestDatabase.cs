@@ -80,7 +80,9 @@ internal static class TestDatabase
         int authRateLimitPermitLimit,
         int calculateRateLimitPermitLimit = 10_000,
         int quizRateLimitPermitLimit = 10_000,
-        int searchRateLimitPermitLimit = 10_000)
+        int searchRateLimitPermitLimit = 10_000,
+        int reportRateLimitPermitLimit = 10_000,
+        int logoutRateLimitPermitLimit = 10_000)
     {
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", ConnectionString);
         Environment.SetEnvironmentVariable(
@@ -95,6 +97,12 @@ internal static class TestDatabase
         Environment.SetEnvironmentVariable(
             "Search__RateLimit__PermitLimit",
             searchRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Report__RateLimit__PermitLimit",
+            reportRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Logout__RateLimit__PermitLimit",
+            logoutRateLimitPermitLimit.ToString());
 
         if (_isReady)
         {

@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
@@ -160,6 +161,7 @@ export function StudentResourcePage() {
             </span>
           </p>
         ) : null}
+        <ReportButton targetType="StudentResource" targetId={detail.id} />
       </article>
     </Container>
   );

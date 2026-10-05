@@ -42,6 +42,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Event> Events => Set<Event>();
 
+    public DbSet<Report> Reports => Set<Report>();
+
+    public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -22,6 +22,8 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _calculateRateLimitPermitLimit;
     private readonly int _quizRateLimitPermitLimit;
     private readonly int _searchRateLimitPermitLimit;
+    private readonly int _reportRateLimitPermitLimit;
+    private readonly int _logoutRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -32,17 +34,23 @@ private readonly int _authRateLimitPermitLimit;
         int authRateLimitPermitLimit,
         int calculateRateLimitPermitLimit = 10_000,
         int quizRateLimitPermitLimit = 10_000,
-        int searchRateLimitPermitLimit = 10_000)
+        int searchRateLimitPermitLimit = 10_000,
+        int reportRateLimitPermitLimit = 10_000,
+        int logoutRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
         _quizRateLimitPermitLimit = quizRateLimitPermitLimit;
         _searchRateLimitPermitLimit = searchRateLimitPermitLimit;
+        _reportRateLimitPermitLimit = reportRateLimitPermitLimit;
+        _logoutRateLimitPermitLimit = logoutRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
                 _quizRateLimitPermitLimit,
-                _searchRateLimitPermitLimit)
+                _searchRateLimitPermitLimit,
+                _reportRateLimitPermitLimit,
+                _logoutRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 
@@ -162,6 +170,35 @@ public sealed class SearchLimitedApiFactory : NepalHubApiFactory
 
     public SearchLimitedApiFactory()
         : base(10_000, 10_000, 10_000, PermitLimit)
+    {
+    }
+}
+
+/// <summary>
+/// A host whose report endpoint rejects almost immediately, so the filing quota can be
+/// asserted without a test filing hundreds of complaints.
+/// </summary>
+public sealed class ReportLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public ReportLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, 10_000, PermitLimit)
+    {
+    }
+}
+
+/// <summary>
+/// A host whose sign-out endpoint rejects almost immediately, for the same reason as
+/// <see cref="RateLimitedApiFactory"/>. The auth quota stays generous so the test can
+/// still sign in between sign-outs if it needs to.
+/// </summary>
+public sealed class LogoutLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public LogoutLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
     {
     }
 }
