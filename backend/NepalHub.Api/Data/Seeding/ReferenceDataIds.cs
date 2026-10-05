@@ -30,6 +30,8 @@ internal static class ReferenceDataIds
 
     internal static Guid Event(string slug) => Derive($"event:{slug}");
 
+    internal static Guid Badge(string code) => Derive($"badge:{code}");
+
     private static Guid Derive(string name)
     {
         var nameBytes = Encoding.UTF8.GetBytes(name);

@@ -338,6 +338,98 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BadgeDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Criteria")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("criteria");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("varchar(250)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("icon");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<int>("Threshold")
+                        .HasColumnType("int")
+                        .HasColumnName("threshold");
+
+                    b.HasKey("Id")
+                        .HasName("pk_badges");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_badges_code");
+
+                    b.HasIndex("SortOrder")
+                        .HasDatabaseName("ix_badges_sort_order");
+
+                    b.ToTable("badges", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("c4d90053-a983-a15c-ac90-4ad657b5d6ea"),
+                            Code = "first-quiz",
+                            Criteria = "QuizzesCompleted",
+                            Description = "Finish your first daily quiz.",
+                            Icon = "trophy",
+                            Name = "First Quiz",
+                            SortOrder = 1,
+                            Threshold = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("7c2973f0-77c0-065b-ae5e-f815bd56c381"),
+                            Code = "seven-day-streak",
+                            Criteria = "ConsecutiveDayStreak",
+                            Description = "Finish a quiz on seven days in a row.",
+                            Icon = "flame",
+                            Name = "7-Day Streak",
+                            SortOrder = 2,
+                            Threshold = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("1c54e599-6c99-5d50-9744-280d80029e13"),
+                            Code = "quiz-enthusiast",
+                            Criteria = "QuizzesCompleted",
+                            Description = "Finish ten daily quizzes.",
+                            Icon = "book",
+                            Name = "Quiz Enthusiast",
+                            SortOrder = 3,
+                            Threshold = 10
+                        });
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2003,6 +2095,42 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("resources", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.UserBadgeAward", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("AwardedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("awarded_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid>("BadgeDefinitionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("badge_definition_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_badges");
+
+                    b.HasIndex("BadgeDefinitionId")
+                        .HasDatabaseName("ix_user_badges_badge_id");
+
+                    b.HasIndex("UserId", "AwardedAt")
+                        .HasDatabaseName("ix_user_badges_user_id_awarded_at");
+
+                    b.HasIndex("UserId", "BadgeDefinitionId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_user_badges_user_id_badge_id");
+
+                    b.ToTable("user_badges", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
                 {
                     b.HasOne("NepalHub.Api.Data.Entities.ApplicationRole", null)
@@ -2293,6 +2421,27 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("resources_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.UserBadgeAward", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.BadgeDefinition", "BadgeDefinition")
+                        .WithMany()
+                        .HasForeignKey("BadgeDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("user_badges_fk_badge_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("user_badges_fk_user_id");
+
+                    b.Navigation("BadgeDefinition");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Business", b =>

@@ -299,15 +299,60 @@ phases were written towards and the test-database isolation the suite turned out
       as a pure function of its arguments, taking no fixture, so 20 tests can cover it without any
       of them connecting to a server. `NepalHubTests__KeepData=1` skips the reset
 
-### Phase 7b and 7c — gamification, admin and monetisation (not started)
+Cross-module search is delivered as a live six-query search rather than a materialised index: there
+is no search-index table, and one is not warranted until a query is slow enough to notice.
 
-- [ ] Badges and a leaderboard, both read models over the XP the quiz already records
+### Phase 7b — Badges ✅
+
+Read models over the progression the quiz already records. No new fact about a user is stored, and no
+second place for XP or a quiz count is introduced.
+
+- [x] Two tables: `badges` (the definitions) and `user_badges` (the awards), the latter unique per
+      user+badge so a badge cannot be granted twice
+- [x] `20261002162619_AddBadges` applied to `nepalhub` and `nepalhub_test`
+- [x] Three definitions seeded through `HasData` with deterministic ids — first quiz, seven-day
+      streak, ten quizzes — so a fresh environment reproduces them and a migration cannot overwrite
+      a real edit the way an idempotent startup seeder would not
+- [x] The criterion is a closed `BadgeCriteria` enum plus an integer `threshold`, not a JSON blob. A
+      JSON criterion would let the seed describe a rule that nothing evaluates, so a badge could be
+      listed as unearnable and nobody would find out until a player waited forever for it
+- [x] No `xp_reward` column. The quiz decides XP once per attempt; a badge that quietly paid out
+      again would make the total on the account page disagree with the sum of the quiz results
+      behind it. The numbers a badge reads are the count of `quiz_attempts` rows and the
+      `streak_count` the quiz just wrote — never a tally kept alongside them
+- [x] The streak criterion reads the stored `StreakCount` rather than recounting days, so a badge
+      and the streak on the account page cannot disagree about whether seven days were consecutive
+- [x] Awarding runs **after** the quiz commits, not inside its transaction: a failure writing a badge
+      must not roll back a quiz somebody finished, and the submit path's duplicate-key handler
+      catches every MySQL 1062 to report "you have already played", so a badge insert sharing that
+      save would be reported as a quiz problem. Each write's failure is now its own
+- [x] Idempotent by construction — the award is the only row written, a held badge is skipped, and
+      the unique index makes a second row impossible. Reading the badges grants nothing, which is
+      asserted against the table rather than against the response
+- [x] `GET /api/account/badges`, authenticated, the only verb. A badge is a consequence of a
+      finished quiz, not something a request can ask for, so the feature is not subject to
+      antiforgery and there is no way to grant one over HTTP
+- [x] Locked badges are returned rather than filtered out, each carrying `current`/`threshold`, so an
+      account with nothing yet is shown what there is to reach instead of an empty panel
+- [x] Account page section: an "N of M earned" heading, a card per badge, a progress meter and the
+      same count as text, earned ones dated in the Nepal wall clock the award was written in
+- [x] The `icon` key renders as one text glyph from a table in `features/badges/format.ts`, with a
+      neutral fallback for an unknown key. No icon package: the brand mark is already `NH` and a
+      card's affordance is `→`, so three glyphs did not justify a dependency
+- [x] `BadgeRules` as pure arithmetic with no database and no clock, asserted on both sides of every
+      threshold, plus a test that the two criteria are not interchangeable
+- [x] 22 integration tests: the endpoint's authorisation and ordering, anonymous play awarding
+      nothing, a repeated play awarding nothing extra, repeated reads never writing a second row, no
+      badge paying extra XP, the award timestamp being the quiz's, and both streak cases driven by a
+      pinned clock — seven days in a row earning it, and seven plays with a gap never earning it
+
+### Phase 7c — Leaderboard, admin and monetisation (not started)
+
+- [ ] Leaderboard, the other read model over the XP the quiz already records. Cached ranking rows
+      per period, refreshed by a background service rather than recomputed on every request
 - [ ] Admin screens, reports queue and audit log (the `admin` and `moderator` roles and the
       `admin-only` / `staff-only` policies already exist)
 - [ ] Abuse protection across the remaining public writes
-
-Cross-module search is delivered as a live six-query search rather than a materialised index: there
-is no search-index table, and one is not warranted until a query is slow enough to notice.
 
 ## Phase 8 — Mobile
 

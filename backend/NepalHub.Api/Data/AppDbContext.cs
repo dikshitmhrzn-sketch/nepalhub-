@@ -26,6 +26,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<QuizAttemptAnswer> QuizAttemptAnswers => Set<QuizAttemptAnswer>();
 
+    public DbSet<BadgeDefinition> Badges => Set<BadgeDefinition>();
+
+    public DbSet<UserBadgeAward> UserBadges => Set<UserBadgeAward>();
+
     public DbSet<StudentResource> StudentResources => Set<StudentResource>();
 
     public DbSet<Job> Jobs => Set<Job>();

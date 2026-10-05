@@ -17,19 +17,20 @@ tickets and bookings are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account, and staff calculator/quiz/resource/job/business/deal/event pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, the Student Hub, the job board, the business directory, offers and the events calendar |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 22 application tables plus the EF migration-history table, eight migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory and business detail, offers and offer detail, events calendar and event detail, sign-in, registration, account (with badges), and staff calculator/quiz/resource/job/business/deal/event pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers and the events calendar |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 24 application tables plus the EF migration-history table, nine migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
+| Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
-| Tests | 526 integration tests against the real `nepalhub_test` database |
+| Tests | 548 integration tests against the real `nepalhub_test` database |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
-| Payments, business accounts, tickets, bookings, badges, leaderboard, admin screens beyond calculators, quiz, resources, jobs, businesses, deals and events | Not started |
+| Payments, business accounts, tickets, bookings, leaderboard, reports queue, audit log and user administration | Not started |
 
 ---
 
@@ -66,6 +67,7 @@ nepalhub/
 │   └── src/
 │       ├── components/
 │       │   ├── auth/          # RequireAuth / RequireStaff route guards
+│       │   ├── badges/        # badge card
 │       │   ├── businesses/    # business card, filters, staff editor
 │       │   ├── calculators/   # card, dynamic form, result view, staff editor
 │       │   ├── deals/         # offer card, filters, staff editor
@@ -76,7 +78,7 @@ nepalhub/
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. deals/, events/, jobs/ and reference/
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. badges/, deals/, events/, jobs/ and reference/
 │       ├── lib/               # apiClient.ts, apiErrors.ts
 │       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, admin)
 │       ├── styles/            # tokens.css (design tokens) + global.css
@@ -198,6 +200,8 @@ The seventh, `20261001142733_AddDealsAndEvents`, creates `deals` and `events`.
 The eighth, `20261001155854_AddDealsAndEventsIndexes`, adds the two indexes behind the `Newest` sort.
 It is a separate migration because the seventh was already applied to a live development database, and
 editing an applied migration to look tidier would leave the two out of step.
+The ninth, `20261002162619_AddBadges`, creates `badges` and `user_badges` and seeds the three badge
+definitions through `HasData`.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -546,6 +550,53 @@ event has no ticket — and each is recorded in `docs/database.md` as the column
 
 ---
 
+## Badges
+
+Read models over the progression the quiz already records. Three badges ship: finish one daily quiz,
+finish one on seven days in a row, finish ten.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/account/badges` | required | Every badge with this person's progress against it, plus the earned count |
+
+There is no endpoint that grants a badge. A badge is a consequence of a finished quiz, not something a
+request can ask for, so the only verb here is a GET and the feature is not subject to antiforgery.
+
+**Awarding runs after the quiz commits, never inside its transaction.** Two reasons. The quiz result is
+the thing that matters, so a failure while writing a badge must not roll back a quiz somebody actually
+finished. And the submit path already catches every MySQL duplicate-key error to turn a lost race on the
+unique `(user, daily_quiz)` index into "you have already played today's quiz"; a badge insert sharing that
+save would land in the same handler and be reported as a quiz problem. Keeping the two writes apart means
+each one's failure is its own.
+
+**A badge pays no XP.** The definition row is a threshold over a number the quiz already persists — the
+count of finished attempts, and the `streak_count` the quiz just wrote — and nothing more. The quiz decides
+XP once per attempt; a badge that quietly paid out again would make the total on the account page disagree
+with the sum of the quiz results behind it.
+
+**The criterion is a closed enum plus an integer, not a JSON blob.** `BadgeCriteria` is
+`QuizzesCompleted` or `ConsecutiveDayStreak`, stored as a string, and `threshold` is compared against
+`>=`. A JSON `criteria` column would let the seed describe a rule that nothing evaluates, so a badge could
+be listed as unearnable and nobody would find out until a player waited forever for it.
+
+**Granting is idempotent by construction.** The only thing recorded is the award, a badge already held is
+skipped, and `ix_user_badges_user_id_badge_id` is unique, so a second row for a badge somebody already has
+cannot exist. Reading the badges grants nothing.
+
+**Locked badges are returned, not filtered out.** Someone who has finished one quiz should be able to see
+that there is a seventh-day streak to reach. Hiding them would make the first badge arrive as an empty
+panel with no hint that anything else exists.
+
+The frontend renders the `icon` key as one text glyph (`trophy` → 🏆), matched against a table in
+`features/badges/format.ts` with a neutral fallback for an unknown key. No icon package: the brand mark is
+already the letters `NH` and a card's affordance is the character `→`, so three glyphs did not justify a
+dependency. See `docs/database.md` for the schema.
+
+Deliberately not here: a leaderboard, staff-editable badge definitions, XP rewards, and badge art. Each is
+recorded in `docs/database.md`.
+
+---
+
 ## Tests
 
 ```bash
@@ -558,11 +609,13 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-526 tests pass, of which 60 cover Offers and 54 cover Events:
+548 tests pass, of which 60 cover Offers and 54 cover Events:
 
 | File | Tests |
 | --- | --- |
 | `AuthenticationTests.cs` | 15 |
+| `BadgeRulesTests.cs` | 10 |
+| `BadgeTests.cs` | 12 |
 | `BusinessTests.cs` | 105 |
 | `CalculatorTests.cs` | 45 |
 | `DealTests.cs` | 60 |

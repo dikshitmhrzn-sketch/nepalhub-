@@ -1,4 +1,7 @@
 .page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-6);
   padding-block: var(--nh-space-7);
 }
 
@@ -96,4 +99,66 @@
   flex-wrap: wrap;
   gap: var(--nh-space-3);
   margin-top: var(--nh-space-5);
+}
+
+/* The badges sit in their own panel rather than inside the account details: three cards need
+   more width than a definition list does, and a single column at 320px is enough on a phone. */
+.badgesPanel {
+  max-width: 52rem;
+  margin-inline: auto;
+  padding: var(--nh-space-6);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-lg);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+.badgesHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--nh-space-3);
+  margin-bottom: var(--nh-space-5);
+}
+
+.badgesTitle {
+  margin: 0;
+  font-size: var(--nh-font-size-xl);
+  line-height: var(--nh-line-height-tight);
+}
+
+.badgesSubtitle {
+  margin-top: var(--nh-space-2);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.badgesCount {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-family: var(--nh-font-mono);
+  font-size: var(--nh-font-size-xs);
+  white-space: nowrap;
+}
+
+.badgeGrid {
+  display: grid;
+  gap: var(--nh-space-4);
+  grid-template-columns: 1fr;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 40rem) {
+  .badgeGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 60rem) {
+  .badgeGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }

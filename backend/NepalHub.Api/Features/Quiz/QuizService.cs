@@ -3,6 +3,7 @@ using MySqlConnector;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
+using NepalHub.Api.Features.Badges;
 
 namespace NepalHub.Api.Features.Quiz;
 
@@ -106,6 +107,7 @@ public sealed class QuizService(
     AppDbContext dbContext,
     INepalDateProvider dates,
     QuizSettings settings,
+    BadgeAwardService badgeAwards,
     ILogger<QuizService> logger)
 {
     private const int MinOptions = 2;
@@ -292,6 +294,13 @@ public sealed class QuizService(
                 Message: "You have already played today's quiz.");
         }
 
+        // The quiz is durable now, so whatever it earned can be recorded. This runs after
+        // the commit rather than inside the transaction on purpose: the duplicate-key
+        // handler above catches every MySQL 1062 and reports it as a repeated quiz, so a
+        // badge insert sharing that save could be reported as a quiz the player never
+        // retried. See BadgeAwardService for the longer reasoning.
+        await GrantEarnedBadgesAsync(player, user.StreakCount, attempt.CompletedAt, cancellationToken);
+
         return new SubmitOutcome(
             SubmitStatus.Success,
             new QuizResultResponse(
@@ -303,6 +312,29 @@ public sealed class QuizService(
                 attempt.CompletedAt,
                 new QuizProgressionResponse(true, xp, user.Xp, user.Level, user.StreakCount, user.LastActiveOn),
                 graded.Reviews));
+    }
+
+    /// <summary>
+    /// Counts the person's finished quizzes from the committed rows and hands the totals to
+    /// the badge service. Counting rows beats keeping a tally on the user, which would be a
+    /// second place for the quiz count to live and could disagree with the attempts.
+    /// </summary>
+    private async Task GrantEarnedBadgesAsync(
+        Guid player,
+        int streakCount,
+        DateTime awardedAt,
+        CancellationToken cancellationToken)
+    {
+        var quizzesCompleted = await dbContext.QuizAttempts
+            .AsNoTracking()
+            .CountAsync(attempt => attempt.UserId == player, cancellationToken);
+
+        await badgeAwards.GrantEarnedBadgesAsync(
+            player,
+            quizzesCompleted,
+            streakCount,
+            awardedAt,
+            cancellationToken);
     }
 
     // ---------------------------------------------------------------- staff read

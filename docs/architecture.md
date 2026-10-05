@@ -70,6 +70,11 @@ NepalHub.Api/
     │   ├── EventService.cs                   visibility, ongoing, slug rules
     │   ├── EventContracts.cs                 public and staff DTOs, EventCategory/EventSort enums
     │   └── (reuses Students/ExternalUrlPolicy.cs for the registration link)
+    ├── Badges/          the badges on someone's own account: awarded by finishing a quiz
+    │   ├── AccountBadgesController.cs  the whole set with progress, authenticated, GET only
+    │   ├── BadgeAwardService.cs        idempotent granting after the quiz commits, and the list
+    │   ├── BadgeRules.cs               the criteria as pure arithmetic, no database and no clock
+    │   └── BadgeContracts.cs           the read model, locked badges included
     ├── Reference/       provinces and districts, the only place location lists come from
     └── Calculators/    a second, larger reference example
         ├── CalculatorsController.cs        public catalogue, detail, calculate
@@ -155,6 +160,28 @@ district select. A hard-coded list of Nepal's districts is a thing that silently
 seeder that validates every seeded district code against the same table is what caught the two codes
 in the first seed draft that did not exist.
 
+**A badge is derived from the quiz, and is granted after the quiz has committed.** `Features/Badges`
+stores no fact about a user that the quiz has not already written. A criterion is a closed enum plus an
+integer threshold — `QuizzesCompleted` or `ConsecutiveDayStreak`, compared with `>=` — read against the
+count of `quiz_attempts` rows and the `streak_count` the quiz just persisted. Both rejected alternatives
+are worth naming: a JSON `criteria` blob would let the seed declare a rule nothing evaluates, so a badge
+could sit on the page as unearnable with nothing to report it; and an `xp_reward` column would pay XP a
+second time, so the account total would stop agreeing with the sum of the quiz results behind it.
+
+The grant deliberately runs *after* the quiz transaction commits, not inside it, for two reasons that
+only one of which is about atomicity. A failure while writing a badge must not roll back a quiz somebody
+actually finished. More specifically, `QuizService` catches every MySQL 1062 to turn a lost race on the
+unique `(user, daily_quiz)` index into "you have already played today's quiz" — so a badge insert sharing
+that save would be caught by the same handler and reported as a quiz problem the player never retried.
+After the commit, each write's failure is its own.
+
+Idempotency is structural rather than checked: the award row is the only thing written, a badge already
+held is skipped, and `ix_user_badges_user_id_badge_id` is unique. Reading the list therefore grants
+nothing, which the tests assert against the table rather than against the response — a second row that
+the UI happened not to show is still a bug. The streak criterion reads the stored `StreakCount` rather
+than recounting days, so a badge and the streak shown on the account page cannot disagree about whether
+seven days were consecutive.
+
 Rules that keep this maintainable:
 
 - Entities are not exposed as API models. Each feature defines its own request/response records.
@@ -170,7 +197,7 @@ Rules that keep this maintainable:
 src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
-│                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/)
+│                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/, badges/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts

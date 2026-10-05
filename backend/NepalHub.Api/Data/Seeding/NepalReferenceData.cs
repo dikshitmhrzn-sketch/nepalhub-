@@ -1,4 +1,5 @@
 using System.Text;
+using NepalHub.Api.Data.Entities;
 
 namespace NepalHub.Api.Data.Seeding;
 
@@ -7,6 +8,16 @@ internal sealed record ProvinceSeed(Guid Id, string Code, string Name, int SortO
 internal sealed record DistrictSeed(Guid Id, Guid ProvinceId, string Code, string Name, int SortOrder);
 
 internal sealed record ProvinceDefinition(string Code, string Name, string[] Districts);
+
+internal sealed record BadgeDefinitionSeed(
+    Guid Id,
+    string Code,
+    string Name,
+    string Description,
+    string Icon,
+    BadgeCriteria Criteria,
+    int Threshold,
+    int SortOrder);
 
 internal static class NepalReferenceData
 {
@@ -144,6 +155,47 @@ internal static class NepalReferenceData
                         districtIndex + 1);
                 }))
             .ToArray();
+
+    /*
+     * The three badges this phase awards. Each row is a declaration of a threshold the
+     * quiz already tracks, never a new fact about the user: the attempt count comes from
+     * the quiz_attempts rows and the streak from the value the quiz just wrote to the
+     * user. That is why there is no XP column here. The quiz decides XP, once per
+     * attempt, and a badge that quietly paid out a second time would make the total on
+     * the account page disagree with the sum of the quiz results behind it.
+     */
+    private static readonly BadgeDefinitionSeed[] Badges =
+    [
+        new(
+            ReferenceDataIds.Badge("first-quiz"),
+            "first-quiz",
+            "First Quiz",
+            "Finish your first daily quiz.",
+            "trophy",
+            BadgeCriteria.QuizzesCompleted,
+            1,
+            1),
+        new(
+            ReferenceDataIds.Badge("seven-day-streak"),
+            "seven-day-streak",
+            "7-Day Streak",
+            "Finish a quiz on seven days in a row.",
+            "flame",
+            BadgeCriteria.ConsecutiveDayStreak,
+            7,
+            2),
+        new(
+            ReferenceDataIds.Badge("quiz-enthusiast"),
+            "quiz-enthusiast",
+            "Quiz Enthusiast",
+            "Finish ten daily quizzes.",
+            "book",
+            BadgeCriteria.QuizzesCompleted,
+            10,
+            3),
+    ];
+
+    internal static IReadOnlyList<BadgeDefinitionSeed> BadgeDefinitions { get; } = Badges;
 
     private static string Slug(string name)
     {

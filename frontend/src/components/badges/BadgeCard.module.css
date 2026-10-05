@@ -1,0 +1,85 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+  height: 100%;
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+/* An earned badge is set apart by its border and background rather than by colour alone, so the
+   distinction survives a screen that cannot render the accent hue. */
+.card[data-awarded='true'] {
+  border-color: var(--nh-success);
+  background-color: var(--nh-success-soft);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--nh-space-2);
+}
+
+.icon {
+  font-size: var(--nh-font-size-lg);
+  line-height: var(--nh-line-height-tight);
+}
+
+.name {
+  margin: 0;
+  font-size: var(--nh-font-size-md);
+  line-height: var(--nh-line-height-tight);
+}
+
+.earnedTag {
+  margin-left: auto;
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-surface);
+  color: var(--nh-status-success-text);
+  font-size: var(--nh-font-size-xs);
+  font-weight: var(--nh-font-weight-medium);
+  white-space: nowrap;
+}
+
+.description {
+  margin: 0;
+  flex: 1;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.meter {
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-surface-muted);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--nh-radius-pill);
+  background-color: var(--nh-primary);
+}
+
+.card[data-awarded='true'] .fill {
+  background-color: var(--nh-success);
+}
+
+.progress {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-family: var(--nh-font-mono);
+  font-size: var(--nh-font-size-xs);
+}

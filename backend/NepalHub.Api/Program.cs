@@ -13,6 +13,7 @@ using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Data.Seeding;
 using NepalHub.Api.Features.Auth;
+using NepalHub.Api.Features.Badges;
 using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
 using NepalHub.Api.Features.Businesses;
@@ -241,6 +242,10 @@ builder.Services.AddScoped<BusinessService>();
 builder.Services.AddScoped<DealService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<SearchService>();
+
+// Grants badges after a quiz commits and serves the account page's list. Scoped, so it
+// shares the request's AppDbContext and sees the quiz writes in that same context.
+builder.Services.AddScoped<BadgeAwardService>();
 
 if (databaseConfigured)
 {

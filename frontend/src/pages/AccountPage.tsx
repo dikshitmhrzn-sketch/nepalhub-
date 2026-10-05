@@ -1,15 +1,18 @@
 import { useState } from 'react';
 
+import { BadgeCard } from '@/components/badges/BadgeCard';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useBadges } from '@/features/badges/useBadges';
 import { getErrorMessage } from '@/lib/apiErrors';
 
 import styles from './AccountPage.module.css';
 
 export function AccountPage() {
   const { user, isAdmin, signOut } = useAuth();
+  const badges = useBadges();
 
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,8 @@ export function AccountPage() {
       setIsSigningOut(false);
     }
   }
+
+  const badgeList = badges.status === 'success' ? badges.data.badges : [];
 
   return (
     <Container as="section" className={styles.page}>
@@ -86,11 +91,65 @@ export function AccountPage() {
         </dl>
 
         <p className={styles.notice}>
-          Accounts start confirmed because email sending is not connected yet. Saved tools, the quiz
-          streak and the rest of your profile arrive with the next phases.
+          Accounts start confirmed because email sending is not connected yet. Saved tools and the
+          rest of your profile arrive with the next phases.
           {isAdmin ? ' You have administrator access.' : ''}
         </p>
       </div>
+
+      <section className={styles.badgesPanel} aria-labelledby="badges-heading">
+        <header className={styles.badgesHeader}>
+          <div>
+            <h2 className={styles.badgesTitle} id="badges-heading">
+              Badges
+            </h2>
+            <p className={styles.badgesSubtitle}>
+              Earned by finishing the daily quiz. Nothing here is bought with XP.
+            </p>
+          </div>
+
+          {badges.status === 'success' && badges.data.badges.length > 0 ? (
+            <p className={styles.badgesCount}>
+              {badges.data.awardedCount} of {badges.data.badges.length} earned
+            </p>
+          ) : null}
+        </header>
+
+        {badges.status === 'loading' ? (
+          <StateMessage tone="loading" title="Loading your badges…" />
+        ) : null}
+
+        {badges.status === 'error' ? (
+          <StateMessage
+            tone="error"
+            title="Could not load your badges"
+            description={getErrorMessage(badges.error, 'Please try again in a moment.')}
+            action={
+              <Button variant="secondary" size="small" onClick={badges.reload}>
+                Try again
+              </Button>
+            }
+          />
+        ) : null}
+
+        {badges.status === 'success' && badgeList.length === 0 ? (
+          <StateMessage
+            tone="info"
+            title="No badges yet"
+            description="The first one arrives as soon as you finish a daily quiz."
+          />
+        ) : null}
+
+        {badgeList.length > 0 ? (
+          <ul className={styles.badgeGrid}>
+            {badgeList.map((badge) => (
+              <li key={badge.code}>
+                <BadgeCard badge={badge} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
     </Container>
   );
 }

@@ -1,9 +1,11 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and the first five modules are live.** The schema below is the
-as-built result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
-`20260930122740_AddQuiz`, `20260930154447_AddStudentResources` and `20261001041409_AddJobs`, not a
-proposal. Everything from "Planned modules" onwards is still design only.
+**Status: MySQL 8.4.9 is installed and nine modules are live.** The schema below is the as-built
+result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
+`20260930122740_AddQuiz`, `20260930154447_AddStudentResources`, `20261001041409_AddJobs`,
+`20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`
+and `20261002162619_AddBadges`, not a proposal. Everything from "Planned modules" onwards is still design
+only.
 
 ## Local instance
 
@@ -495,6 +497,63 @@ The seeds cover every category, every province and both sort orders, and include
 install would otherwise never show: a draft, an offer whose end date has already passed, and an event
 that has already finished.
 
+## Module 9 — Badges (live)
+
+Added by `20261002162619_AddBadges`. Two tables: what a badge *is*, and the fact that this person has it.
+Neither stores anything about a user that the quiz has not already written.
+
+### `badges`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK, no default — ids are derived from `ReferenceDataIds.Badge(code)` |
+| `code` | `varchar(50)` | Unique. The stable handle a client can key on |
+| `name` | `varchar(100)` | Display name |
+| `description` | `varchar(250)` | What earns it, in the player's words |
+| `icon` | `varchar(40)` | A key such as `trophy`, not a filename. Resolved by the client |
+| `criteria` | `varchar(40)` | `BadgeCriteria` by name: `QuizzesCompleted` or `ConsecutiveDayStreak` |
+| `sort_order` | `int` | Display order |
+
+The criterion is a closed enum stored as a string plus an integer `threshold`, and the rule is a
+`>=` comparison against a number the quiz already persists.
+
+**Not a JSON `criteria` blob.** An earlier draft of this document proposed one. A JSON criterion would
+let the seed declare a rule that nothing evaluates, so a badge could be listed on the account page as
+unearnable with no way to find out short of a player waiting forever for it. An enum cannot hold a rule
+the code does not implement, and adding a badge to the seed needs no change to `BadgeRules`.
+
+**No `xp_reward` column**, also contrary to the earlier draft. The quiz decides XP once per attempt. A
+badge that quietly paid out again would make the total on the account page disagree with the sum of the
+quiz results behind it, and "why did my XP go up twice" has no good answer.
+
+Seeded through `HasData` with ids derived from the code, so a fresh environment is reproducible and the
+three rows are identical on every machine. They are not staff-editable copy: `HasData` would overwrite a
+real edit on the next migration, which is the trade `database.md`'s migration discipline accepts for rows
+that are meant to match the code. Three ship — first quiz (1), seven-day streak (7), ten quizzes (10).
+
+Indexes: `ix_badges_code` (unique) and `ix_badges_sort_order`, which is the order every read asks for.
+
+### `user_badges`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` | PK |
+| `user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE` |
+| `badge_definition_id` | `char(36)` | FK → `badges`, `ON DELETE CASCADE` |
+| `awarded_at` | `datetime(6)` | The instant of the quiz that earned it, not the backfill instant |
+
+The unique index on `(user_id, badge_definition_id)` is what makes granting idempotent, not a check
+inside the service: the service skips a badge already held, and the index makes a second row for one
+impossible even if two requests race. `awarded_at` records when the qualifying quiz happened rather than
+when the row was written, so a backfilled account dates its badges to what it actually did.
+
+Indexes: `ix_user_badges_user_id_badge_id` (unique, the idempotency guarantee),
+`ix_user_badges_user_id_awarded_at` and `ix_user_badges_badge_id`.
+
+**The total comes from the attempts, not from a counter.** `quizzesCompleted` is a `COUNT` over
+`quiz_attempts` and the streak is `users.streak_count`, both read at award time. A tally kept on the user
+row would be a second place for the quiz count to live, and it would be the one that drifts.
+
 ## Planned modules
 
 Nothing below exists in the database yet. Each will be added as its own migration when its module is
@@ -545,17 +604,16 @@ event is registered with its organiser, so the honest value of both is a link ou
 
 ### Progression
 
-`users.xp`, `users.level`, `users.streak_count` and `users.last_active_on` are already live (Module
-1) and are written by the quiz. What is still planned:
+`users.xp`, `users.level`, `users.streak_count` and `users.last_active_on` are live (Module 1) and are
+written by the quiz. `badges` and `user_badges` are live too (Module 9). What is still planned:
 
-- `badges` — `code`, `name`, `description`, `icon`, `criteria` (JSON), `xp_reward`
-- `user_badges` — `user_id`, `badge_id`, `awarded_at` (unique per user+badge)
 - `leaderboard_entries` — cached ranking rows per period, refreshed by a background service rather
   than recomputed on every request
 
 Levels are derived from total XP and cached on the user row, so a leaderboard can be built later
-without a migration. Badges and leaderboards are deliberately not part of the quiz: both need
-their own read models.
+without a migration. A leaderboard is deliberately not part of the quiz for the same reason the badges
+were not: it needs its own read model, and ranking every account on every request is the one query
+here that grows without limit as the site does.
 
 ### User data and operations
 
