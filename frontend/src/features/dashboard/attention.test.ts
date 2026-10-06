@@ -41,6 +41,7 @@ function summaryWith(attention: Partial<DashboardAttention>): DashboardSummary {
       unverifiedBusinesses: attention.unverifiedBusinesses ?? 0,
       openReports: attention.openReports ?? 0,
       pendingClaims: attention.pendingClaims ?? 0,
+      pendingVerifications: attention.pendingVerifications ?? 0,
       subscriptionRequests: attention.subscriptionRequests ?? 0,
     },
   };
@@ -110,6 +111,7 @@ describe('attentionSections', () => {
       '/admin/events',
       '/admin/reports',
       '/admin/claims',
+      '/admin/verifications',
       '/admin/subscription-requests',
     ]);
   });

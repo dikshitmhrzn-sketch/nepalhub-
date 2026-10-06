@@ -32,6 +32,7 @@ const navigation: NavigationItem[] = [
   { label: 'Dashboard', to: '/admin', requiresStaff: true },
   { label: 'Report queue', to: '/admin/reports', requiresStaff: true },
   { label: 'Ownership claims', to: '/admin/claims', requiresStaff: true },
+  { label: 'Verification queue', to: '/admin/verifications', requiresStaff: true },
   { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },
   { label: 'Manage quiz', to: '/admin/quiz', requiresStaff: true },
   { label: 'Manage resources', to: '/admin/students', requiresStaff: true },

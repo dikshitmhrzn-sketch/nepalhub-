@@ -27,6 +27,7 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _claimRateLimitPermitLimit;
     private readonly int _bookingRateLimitPermitLimit;
     private readonly int _paymentRateLimitPermitLimit;
+    private readonly int _businessRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -42,7 +43,8 @@ private readonly int _authRateLimitPermitLimit;
         int logoutRateLimitPermitLimit = 10_000,
         int claimRateLimitPermitLimit = 10_000,
         int bookingRateLimitPermitLimit = 10_000,
-        int paymentRateLimitPermitLimit = 10_000)
+        int paymentRateLimitPermitLimit = 10_000,
+        int businessRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
@@ -53,6 +55,7 @@ private readonly int _authRateLimitPermitLimit;
         _claimRateLimitPermitLimit = claimRateLimitPermitLimit;
         _bookingRateLimitPermitLimit = bookingRateLimitPermitLimit;
         _paymentRateLimitPermitLimit = paymentRateLimitPermitLimit;
+        _businessRateLimitPermitLimit = businessRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
@@ -62,7 +65,8 @@ private readonly int _authRateLimitPermitLimit;
                 _logoutRateLimitPermitLimit,
                 _claimRateLimitPermitLimit,
                 _bookingRateLimitPermitLimit,
-                _paymentRateLimitPermitLimit)
+                _paymentRateLimitPermitLimit,
+                _businessRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 
@@ -240,6 +244,25 @@ public sealed class BookingLimitedApiFactory : NepalHubApiFactory
     public BookingLimitedApiFactory()
         : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
     {
+    }
+}
+
+/// <summary>
+/// A host whose registration endpoint rejects almost immediately, so the per-IP quota can be
+/// asserted without a test registering hundreds of listings.
+/// </summary>
+public sealed class BusinessLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public BusinessLimitedApiFactory()
+        : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
+    {
+        // Every quota is read from the environment while the host starts, and every fixture
+        // overwrites that variable with its own values. Starting the host here pins the
+        // lowered quota to this host, rather than leaving it to whichever fixture happens to
+        // be constructed next.
+        _ = Services;
     }
 }
 

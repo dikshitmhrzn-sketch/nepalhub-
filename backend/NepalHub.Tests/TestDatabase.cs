@@ -85,7 +85,8 @@ internal static class TestDatabase
         int logoutRateLimitPermitLimit = 10_000,
         int claimRateLimitPermitLimit = 10_000,
         int bookingRateLimitPermitLimit = 10_000,
-        int paymentRateLimitPermitLimit = 10_000)
+        int paymentRateLimitPermitLimit = 10_000,
+        int businessRateLimitPermitLimit = 10_000)
     {
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", ConnectionString);
         Environment.SetEnvironmentVariable(
@@ -115,6 +116,9 @@ internal static class TestDatabase
         Environment.SetEnvironmentVariable(
             "Payment__RateLimit__PermitLimit",
             paymentRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Business__RateLimit__PermitLimit",
+            businessRateLimitPermitLimit.ToString());
 
         if (_isReady)
         {

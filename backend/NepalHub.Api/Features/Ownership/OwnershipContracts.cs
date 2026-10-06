@@ -87,10 +87,11 @@ public sealed class CloseClaimRequest
     public string? ReviewNote { get; init; }
 }
 
-/// <summary>The account page's ownership screen: the listings this person manages, and every claim they have filed.</summary>
+/// <summary>The account page's ownership screen: the listings this person manages, every claim they have filed, and every verification they have asked for.</summary>
 public sealed record MyBusinessesResponse(
     IReadOnlyList<MyBusinessSummary> Owned,
-    IReadOnlyList<ClaimResponse> Claims);
+    IReadOnlyList<ClaimResponse> Claims,
+    IReadOnlyList<VerificationResponse> Verifications);
 
 /// <summary>How the owner's save ended.</summary>
 public enum OwnerEditStatus
@@ -102,12 +103,16 @@ public enum OwnerEditStatus
 
     /// <summary>Shape or content rules were not met, reported as field errors.</summary>
     Invalid,
+
+    /// <summary>Another row already owns the slug this draft was renamed to.</summary>
+    SlugTaken,
 }
 
 public sealed record OwnerSaveOutcome(
     OwnerEditStatus Status,
     OwnerBusinessResponse? Business = null,
-    IReadOnlyList<FieldError>? FieldErrors = null);
+    IReadOnlyList<FieldError>? FieldErrors = null,
+    string? Message = null);
 
 /// <summary>One managed listing. The description is left out for the same reason the public card leaves it out.</summary>
 public sealed record MyBusinessSummary(
@@ -122,7 +127,8 @@ public sealed record MyBusinessSummary(
 /// <summary>
 /// One owned listing in the shape the owner's editor sends back: every field the owner may
 /// touch, plus the ones they may only read. Publish and verify state are shown read-only,
-/// because those are staff decisions the owner cannot change from this screen.
+/// because those are staff decisions the owner cannot change from this screen, and
+/// <c>Verification</c> is where their own request stands if they have filed one.
 /// </summary>
 public sealed record OwnerBusinessResponse(
     Guid Id,
@@ -130,6 +136,7 @@ public sealed record OwnerBusinessResponse(
     string Name,
     string Description,
     BusinessCategory Category,
+    string DistrictCode,
     string DistrictName,
     string? Address,
     string? Phone,
@@ -138,15 +145,37 @@ public sealed record OwnerBusinessResponse(
     bool IsPublished,
     bool IsVerified,
     IReadOnlyList<BusinessHoursResponse> OpeningHours,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    VerificationResponse? Verification);
 
 /// <summary>
-/// The owner's editor body. Deliberately narrow: no slug, name, category, district, publish
-/// flag or verify badge, because those are identity and trust decisions that belong to staff —
-/// an owner may correct what their listing says, not rebrand it or self-verify.
+/// The owner's editor body. The identity fields — slug, name, category and district — are
+/// here only for a listing that is not published: a draft's owner can correct a typo they
+/// made while registering, and once the row is live its address and its facts are frozen to
+/// staff, exactly as the staff editor freezes them. The publish flag and the verify badge are
+/// absent entirely, because those are staff decisions an owner may never express.
 /// </summary>
 public sealed class SaveOwnerBusinessRequest
 {
+    /// <summary>Leave null to keep the slug as it is.</summary>
+    [StringLength(160, MinimumLength = 2, ErrorMessage = "The slug must be 2 to 160 characters.")]
+    [RegularExpression(
+        BusinessSlug.Pattern,
+        ErrorMessage = "Use lowercase words separated by single hyphens, for example newa-momo-house-lalitpur.")]
+    public string? Slug { get; init; }
+
+    /// <summary>Leave null to keep the name as it is.</summary>
+    [StringLength(160, MinimumLength = 2, ErrorMessage = "The name must be 2 to 160 characters.")]
+    public string? Name { get; init; }
+
+    /// <summary>Leave null to keep the category as it is.</summary>
+    [EnumDataType(typeof(BusinessCategory), ErrorMessage = "Choose a valid category.")]
+    public BusinessCategory? Category { get; init; }
+
+    /// <summary>A district reference code such as <c>bagmati-kathmandu</c>. Leave null to keep the district as it is.</summary>
+    [StringLength(80, ErrorMessage = "The district code must be 80 characters or fewer.")]
+    public string? DistrictCode { get; init; }
+
     [StringLength(20000, ErrorMessage = "The description must be 20000 characters or fewer.")]
     public string Description { get; init; } = string.Empty;
 

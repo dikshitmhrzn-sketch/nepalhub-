@@ -48,6 +48,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<BusinessClaim> BusinessClaims => Set<BusinessClaim>();
 
+    public DbSet<BusinessVerificationRequest> BusinessVerificationRequests => Set<BusinessVerificationRequest>();
+
     public DbSet<Plan> Plans => Set<Plan>();
 
     public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();

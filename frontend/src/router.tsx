@@ -18,6 +18,7 @@ import { ReportsAdminPage } from '@/pages/admin/ReportsAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
 import { SubscriptionRequestsAdminPage } from '@/pages/admin/SubscriptionRequestsAdminPage';
 import { UsersAdminPage } from '@/pages/admin/UsersAdminPage';
+import { VerificationsAdminPage } from '@/pages/admin/VerificationsAdminPage';
 import { BusinessPage } from '@/pages/BusinessPage';
 import { BusinessesPage } from '@/pages/BusinessesPage';
 import { CalculatorPage } from '@/pages/CalculatorPage';
@@ -93,6 +94,7 @@ export const router = createBrowserRouter([
           { path: 'admin/events', element: <EventsAdminPage /> },
           { path: 'admin/reports', element: <ReportsAdminPage /> },
           { path: 'admin/claims', element: <ClaimsAdminPage /> },
+          { path: 'admin/verifications', element: <VerificationsAdminPage /> },
           {
             element: <RequireAdmin />,
             children: [

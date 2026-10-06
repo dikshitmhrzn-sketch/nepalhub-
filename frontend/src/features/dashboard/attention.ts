@@ -39,6 +39,7 @@ export const quickLinks: QuickLink[] = [
   { key: 'events', label: 'Manage events', to: '/admin/events' },
   { key: 'reports', label: 'Open the report queue', to: '/admin/reports' },
   { key: 'claims', label: 'Open the claims queue', to: '/admin/claims' },
+  { key: 'verifications', label: 'Open the verification queue', to: '/admin/verifications' },
   { key: 'subscriptionRequests', label: 'Open plan requests', to: '/admin/subscription-requests' },
 ];
 
@@ -56,8 +57,15 @@ const quickLinkTargets: Record<string, string> = Object.fromEntries(
  * ignore the section — which is exactly the section that matters when it is not zero.
  */
 export function attentionSections(summary: DashboardSummary): AttentionSection[] {
-  const { drafts, staleWhilePublished, unverifiedBusinesses, openReports, pendingClaims, subscriptionRequests } =
-    summary.needsAttention;
+  const {
+    drafts,
+    staleWhilePublished,
+    unverifiedBusinesses,
+    openReports,
+    pendingClaims,
+    pendingVerifications,
+    subscriptionRequests,
+  } = summary.needsAttention;
 
   const draftRows: AttentionRow[] = [
     { key: 'businesses', label: 'Draft businesses', count: drafts.businesses, to: quickLinkTargets.businesses },
@@ -124,6 +132,12 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
       label: 'Ownership claims waiting',
       count: pendingClaims,
       to: quickLinkTargets.claims,
+    },
+    {
+      key: 'pendingVerifications',
+      label: 'Listings waiting to be verified',
+      count: pendingVerifications,
+      to: quickLinkTargets.verifications,
     },
     {
       key: 'subscriptionRequests',

@@ -19,25 +19,25 @@ and eSewa checkout for paid plans and priced events.
 | Area | State |
 | --- | --- |
 | React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, a payment history at `/account/payments` and a provider
-return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim pages plus
+return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim/verification pages plus
 admin-only account, audit-log, plan-request and payments pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, plans and subscriptions, event bookings, and eSewa payments |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 32 application tables plus the EF migration-history table, fifteen migrations applied |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, plans and subscriptions, event bookings, and eSewa payments |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 33 application tables plus the EF migration-history table, sixteen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
-| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see, open reports, unreviewed claims and plan requests, and quick links to each management page |
+| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see, open reports, unreviewed claims, unverified listings and plan requests, and quick links to each management page |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 631 integration tests against the real `nepalhub_test` database, plus 61 frontend tests |
+| Tests | 641 integration tests against the real `nepalhub_test` database, plus 61 frontend tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
-| Ownership and claims | A signed-in person claims a staff-written listing; staff approve or reject at `/admin/claims`, and approval writes the owner, grants the `business` role and settles rival claims in one save; the owner edits contact details and hours at `/my-business` |
+| Ownership and claims | A signed-in person claims a staff-written listing, or registers one of their own as a draft nobody else can see; staff decide at `/admin/claims` (approval writes the owner, grants the `business` role and settles rival claims in one save) and at `/admin/verifications` (approval publishes the listing and gives it the verified badge, the same role grant, or refuses with the publish blockers); the owner edits identity while a draft, contact details and hours always, at `/my-business` |
 | Plans and featured listings | Free and Featured plans (30 days each), seeded as rows staff can edit; an owner requests a plan and an admin approves at `/admin/subscription-requests` (or grants directly); live featured listings get a labelled strip atop the directory, capped at six and alphabetical |
 | Event bookings | Free bookings of 1–4 places against an atomic capacity counter, paid ones through eSewa when `ticket_price` is set; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` and a `Ticket price` field |
 | Payments | eSewa ePay v2 behind `IPaymentGateway`, off until `Payments:Provider` is set; one open checkout per listing or seat, settlement only from the signed return plus a server-to-server status check, refunds discovered through the admin status check, and history at `/account/payments` / `/admin/payments` |
@@ -91,7 +91,8 @@ nepalhub/
 │       │   ├── reports/       # member report button, staff queue card
 │       │   ├── students/      # resource card, filters, staff editor
 │       │   ├── subscriptions/ # plan request card
-│       │   └── ui/            # Container, Button, StateMessage, Pagination
+│       │   ├── ui/            # Container, Button, StateMessage, Pagination
+│       │   └── verifications/ # verification queue card
 │       ├── config/            # env.ts (VITE_* only)
 │       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, payments/, reports/, subscriptions/, useradmin/ ...
 │       ├── lib/               # apiClient.ts, apiErrors.ts
@@ -231,6 +232,7 @@ The fourteenth, `20261005104931_AddEventBookings`, creates `event_bookings` and 
 `capacity` and `registration_count`.
 The fifteenth, `20261006035723_AddPayments`, creates `payment_transactions` and gives `events` its
 `ticket_price`.
+The sixteenth, `20261006093754_AddBusinessVerifications`, creates `business_verification_requests`.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -649,7 +651,7 @@ module's staff list asked with no filters, so a card that says 16 jobs and the j
 
 **"Needs attention" carries only numbers somebody can act on**, in three groups: open decisions
 first — reports, since a complaint has a reader waiting on the other side of it, then ownership
-claims and plan requests — then rows nobody has published yet, and rows whose publish
+claims, listings waiting to be verified and plan requests — then rows nobody has published yet, and rows whose publish
 flag no longer describes what a reader sees - a job past its
 deadline, an offer past its last day, a resource past its expiry, an event that has finished - plus
 live listings that are no longer verified, because unverifying does not retract a listing. Rows with
@@ -664,11 +666,11 @@ is serving: if a rule changes in the scope, this number changes with it.
 The endpoint has no write verb, no caching and no new table. It is a handful of count queries, and
 a number that changes while a reader is looking at it is worse than one that is a few seconds old.
 The frontend is `/admin` behind `RequireStaff`: eight count cards, the attention rows grouped and
-linked, and quick links to the ten management pages - the seven content modules, the report queue,
-the claims queue and the plan-request queue. Those links are the plain `/admin/*` routes
+linked, and quick links to the eleven management pages - the seven content modules, the report queue,
+the claims queue, the verification queue and the plan-request queue. Those links are the plain `/admin/*` routes
 because those pages keep their filters in component state rather than in the URL - a link carrying
 `?status=draft` would land on the unfiltered list and look precise while being nothing of the sort.
-The report queue, the account list, the audit log, the claims queue and the plan-request queue are
+The report queue, the account list, the audit log, the claims queue, the verification queue and the plan-request queue are
 the opposite: their filters live in the URL, so a filtered view is a link somebody can paste to a
 colleague.
 
@@ -720,8 +722,13 @@ adding a second approval path (see **Payments** below).
 | `GET /api/admin/business-claims` | `staff-only` | The queue: pending first, `status` filter |
 | `POST /api/admin/business-claims/{id}/approve` | `staff-only` | Writes the owner, grants `business`, settles rival claims, audits — one save |
 | `POST /api/admin/business-claims/{id}/reject` | `staff-only` | Closes it with an optional review note, recorded on the claim row |
-| `GET /api/account/businesses` | required | The listings this account owns, plus its own claims in flight |
-| `GET`/`PUT /api/account/businesses/{slug}` | required | The owner's read and save: description, address, phone, email, website and hours — never publish or verify |
+| `GET /api/account/businesses` | required | The listings this account owns, plus its own claims and verification requests in flight |
+| `GET`/`PUT /api/account/businesses/{slug}` | required | The owner's read and save: contact details, description and hours always, and slug, name, category and district while the listing is a draft; never publish or verify |
+| `POST /api/account/businesses` | required | Register a listing of one's own: born owned, unpublished and unchecked; `409 slug_taken`; 10/hour per IP |
+| `POST /api/account/businesses/{slug}/verification` | required | Ask staff to check a draft; `409 verification_pending` / `already_published`; 10/hour per IP |
+| `GET /api/admin/business-verifications` | `staff-only` | The queue: pending first, `status` filter |
+| `POST /api/admin/business-verifications/{id}/approve` | `staff-only` | Publishes if the blockers pass, grants `business`, audits; `409 not_publishable` / `verification_closed` |
+| `POST /api/admin/business-verifications/{id}/reject` | `staff-only` | Closes it with an optional review note; the draft stays a draft and may be sent again |
 | `GET /api/plans` | anonymous | The catalogue: Free and Featured, prices staff can edit without a deployment |
 | `GET /api/businesses/featured` | anonymous | The strip: published, verified and live-featured listings, capped at six, alphabetical |
 | `GET /api/account/businesses/{slug}/subscription` | required | This listing's plan state against the Nepal day |
@@ -740,9 +747,28 @@ claims live in the cookie), rejects the rival claims for the same listing and ap
 leaves no half-owner. There is no unique index on (business, claimant): a rejected claimant who
 corrects their evidence can try again, and the service names each refusal rather than the database
 swallowing the row. The owner's screen is `/my-business` — a list of owned listings beside the
-claims in flight, and an editor whose whitelist is contact details and hours. The claim panel on a
-listing page shows the person's own state (filed, approved, rejected) rather than a button that
-would be refused.
+claims and verification requests in flight, a form to register a listing of one's own, and an
+editor whose whitelist is contact details and hours plus, while the listing is a draft, the
+slug, name, category and district it will be published under. The claim panel on a listing page
+shows the person's own state (filed, approved, rejected) rather than a button that would be
+refused.
+
+**Registration is authorship, not publication.** `POST /api/account/businesses` creates a row
+owned by the caller, unpublished and unchecked, answering 404 on the public site exactly as a
+listing nobody has published does. The owner asks for a check with
+`POST /api/account/businesses/{slug}/verification`, which opens one `Pending` request
+(`business_verification_requests`, newest-first in the queue at `/admin/verifications`, also
+counted in the dashboard's needs-attention list) and refuses a second one while it waits.
+Approving is the single move that publishes: it runs the same `CollectPublishBlockers` a staff
+publish runs, and a listing missing its phone or an 80-character description is refused with
+`409 not_publishable` and each blocker named, rather than published broken. Approval grants the
+`business` role, stamps `is_verified`, and appends `business.verification_approved`; rejection
+closes the request with a review note and leaves the draft exactly where it was, so it can be
+corrected and sent again. Both decisions settle from the request row's own status, so a second
+click on an already-decided request is `409 verification_closed`. A draft edits its own
+identity freely; a published row's identity fields are omitted from the save rather than sent,
+which is how the API is told to leave them alone. Registration is rate-limited to 10 per hour
+per IP (`Business:RateLimit`) because it mints rows a stranger can then ask staff to review.
 
 **Entitlement is derived, never a flag.** Whether a listing is featured is `ends_on >= today`
 against `INepalDateProvider`, so an expired row reports itself with no background job; one row per
@@ -891,7 +917,7 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-631 tests pass, of which 60 cover Offers, 54 cover Events and 17 cover Payments:
+641 tests pass, of which 60 cover Offers, 54 cover Events and 17 cover Payments:
 
 | File | Tests |
 | --- | --- |
@@ -900,6 +926,7 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `BadgeRulesTests.cs` | 10 |
 | `BadgeTests.cs` | 12 |
 | `BookingTests.cs` | 5 |
+| `BusinessRegistrationTests.cs` | 9 |
 | `BusinessTests.cs` | 105 |
 | `CalculatorTests.cs` | 45 |
 | `DealTests.cs` | 60 |
@@ -910,7 +937,7 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `OwnershipTests.cs` | 8 |
 | `PaymentTests.cs` | 17 |
 | `QuizTests.cs` | 35 |
-| `RateLimitingTests.cs` | 4 |
+| `RateLimitingTests.cs` | 5 |
 | `ReferenceDataTests.cs` | 5 |
 | `SearchTests.cs` | 31 |
 | `StaffDashboardTests.cs` | 11 |

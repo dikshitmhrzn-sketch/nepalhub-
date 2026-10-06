@@ -103,3 +103,47 @@ public sealed class BookingRateLimitingTests(BookingLimitedApiFactory factory)
         Assert.Equal("rate_limited", limited.Error!.Code);
     }
 }
+
+/// <summary>
+/// Registering a listing opens a row in the staff queue, so it is bounded per IP like filing
+/// a claim: a loop of registrations is exactly the flood the queue exists to not be handed,
+/// and asking for verification is the same spend a moment later.
+/// </summary>
+public sealed class BusinessRateLimitingTests(BusinessLimitedApiFactory factory)
+    : IClassFixture<BusinessLimitedApiFactory>
+{
+    [Fact]
+    public async Task Registering_stops_at_the_quota()
+    {
+        var api = new AuthApiClient(
+            factory.CreateSignedInClientAsync(TestData.UniqueEmail("reg-limit")));
+
+        for (var attempt = 0; attempt < BusinessLimitedApiFactory.PermitLimit; attempt++)
+        {
+            using var allowed = await api.PostAsync(
+                RegistrationApi.AccountPath,
+                RegistrationApi.RegisterBody(BusinessApi.NewSlug()));
+            Assert.Equal(HttpStatusCode.Created, allowed.StatusCode);
+        }
+
+        var limited = await api.PostForSnapshotAsync(
+            RegistrationApi.AccountPath,
+            RegistrationApi.RegisterBody(BusinessApi.NewSlug()));
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+
+        // The verification request shares that quota: both spend the same per-IP hour, so
+        // once registration is refused, asking for the check it opened is refused too.
+        var slug = BusinessApi.NewSlug();
+        using var allowedRegistration = await api.PostAsync(
+            RegistrationApi.AccountPath,
+            RegistrationApi.RegisterBody(slug));
+        Assert.Equal(HttpStatusCode.TooManyRequests, allowedRegistration.StatusCode);
+
+        var refusedAsk = await api.PostForSnapshotAsync(
+            $"{RegistrationApi.AccountPath}/{slug}/verification",
+            new { note = (string?)null });
+        Assert.Equal(HttpStatusCode.TooManyRequests, refusedAsk.StatusCode);
+        Assert.Equal("rate_limited", refusedAsk.Error!.Code);
+    }
+}

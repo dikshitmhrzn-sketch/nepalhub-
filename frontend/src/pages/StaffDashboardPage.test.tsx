@@ -35,6 +35,7 @@ const summary: DashboardSummary = {
     unverifiedBusinesses: 0,
     openReports: 0,
     pendingClaims: 0,
+    pendingVerifications: 0,
     subscriptionRequests: 0,
   },
 };
@@ -128,6 +129,7 @@ describe('StaffDashboardPage', () => {
         unverifiedBusinesses: 0,
         openReports: 0,
         pendingClaims: 0,
+        pendingVerifications: 0,
         subscriptionRequests: 0,
       },
     });

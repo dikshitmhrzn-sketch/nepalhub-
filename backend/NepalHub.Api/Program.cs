@@ -88,6 +88,16 @@ var claimRateLimitWindow = builder.Configuration.GetValue("Claim:RateLimit:Windo
     ? TimeSpan.FromSeconds(claimWindowSeconds)
     : TimeSpan.FromHours(1);
 
+// Registering a listing and asking for it to be checked both write into the same staff
+// queue a claim does, so both are bounded like filing a claim per IP: one person
+// legitimately registers a handful of listings they own, while a loop registering
+// hundreds is exactly the flood the queue exists to not be handed.
+var businessRateLimitPermitLimit = builder.Configuration.GetValue("Business:RateLimit:PermitLimit", 10);
+var businessRateLimitWindow = builder.Configuration.GetValue("Business:RateLimit:WindowSeconds", 3600)
+    is { } businessWindowSeconds
+    ? TimeSpan.FromSeconds(businessWindowSeconds)
+    : TimeSpan.FromHours(1);
+
 // Booking takes a scarce seat, so it is bounded like a claim per IP rather than per account:
 // the loop worth stopping books places it never intends to attend, and a person's own account
 // is not what a scripted flood uses. The quota is double the claim's because booking and then
@@ -313,6 +323,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    // Registering a listing and submitting it for verification are the claim's twin: both
+    // open a row in a queue staff settle, so the quota counts submissions per IP in an hour
+    // rather than people per account.
+    options.AddPolicy(RateLimitPolicies.Business, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = businessRateLimitPermitLimit,
+            Window = businessRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     // Booking shares the claim's per-IP hour: both spend something scarce into a queue or a
     // counter, and both are worth the same protection against a loop.
     options.AddPolicy(RateLimitPolicies.Booking, context => RateLimitPartition.GetFixedWindowLimiter(
@@ -394,6 +417,11 @@ builder.Services.AddScoped<UserAdminService>();
 // claim, the audit entry recording its approval and the ownership change it makes are all
 // tracked by the one AppDbContext of the request.
 builder.Services.AddScoped<OwnershipService>();
+
+// Registration's other half: the request an owner opens, the queue staff settle and the
+// approval that publishes it, sharing that same request-scoped context so the badge, the
+// publication, the review and its audit line commit together or not at all.
+builder.Services.AddScoped<BusinessVerificationService>();
 
 // Plans, entitlement and the request queue, sharing that same request-scoped context for
 // the same reason: a grant and its audit line commit together or not at all.

@@ -147,13 +147,19 @@ public sealed class StaffDashboardController(
             OpenReports: await dbContext.Reports
                 .CountAsync(report => report.Status == ReportStatus.Open, cancellationToken),
 
-            // The two queues 7e added, both counted the same way: pending rows only, from the
-            // same tables their own queue pages read. Claims are moderation work any staff
-            // member can close; subscription requests are the money-shaped decisions reserved
-            // for administrators, and the screens behind them gate on their own roles — this
-            // number is a hint to look, never the thing that decides who may.
+            // The queues 7e and 6c added, all counted the same way: pending rows only, from
+            // the same tables their own queue pages read. Claims are moderation work any
+            // staff member can close; verification requests are the same kind of decision
+            // for a listing an owner registered themselves; subscription requests are the
+            // money-shaped decisions reserved for administrators, and the screens behind
+            // them gate on their own roles — this number is a hint to look, never the thing
+            // that decides who may.
             PendingClaims: await dbContext.BusinessClaims
                 .CountAsync(claim => claim.Status == BusinessClaimStatus.Pending, cancellationToken),
+            PendingVerifications: await dbContext.BusinessVerificationRequests
+                .CountAsync(
+                    request => request.Status == BusinessVerificationStatus.Pending,
+                    cancellationToken),
             SubscriptionRequests: await dbContext.SubscriptionRequests
                 .CountAsync(
                     request => request.Status == SubscriptionRequestStatus.Pending,
@@ -200,6 +206,7 @@ public sealed record DashboardAttention(
     int UnverifiedBusinesses,
     int OpenReports,
     int PendingClaims,
+    int PendingVerifications,
     int SubscriptionRequests);
 
 public sealed record DashboardSummary(

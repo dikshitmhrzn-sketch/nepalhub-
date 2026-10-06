@@ -41,6 +41,8 @@ export interface DashboardAttention {
   openReports: number;
   /** Ownership claims nobody has decided — the claims queue's own pending total. */
   pendingClaims: number;
+  /** Verification requests nobody has decided — the verification queue's pending total. */
+  pendingVerifications: number;
   /** Plan requests nobody has decided — the subscription queue's pending total. */
   subscriptionRequests: number;
 }

@@ -233,10 +233,42 @@ portals, claims, subscriptions, saved offers, notifications and maps. An offer h
 and an event has no ticket, so a payment provider would have nothing to attach to yet; `docs/database.md`
 records the column each of those would need.
 
-## Phase 6c — Business registration and monetisation
+## Phase 6c — Business registration and verification (live)
 
-- [ ] Business registration and verification flow, once there is an owner column to attach it to
-- [ ] Subscription plans and payment provider adapter
+The rule that held through 6a and 6b — a listing is staff-written until there is an owner to
+attach to — now has its second half: an owner can put a draft of their own into the system and
+ask for it. Publication stays a staff decision, so the two ways in (claim, register) end at the
+same place and neither of them publishes anything.
+
+- [x] `business_verification_requests` (`20261006093754_AddBusinessVerifications`): who asked,
+      their note, `Pending`/`Approved`/`Rejected`, who decided, when and the review note; no
+      unique index on the business (a corrected draft must be askable again), with the queue
+      index and the one-open-request index instead
+- [x] `POST /api/account/businesses` registers a listing owned by the caller: born unpublished and
+      unchecked, 404 on the public site, `409 slug_taken` for a taken address, `400
+      validation_failed` with a field error for a reserved one or an unknown district
+- [x] The owner's save gains identity while the listing is a draft — slug, name, category and
+      district — omitted from the request once published rather than sent and refused; contact
+      details and the week were already editable either way
+- [x] `POST /api/account/businesses/{slug}/verification` opens one request (`verification_pending`
+      while one waits, `already_published` when there is nothing left to decide) and puts the note
+      on the row it creates
+- [x] `GET /api/admin/business-verifications` (pending first, `status` filter) with approve and
+      reject: approval runs `CollectPublishBlockers` and refuses `409 not_publishable` naming each
+      blocker, or publishes, stamps `is_verified`, grants the `business` role and audits
+      `business.verification_approved`; rejection audits `business.verification_rejected` and
+      leaves the draft where it was. Both settle from the row's own status, so a second decision
+      is `409 verification_closed`
+- [x] `Business:RateLimit` (10/hour per IP) on register and submit, because a stranger can mint
+      rows and then ask staff to review them; one policy covers both verbs
+- [x] Frontend: the registration form and verification list on `/my-business`, the draft identity
+      fields and the ask-for-a-check panel in the owner editor, `/admin/verifications` with
+      URL-owned status windows, a nav item, the dashboard's `pendingVerifications` count and quick
+      link. Gates: `dotnet build` 0/0, **641/641** backend tests, frontend typecheck and build
+      clean, **61/61** frontend tests
+
+Subscription plans and the payment provider adapter were not built in this phase: 7e and 7f
+delivered them instead, once there was a queue and a listing to attach a plan to.
 
 ## Phase 7 — Global search, gamification and admin
 

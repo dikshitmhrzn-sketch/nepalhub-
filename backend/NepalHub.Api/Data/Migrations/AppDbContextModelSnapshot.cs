@@ -775,6 +775,70 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("business_subscriptions", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessVerificationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BusinessId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("business_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_business_verification_requests");
+
+                    b.HasIndex("ReviewedByUserId")
+                        .HasDatabaseName("ix_business_verification_requests_reviewed_by_user_id");
+
+                    b.HasIndex("SubmittedByUserId")
+                        .HasDatabaseName("ix_business_verification_requests_submitted_by_user_id");
+
+                    b.HasIndex("BusinessId", "Status")
+                        .HasDatabaseName("ix_business_verifications_business_status");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_business_verifications_status_created_at");
+
+                    b.ToTable("business_verification_requests", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2902,6 +2966,35 @@ namespace NepalHub.Api.Data.Migrations
                     b.Navigation("Plan");
 
                     b.Navigation("SubscriptionRequest");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.BusinessVerificationRequest", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Business", "Business")
+                        .WithMany()
+                        .HasForeignKey("BusinessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_verifications_fk_business_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("business_verifications_fk_reviewed_by_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "SubmittedBy")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("business_verifications_fk_submitted_by_user_id");
+
+                    b.Navigation("Business");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("SubmittedBy");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Calculator", b =>

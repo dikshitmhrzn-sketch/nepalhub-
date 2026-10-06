@@ -6,14 +6,20 @@ import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
 import {
   categoryLabel,
+  slugifyName,
 } from '@/features/businesses/format';
 import {
+  businessCategories,
+  categoryLabels,
   shortDayNames,
+  type BusinessCategory,
   type SaveBusinessHours,
 } from '@/features/businesses/types';
 import { useAuth } from '@/features/auth/AuthContext';
 import {
+  registerBusiness,
   saveMyBusiness,
+  submitVerification,
 } from '@/features/ownership/api';
 import {
   useMyBusiness,
@@ -21,8 +27,11 @@ import {
 } from '@/features/ownership/useMyBusinesses';
 import {
   claimStatusLabels,
+  verificationStatusLabels,
+  type RegisterBusinessRequest,
   type SaveOwnerBusinessRequest,
 } from '@/features/ownership/types';
+import { useReferenceData } from '@/features/reference/useReferenceData';
 import { startCheckout } from '@/features/payments/api';
 import { checkoutErrorMessage, openProviderCheckout } from '@/features/payments/checkout';
 import { usePaymentConfig } from '@/features/payments/usePayments';
@@ -42,12 +51,14 @@ import type { FieldError } from '@/features/businesses/types';
 import styles from './MyBusinessPage.module.css';
 
 /**
- * The ownership screen: what this person manages, where each claim stands, and the editor
- * for one listing — details on the left, plan on the right.
+ * The ownership screen: what this person manages, where each claim and verification stands,
+ * the form for registering a listing of their own, and the editor for one listing — details
+ * on the left, plan on the right.
  *
- * The editor only offers what the API lets an owner touch: description, contact details and
- * the week. Name, category, district and the publish and verify flags belong to staff, so
- * they are shown read-only — an owner corrects what a listing says, not what it is.
+ * The editor only offers what the API lets an owner touch: while the listing is a draft,
+ * the address it will live at, its name, category and district — the identity a typo is
+ * made in — plus description, contact details and the week. Once it is published those
+ * belong to staff, and the panel says so rather than letting an edit fail on save.
  */
 export function MyBusinessPage() {
   const { slug } = useParams();
@@ -101,16 +112,17 @@ function ListView() {
     );
   }
 
-  const { owned, claims } = list.data;
+  const { owned, claims, verifications } = list.data;
 
   return (
     <Container as="section" className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>My businesses</h1>
         <p className={styles.subtitle}>
-          The listings you manage and the claims you have filed. Owners can correct contact
-          details, the description and opening hours; publishing and verification stay with our
-          staff.
+          The listings you manage, the claims you have filed, and every request you have made
+          for a listing to be checked. A listing you register here starts as a draft — it
+          reaches the directory when our staff approve it, and that approval is also what
+          gives it the verified badge.
         </p>
       </header>
 
@@ -119,8 +131,8 @@ function ListView() {
 
         {owned.length === 0 ? (
           <p className={styles.empty}>
-            You do not manage a listing yet. Find yours in the directory and claim it from its
-            page.
+            You do not manage a listing yet. Register yours in the form below, or find it in
+            the directory and claim it from its page.
           </p>
         ) : (
           <ul className={styles.rows}>
@@ -167,6 +179,50 @@ function ListView() {
                 >
                   Manage
                 </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <RegisterForm onRegistered={list.reload} />
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Verification requests</h2>
+
+        {verifications.length === 0 ? (
+          <p className={styles.empty}>
+            No requests yet. Register the listing above, or open one of your drafts and ask us
+            to check it — approval is what publishes it and gives it the verified badge.
+          </p>
+        ) : (
+          <ul className={styles.rows}>
+            {verifications.map((request) => (
+              <li key={request.id} className={styles.row}>
+                <div className={styles.rowMain}>
+                  <p className={styles.rowName}>
+                    <Link
+                      to={`/my-business/${encodeURIComponent(request.slug)}`}
+                      className={styles.rowLink}
+                    >
+                      {request.businessName}
+                    </Link>
+                  </p>
+                  <p className={styles.rowMeta}>
+                    Asked {new Date(request.createdAt).toLocaleDateString()}
+                    {request.reviewNote ? ` — “${request.reviewNote}”` : ''}
+                  </p>
+                </div>
+
+                <span
+                  className={
+                    request.status === 'Pending'
+                      ? `${styles.badge} ${styles.badgeOn}`
+                      : `${styles.badge} ${styles.badgeOff}`
+                  }
+                >
+                  {verificationStatusLabels[request.status]}
+                </span>
               </li>
             ))}
           </ul>
@@ -221,6 +277,249 @@ interface EditorViewProps {
   slug: string;
 }
 
+/**
+ * Registering a listing the directory has never seen. The row this creates is born a
+ * draft — owned, unpublished and unchecked — so the form asks only for what the API
+ * requires to place it: the address it will live at, its name, category and district.
+ * Everything else, including the week, is corrected in the editor afterwards.
+ */
+function RegisterForm({ onRegistered }: { onRegistered: () => void }) {
+  const reference = useReferenceData();
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [category, setCategory] = useState<BusinessCategory>('Restaurants');
+  const [districtCode, setDistrictCode] = useState('');
+  const [description, setDescription] = useState('');
+  const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
+  const [savedName, setSavedName] = useState<string | null>(null);
+
+  function errorFor(field: string): string | undefined {
+    return fieldErrors.find((item) => item.field === field)?.message;
+  }
+
+  function handleNameChange(next: string) {
+    setName(next);
+
+    // The slug follows the name until it has been edited by hand, so the address a person
+    // wants is offered to them rather than something they must retype.
+    if (!slugTouched) {
+      setSlug(slugifyName(next));
+    }
+  }
+
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const body: RegisterBusinessRequest = {
+      slug: slug.trim(),
+      name: name.trim(),
+      description,
+      category,
+      districtCode,
+      address: null,
+      phone: phone.trim() || null,
+      email: null,
+      website: null,
+      openingHours: [],
+    };
+
+    setBusy(true);
+    setFormError(null);
+    setFieldErrors([]);
+    setSavedName(null);
+
+    try {
+      const created = await registerBusiness(body);
+      setSavedName(created.name);
+      setName('');
+      setSlug('');
+      setSlugTouched(false);
+      setDescription('');
+      setPhone('');
+      onRegistered();
+    } catch (registerError) {
+      if (registerError instanceof ApiError && registerError.code === 'slug_taken') {
+        setFormError('That address is already used by another listing. Choose a different one.');
+      } else if (registerError instanceof ApiError && registerError.code === 'validation_failed') {
+        setFieldErrors(
+          Array.isArray(registerError.details) ? (registerError.details as FieldError[]) : [],
+        );
+        setFormError('Some fields need attention before the listing can be registered.');
+      } else if (registerError instanceof ApiError && registerError.status === 429) {
+        setFormError('Too many registrations in a short time. Please try again later.');
+      } else {
+        setFormError(
+          getErrorMessage(registerError, 'Could not register the listing. Please try again.'),
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>Register a listing</h2>
+      <p className={styles.hoursNote}>
+        Your business is not on Nepal Hub yet? Register it here. It starts as a draft that
+        nobody but you can see, and it appears on the directory once our staff approve it.
+      </p>
+
+      <form className={styles.form} onSubmit={(event) => void handleRegister(event)}>
+        <div className={styles.grid}>
+          <label className={styles.field}>
+            <span className={styles.label}>Name</span>
+            <input
+              className={styles.input}
+              type="text"
+              maxLength={160}
+              required
+              value={name}
+              disabled={busy}
+              aria-invalid={errorFor('name') ? true : undefined}
+              onChange={(event) => handleNameChange(event.target.value)}
+            />
+            {errorFor('name') ? (
+              <span className={styles.fieldError}>{errorFor('name')}</span>
+            ) : null}
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.label}>Address (slug)</span>
+            <input
+              className={styles.input}
+              type="text"
+              maxLength={160}
+              required
+              value={slug}
+              disabled={busy}
+              aria-invalid={errorFor('slug') ? true : undefined}
+              onChange={(event) => {
+                setSlugTouched(true);
+                setSlug(event.target.value);
+              }}
+            />
+            <span className={styles.hoursNote}>
+              Lowercase words with single hyphens, for example newa-momo-house-lalitpur.
+            </span>
+            {errorFor('slug') ? (
+              <span className={styles.fieldError}>{errorFor('slug')}</span>
+            ) : null}
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.label}>Category</span>
+            <select
+              className={styles.input}
+              value={category}
+              disabled={busy}
+              aria-invalid={errorFor('category') ? true : undefined}
+              onChange={(event) => setCategory(event.target.value as BusinessCategory)}
+            >
+              {businessCategories.map((value) => (
+                <option key={value} value={value}>
+                  {categoryLabels[value]}
+                </option>
+              ))}
+            </select>
+            {errorFor('category') ? (
+              <span className={styles.fieldError}>{errorFor('category')}</span>
+            ) : null}
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.label}>District</span>
+            <select
+              className={styles.input}
+              value={districtCode}
+              disabled={busy || reference.status !== 'success'}
+              aria-invalid={errorFor('districtCode') ? true : undefined}
+              onChange={(event) => setDistrictCode(event.target.value)}
+            >
+              <option value="">Choose a district</option>
+              {reference.status === 'success'
+                ? reference.data.provinces.map((province) => (
+                    <optgroup key={province.code} label={province.name}>
+                      {(reference.data.districtsByProvince[province.code] ?? []).map(
+                        (district) => (
+                          <option key={district.code} value={district.code}>
+                            {district.name}
+                          </option>
+                        ),
+                      )}
+                    </optgroup>
+                  ))
+                : null}
+            </select>
+            {errorFor('districtCode') ? (
+              <span className={styles.fieldError}>{errorFor('districtCode')}</span>
+            ) : null}
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.label}>Phone</span>
+            <input
+              className={styles.input}
+              type="text"
+              maxLength={20}
+              value={phone}
+              disabled={busy}
+              aria-invalid={errorFor('phone') ? true : undefined}
+              onChange={(event) => setPhone(event.target.value)}
+            />
+            {errorFor('phone') ? (
+              <span className={styles.fieldError}>{errorFor('phone')}</span>
+            ) : null}
+          </label>
+        </div>
+
+        <label className={styles.field}>
+          <span className={styles.label}>Description</span>
+          <textarea
+            className={styles.textarea}
+            rows={6}
+            maxLength={20000}
+            value={description}
+            disabled={busy}
+            aria-invalid={errorFor('description') ? true : undefined}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          {errorFor('description') ? (
+            <span className={styles.fieldError}>{errorFor('description')}</span>
+          ) : null}
+        </label>
+
+        {formError ? (
+          <p className={styles.error} role="alert">
+            {formError}
+          </p>
+        ) : null}
+
+        {savedName ? (
+          <p className={styles.saved} role="status">
+            {savedName} is registered as a draft. Open it below to finish it and ask us to
+            check it.
+          </p>
+        ) : null}
+
+        <div className={styles.actions}>
+          <Button type="submit" disabled={busy}>
+            {busy ? 'Registering…' : 'Register the listing'}
+          </Button>
+          <span className={styles.readonlyNote}>
+            A registration grants authorship of a draft only — publishing and the verified
+            badge come from the staff decision on your request.
+          </span>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function EditorView({ slug }: EditorViewProps) {
   return (
     <Container as="section" className={styles.page}>
@@ -238,6 +537,7 @@ function Editor({ slug }: { slug: string }) {
   const subscription = useSubscriptionState(slug);
   const plans = usePlans();
   const paymentConfig = usePaymentConfig();
+  const reference = useReferenceData();
 
   const [form, setForm] = useState<SaveOwnerBusinessRequest | null>(null);
   const [saving, setSaving] = useState(false);
@@ -247,6 +547,10 @@ function Editor({ slug }: { slug: string }) {
   const [planBusy, setPlanBusy] = useState(false);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [verifyNote, setVerifyNote] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
 
   const detail = business.status === 'success' ? business.data : null;
 
@@ -256,6 +560,10 @@ function Editor({ slug }: { slug: string }) {
     }
 
     setForm({
+      slug: detail.slug,
+      name: detail.name,
+      category: detail.category,
+      districtCode: detail.districtCode,
       description: detail.description,
       address: detail.address,
       phone: detail.phone,
@@ -319,13 +627,24 @@ function Editor({ slug }: { slug: string }) {
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // The early return above guarantees a form, but TypeScript resets that narrowing inside
-    // a function declaration, so the guard is restated where the value is used.
-    if (!form) {
+    // The early return above guarantees a form and a detail, but TypeScript resets that
+    // narrowing inside a function declaration, so the guard is restated where they are used.
+    if (!form || !detail) {
       return;
     }
 
-    const body = form;
+    // The identity fields travel only while the listing is a draft. On a published row the
+    // API would refuse a change to any of them, so they are not even offered — omitting
+    // them is how the API is told to leave them alone.
+    const identity = detail.isPublished
+      ? {}
+      : {
+          slug: form.slug?.trim() || null,
+          name: form.name?.trim() || null,
+          category: form.category,
+          districtCode: form.districtCode?.trim() || null,
+        };
+    const body: SaveOwnerBusinessRequest = { ...form, ...identity };
     setSaving(true);
     setSaved(false);
     setFormError(null);
@@ -340,6 +659,8 @@ function Editor({ slug }: { slug: string }) {
       if (saveError instanceof ApiError && saveError.code === 'validation_failed') {
         setFieldErrors(Array.isArray(saveError.details) ? (saveError.details as FieldError[]) : []);
         setFormError('Some fields need attention before this can be saved.');
+      } else if (saveError instanceof ApiError && saveError.code === 'slug_taken') {
+        setFormError('That address is already used by another listing. Choose a different one.');
       } else if (saveError instanceof ApiError && saveError.status === 404) {
         setFormError('That listing is no longer yours to edit.');
       } else {
@@ -399,6 +720,43 @@ function Editor({ slug }: { slug: string }) {
     }
   }
 
+  // Asking staff to check this draft. Approval is what publishes it, so the panel reads the
+  // newest state back off the listing rather than trusting the click that just happened.
+  async function handleVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setVerifying(true);
+    setVerifyError(null);
+    setVerifyMessage(null);
+
+    try {
+      await submitVerification(slug, verifyNote.trim() || null);
+      setVerifyNote('');
+      setVerifyMessage(
+        'Your request is with our staff. The listing appears on the directory, carrying the verified badge, once they approve it.',
+      );
+      business.reload();
+    } catch (verifyFailure) {
+      if (verifyFailure instanceof ApiError && verifyFailure.code === 'verification_pending') {
+        setVerifyError('A request for this listing is already waiting for a decision.');
+        business.reload();
+      } else if (verifyFailure instanceof ApiError && verifyFailure.code === 'already_published') {
+        setVerifyError('This listing is already on the directory.');
+        business.reload();
+      } else if (verifyFailure instanceof ApiError && verifyFailure.status === 404) {
+        setVerifyError('That listing is no longer yours to manage.');
+      } else if (verifyFailure instanceof ApiError && verifyFailure.status === 429) {
+        setVerifyError('Too many requests in a short time. Please try again later.');
+      } else {
+        setVerifyError(
+          getErrorMessage(verifyFailure, 'Could not send the request. Please try again.'),
+        );
+      }
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   const state = subscription.status === 'success' ? subscription.data : null;
   const planList = plans.status === 'success' ? plans.data : [];
 
@@ -439,6 +797,125 @@ function Editor({ slug }: { slug: string }) {
           <h2 className={styles.sectionTitle}>Listing details</h2>
 
           <form className={styles.form} onSubmit={(event) => void handleSave(event)}>
+            {detail.isPublished ? null : (
+              <>
+                <p className={styles.hoursNote}>
+                  The address this listing will live at, its name, category and district are
+                  yours to correct while it is a draft. Once it is published they belong to
+                  our staff.
+                </p>
+
+                <div className={styles.grid}>
+                  <label className={styles.field}>
+                    <span className={styles.label}>Name</span>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      maxLength={160}
+                      value={form.name ?? ''}
+                      disabled={saving}
+                      aria-invalid={errorFor('name') ? true : undefined}
+                      onChange={(event) => {
+                        const name = event.target.value;
+                        // The address follows the name until it has been edited by hand, so a
+                        // draft renamed from its own typo does not keep the typo's address.
+                        const slugUntouched =
+                          !form.slug || form.slug === slugifyName(form.name ?? '');
+                        setForm({
+                          ...form,
+                          name,
+                          slug: slugUntouched ? slugifyName(name) : form.slug,
+                        });
+                      }}
+                    />
+                    {errorFor('name') ? (
+                      <span className={styles.fieldError}>{errorFor('name')}</span>
+                    ) : null}
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.label}>Address (slug)</span>
+                    <input
+                      className={styles.input}
+                      type="text"
+                      maxLength={160}
+                      value={form.slug ?? ''}
+                      disabled={saving}
+                      aria-invalid={errorFor('slug') ? true : undefined}
+                      onChange={(event) =>
+                        setForm({ ...form, slug: event.target.value || null })
+                      }
+                    />
+                    <span className={styles.hoursNote}>
+                      Lowercase words with single hyphens, for example newa-momo-house-lalitpur.
+                    </span>
+                    {errorFor('slug') ? (
+                      <span className={styles.fieldError}>{errorFor('slug')}</span>
+                    ) : null}
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.label}>Category</span>
+                    <select
+                      className={styles.input}
+                      value={form.category ?? ''}
+                      disabled={saving}
+                      aria-invalid={errorFor('category') ? true : undefined}
+                      onChange={(event) =>
+                        setForm({
+                          ...form,
+                          category: event.target.value as BusinessCategory,
+                        })
+                      }
+                    >
+                      {businessCategories.map((value) => (
+                        <option key={value} value={value}>
+                          {categoryLabels[value]}
+                        </option>
+                      ))}
+                    </select>
+                    {errorFor('category') ? (
+                      <span className={styles.fieldError}>{errorFor('category')}</span>
+                    ) : null}
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.label}>District</span>
+                    <select
+                      className={styles.input}
+                      value={form.districtCode ?? ''}
+                      disabled={saving || reference.status !== 'success'}
+                      aria-invalid={errorFor('districtCode') ? true : undefined}
+                      onChange={(event) =>
+                        setForm({ ...form, districtCode: event.target.value || null })
+                      }
+                    >
+                      <option value="">Choose a district</option>
+                      {reference.status === 'success'
+                        ? reference.data.provinces.map((province) => (
+                            <optgroup key={province.code} label={province.name}>
+                              {(reference.data.districtsByProvince[province.code] ?? []).map(
+                                (district) => (
+                                  <option key={district.code} value={district.code}>
+                                    {district.name}
+                                  </option>
+                                ),
+                              )}
+                            </optgroup>
+                          ))
+                        : null}
+                    </select>
+                    <span className={styles.hoursNote}>
+                      The province is read through the district, so the two cannot disagree.
+                    </span>
+                    {errorFor('districtCode') ? (
+                      <span className={styles.fieldError}>{errorFor('districtCode')}</span>
+                    ) : null}
+                  </label>
+                </div>
+              </>
+            )}
+
             <label className={styles.field}>
               <span className={styles.label}>Description</span>
               <textarea
@@ -598,11 +1075,99 @@ function Editor({ slug }: { slug: string }) {
                 {saving ? 'Saving…' : 'Save changes'}
               </Button>
               <span className={styles.readonlyNote}>
-                Name, category, district, publishing and verification are kept by our staff —
-                ask us through the report link if any of those are wrong.
+                {detail.isPublished
+                  ? 'Name, category, district, publishing and verification are kept by our staff — ask us through the report link if any of those are wrong.'
+                  : 'Contact details and the week can be corrected at any time; the fields above are yours while this is a draft, and publishing comes from the verification below.'}
               </span>
             </div>
           </form>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Verification</h2>
+
+          {detail.isPublished ? (
+            <p className={styles.planWindow}>
+              This listing is on the directory and is checked by our staff. The verified badge
+              follows from that check.
+            </p>
+          ) : detail.verification?.status === 'Pending' ? (
+            <div className={styles.planBox}>
+              <p className={styles.planState}>
+                Asked on {new Date(detail.verification.createdAt).toLocaleDateString()} —
+                waiting for a staff decision.
+              </p>
+              <p className={styles.planWindow}>
+                Our staff are checking this listing. It appears on the directory, with the
+                verified badge, once it is approved.
+              </p>
+              {detail.verification.note ? (
+                <p className={styles.planWindow}>Your note: “{detail.verification.note}”</p>
+              ) : null}
+            </div>
+          ) : (
+            <div className={styles.planBox}>
+              {detail.verification?.status === 'Rejected' ? (
+                <>
+                  <p className={styles.planState}>
+                    Turned down on{' '}
+                    {new Date(detail.verification.reviewedAt ?? detail.verification.createdAt).toLocaleDateString()}
+                    .
+                  </p>
+                  {detail.verification.reviewNote ? (
+                    <p className={styles.planWindow}>
+                      The staff note: “{detail.verification.reviewNote}”
+                    </p>
+                  ) : null}
+                  <p className={styles.planWindow}>
+                    Correct the listing above and ask again — a turned-down draft can be sent
+                    back as often as it takes.
+                  </p>
+                </>
+              ) : (
+                <p className={styles.planState}>
+                  This draft has not been sent for a check yet.
+                </p>
+              )}
+
+              <form className={styles.form} onSubmit={(event) => void handleVerify(event)}>
+                <label className={styles.field}>
+                  <span className={styles.label}>Note for the staff checking it</span>
+                  <textarea
+                    className={styles.textarea}
+                    rows={3}
+                    maxLength={500}
+                    value={verifyNote}
+                    disabled={verifying}
+                    placeholder="Anything you would like them to know — optional."
+                    onChange={(event) => setVerifyNote(event.target.value)}
+                  />
+                </label>
+
+                {verifyError ? (
+                  <p className={styles.error} role="alert">
+                    {verifyError}
+                  </p>
+                ) : null}
+
+                {verifyMessage ? (
+                  <p className={styles.saved} role="status">
+                    {verifyMessage}
+                  </p>
+                ) : null}
+
+                <div className={styles.actions}>
+                  <Button type="submit" disabled={verifying}>
+                    {verifying ? 'Sending…' : 'Ask us to check it'}
+                  </Button>
+                  <span className={styles.readonlyNote}>
+                    Save the listing details first — the staff check what is on the draft when
+                    they open it.
+                  </span>
+                </div>
+              </form>
+            </div>
+          )}
         </section>
 
         <section className={styles.section}>

@@ -509,14 +509,114 @@ public sealed class BusinessService(
                 item => item.Slug == slug && item.OwnerUserId == ownerUserId,
                 cancellationToken);
 
-        return business is null ? null : ToOwnerResponse(business);
+        if (business is null)
+        {
+            return null;
+        }
+
+        // The owner's request for a check rides along with the editor so the panel can say
+        // where it stands without a second round trip. The newest one wins: a rejected
+        // request the owner has since corrected must not be what the screen reads, and a
+        // second request can only exist once the first has been decided.
+        var verification = await LatestVerificationAsync(business, cancellationToken);
+
+        return ToOwnerResponse(business, verification);
+    }
+
+    private async Task<VerificationResponse?> LatestVerificationAsync(
+        Business business,
+        CancellationToken cancellationToken)
+    {
+        var request = await dbContext.BusinessVerificationRequests
+            .Where(item => item.BusinessId == business.Id)
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return request is null ? null : ToVerificationResponse(request, business);
     }
 
     /// <summary>
-    /// The owner's edit, deliberately narrower than the staff save: no slug, name, category,
-    /// district, publish flag or verify badge, and none of the publish rules either. An owner
-    /// corrects what a listing says; staff decide what it is and whether anyone should trust
-    /// it, and an editor that lets an owner self-verify would erase that line.
+    /// Registers a listing on behalf of the person asking: the row is born owned, never
+    /// published and never verified, because the only thing this endpoint grants is the
+    /// authorship of a draft. Everything else — the badge, the live address — is what the
+    /// verification queue exists to decide.
+    ///
+    /// <para>
+    /// The draft goes through the same <see cref="ValidateAsync"/> the staff save runs, so a
+    /// registration cannot smuggle in a district the site does not know or a phone number
+    /// nobody could dial, and the slug rules (including the reserved <c>featured</c>) are
+    /// the same ones staff are held to.
+    /// </para>
+    /// </summary>
+    internal async Task<RegisterOutcome> RegisterAsync(
+        RegisterBusinessRequest request,
+        Guid ownerUserId,
+        CancellationToken cancellationToken)
+    {
+        var draft = request.AsDraft();
+        var errors = await ValidateAsync(draft, isGoingLive: false, cancellationToken);
+        if (errors.Count > 0)
+        {
+            return new RegisterOutcome(RegisterStatus.Invalid, FieldErrors: errors);
+        }
+
+        if (await SlugExistsAsync(request.Slug, cancellationToken))
+        {
+            return new RegisterOutcome(
+                RegisterStatus.SlugTaken,
+                Message: $"The slug '{request.Slug}' is already used by another listing.");
+        }
+
+        var districtId = await ResolveRequiredDistrictAsync(request.DistrictCode, cancellationToken);
+        var website = NormaliseWebsite(request.Website);
+
+        var business = new Business
+        {
+            Id = Guid.NewGuid(),
+            CreatedByUserId = ownerUserId,
+            OwnerUserId = ownerUserId,
+        };
+
+        ApplyCommonFields(business, draft, districtId, website);
+        ApplyOpeningHours(business, draft.OpeningHours);
+
+        dbContext.Businesses.Add(business);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
+        {
+            // The unique index is the real guard. A second registration of the same slug in
+            // the same instant is an expected outcome, not a fault, and losing it is
+            // reported as the conflict it is rather than as a server error.
+            logger.LogInformation(exception, "A duplicate business slug was refused for {Slug}.", request.Slug);
+            dbContext.Entry(business).State = EntityState.Detached;
+
+            return new RegisterOutcome(
+                RegisterStatus.SlugTaken,
+                Message: $"The slug '{request.Slug}' is already used by another listing.");
+        }
+
+        return new RegisterOutcome(
+            RegisterStatus.Created,
+            await FindOwnedAsync(business.Slug, ownerUserId, cancellationToken));
+    }
+
+    /// <summary>
+    /// The owner's edit: contact details, description, opening hours, and — while the row is
+    /// still a draft — the identity fields they typed when registering. No publish flag and
+    /// no verify badge in any state, because an editor that lets an owner self-publish would
+    /// erase the line this whole module exists to keep.
+    ///
+    /// <para>
+    /// The identity fields follow the staff editor's own rule: a draft's slug and name can be
+    /// corrected because nobody has been sent to that address yet, and a published row's
+    /// cannot, because after that the slug is a live address people and search engines have
+    /// recorded. A retracted row is a draft again by the same rule the staff save uses.
+    /// </para>
     /// </summary>
     internal async Task<OwnerSaveOutcome> UpdateOwnedAsync(
         string slug,
@@ -535,10 +635,32 @@ public sealed class BusinessService(
             return new OwnerSaveOutcome(OwnerEditStatus.NotFound);
         }
 
-        var errors = ValidateOwnerEdit(request);
+        var errors = new List<FieldError>(ValidateOwnerEdit(request));
+        errors.AddRange(await ValidateOwnerIdentityAsync(business, request, cancellationToken));
+
         if (errors.Count > 0)
         {
             return new OwnerSaveOutcome(OwnerEditStatus.Invalid, FieldErrors: errors);
+        }
+
+        if (request.Slug is not null)
+        {
+            business.Slug = request.Slug.Trim();
+        }
+
+        if (request.Name is not null)
+        {
+            business.Name = request.Name.Trim();
+        }
+
+        if (request.Category is { } category)
+        {
+            business.Category = category;
+        }
+
+        if (request.DistrictCode is not null)
+        {
+            business.DistrictId = await ResolveRequiredDistrictAsync(request.DistrictCode, cancellationToken);
         }
 
         business.Description = request.Description.Trim();
@@ -554,14 +676,132 @@ public sealed class BusinessService(
         var previousHours = business.OpeningHours.ToList();
         dbContext.BusinessOpeningHours.RemoveRange(previousHours);
         business.OpeningHours.Clear();
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
+        {
+            // The unique index is the real guard: the slug pre-check above narrows the
+            // window between two owners renaming to the same address, and losing the race
+            // is a conflict rather than a server error.
+            logger.LogInformation(exception, "A duplicate business slug was refused for {Slug}.", business.Slug);
+            dbContext.ChangeTracker.Clear();
+
+            return new OwnerSaveOutcome(
+                OwnerEditStatus.SlugTaken,
+                Message: $"The slug '{business.Slug}' is already used by another listing.");
+        }
 
         ApplyOpeningHours(business, request.OpeningHours);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new OwnerSaveOutcome(
             OwnerEditStatus.Updated,
-            await FindOwnedAsync(slug, ownerUserId, cancellationToken));
+            await FindOwnedByIdAsync(business.Id, cancellationToken));
+    }
+
+    private async Task<OwnerBusinessResponse?> FindOwnedByIdAsync(Guid businessId, CancellationToken cancellationToken)
+    {
+        var business = await dbContext.Businesses
+            .Include(item => item.OpeningHours)
+            .Include(item => item.District)
+            .FirstOrDefaultAsync(item => item.Id == businessId, cancellationToken);
+
+        if (business is null)
+        {
+            return null;
+        }
+
+        var verification = await LatestVerificationAsync(business, cancellationToken);
+
+        return ToOwnerResponse(business, verification);
+    }
+
+    /// <summary>
+    /// The identity half of an owner's edit: what they typed, held to the same rules the
+    /// staff editor is held to. A published row answers with an <c>immutable</c> field error
+    /// naming the field rather than silently ignoring it, because an owner who corrected a
+    /// name and was told nothing would keep correcting it.
+    /// </summary>
+    private async Task<IReadOnlyList<FieldError>> ValidateOwnerIdentityAsync(
+        Business business,
+        SaveOwnerBusinessRequest request,
+        CancellationToken cancellationToken)
+    {
+        var errors = new List<FieldError>();
+
+        if (business.IsPublished)
+        {
+            if (request.Slug is not null
+                && !string.Equals(business.Slug, request.Slug.Trim(), StringComparison.Ordinal))
+            {
+                errors.Add(new FieldError(
+                    "slug",
+                    "immutable",
+                    "The slug cannot be changed once a listing is published, because that is the address people are already sharing."));
+            }
+
+            if (request.Name is not null
+                && !string.Equals(business.Name, request.Name.Trim(), StringComparison.Ordinal))
+            {
+                errors.Add(new FieldError(
+                    "name",
+                    "immutable",
+                    "The name cannot be changed once a listing is published. Ask staff to correct it."));
+            }
+
+            if (request.Category is { } category && category != business.Category)
+            {
+                errors.Add(new FieldError(
+                    "category",
+                    "immutable",
+                    "The category cannot be changed once a listing is published. Ask staff to correct it."));
+            }
+
+            if (request.DistrictCode is not null
+                && await ResolveDistrictAsync(request.DistrictCode, cancellationToken) != business.DistrictId)
+            {
+                errors.Add(new FieldError(
+                    "districtCode",
+                    "immutable",
+                    "The district cannot be changed once a listing is published. Ask staff to correct it."));
+            }
+
+            return errors;
+        }
+
+        if (request.Slug is not null)
+        {
+            var trimmedSlug = request.Slug.Trim();
+
+            if (trimmedSlug.Equals("featured", StringComparison.Ordinal))
+            {
+                errors.Add(new FieldError(
+                    "slug",
+                    "reserved",
+                    "'featured' is a reserved address on this site. Choose another slug."));
+            }
+            else if (await SlugExistsAsync(trimmedSlug, business.Id, cancellationToken))
+            {
+                errors.Add(new FieldError(
+                    "slug",
+                    "taken",
+                    $"The slug '{trimmedSlug}' is already used by another listing."));
+            }
+        }
+
+        if (request.DistrictCode is not null
+            && await ResolveDistrictAsync(request.DistrictCode, cancellationToken) is null)
+        {
+            errors.Add(new FieldError(
+                "districtCode",
+                "invalid",
+                $"'{request.DistrictCode.Trim()}' is not a district this site knows about. Choose one from the list."));
+        }
+
+        return errors;
     }
 
     /// <summary>
@@ -597,12 +837,15 @@ public sealed class BusinessService(
         return errors;
     }
 
-    private static OwnerBusinessResponse ToOwnerResponse(Business business) => new(
+    private static OwnerBusinessResponse ToOwnerResponse(
+        Business business,
+        VerificationResponse? verification) => new(
         business.Id,
         business.Slug,
         business.Name,
         business.Description,
         business.Category,
+        business.District?.Code ?? string.Empty,
         business.District?.Name ?? string.Empty,
         business.Address,
         business.Phone,
@@ -611,7 +854,21 @@ public sealed class BusinessService(
         business.IsPublished,
         business.IsVerified,
         ToHoursResponses(business),
-        business.UpdatedAt);
+        business.UpdatedAt,
+        verification);
+
+    private static VerificationResponse ToVerificationResponse(
+        BusinessVerificationRequest request,
+        Business? business) => new(
+        request.Id,
+        request.BusinessId,
+        business?.Slug ?? request.Business?.Slug ?? string.Empty,
+        business?.Name ?? request.Business?.Name ?? string.Empty,
+        request.Status,
+        request.Note,
+        request.CreatedAt,
+        request.ReviewedAt,
+        request.ReviewNote);
 
     // ------------------------------------------------------------------ internals
 
@@ -751,8 +1008,17 @@ public sealed class BusinessService(
     }
 
     private async Task<bool> SlugExistsAsync(string slug, CancellationToken cancellationToken) =>
+        await SlugExistsAsync(slug, exceptBusinessId: null, cancellationToken);
+
+    private async Task<bool> SlugExistsAsync(
+        string slug,
+        Guid? exceptBusinessId,
+        CancellationToken cancellationToken) =>
         await dbContext.Businesses
-            .AnyAsync(business => business.Slug == slug.Trim(), cancellationToken);
+            .AnyAsync(
+                business => business.Slug == slug.Trim()
+                    && (exceptBusinessId == null || business.Id != exceptBusinessId),
+                cancellationToken);
 
     /// <summary>
     /// The district a listing is about, after validation has already confirmed the code resolves.
@@ -893,6 +1159,35 @@ public sealed class BusinessService(
 
         return errors;
     }
+
+    /// <summary>
+    /// The same publish rules, asked about a stored row instead of a form post. The
+    /// verification queue runs this on approval, so "staff approved this listing" and "this
+    /// listing satisfies the publish rules" are the same statement rather than two that can
+    /// drift apart.
+    ///
+    /// <para>
+    /// <c>IsVerified</c> is projected as true because verification is precisely what an
+    /// approval is doing; the rules that still have to hold are the ones about the listing
+    /// itself — a number to call and something worth reading.
+    /// </para>
+    /// </summary>
+    internal static IReadOnlyList<FieldError> CollectPublishBlockersFor(Business business) =>
+        CollectPublishBlockers(new SaveBusinessRequest
+        {
+            Slug = business.Slug,
+            Name = business.Name,
+            Description = business.Description,
+            Category = business.Category,
+            DistrictCode = business.DistrictId.ToString(),
+            Address = business.Address,
+            Phone = business.Phone,
+            Email = business.Email,
+            Website = business.Website,
+            IsPublished = business.IsPublished,
+            IsVerified = true,
+            OpeningHours = [],
+        });
 
     /// <summary>
     /// The hours rules, kept apart from the field-level checks because they are the one place in this

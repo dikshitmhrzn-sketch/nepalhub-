@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+using NepalHub.Api.Common;
 using NepalHub.Api.Data.Entities;
+using NepalHub.Api.Features.Ownership;
 
 namespace NepalHub.Api.Features.Businesses;
 
@@ -268,3 +270,89 @@ public sealed class SaveBusinessRequest
     /// </summary>
     public IReadOnlyList<SaveBusinessHoursRequest> OpeningHours { get; init; } = [];
 }
+
+/// <summary>
+/// What an owner sends to register a listing of their own. The same fields as the staff
+/// save minus the two flags, because publish and verify are decisions this request is not
+/// allowed to express at all: a body that carries <c>isPublished</c> and is then ignored
+/// teaches a client to trust a field the server never reads.
+///
+/// <para>
+/// Everything else is held to the staff rules — the same slug pattern, district list, phone
+/// shape and opening-week rules — so a listing that arrives through registration is
+/// identical to one staff created, and the publish blockers are the only difference between
+/// a draft and a live row.
+/// </para>
+/// </summary>
+public sealed class RegisterBusinessRequest
+{
+    [Required(ErrorMessage = "A slug is required.")]
+    [StringLength(160, MinimumLength = 2, ErrorMessage = "The slug must be 2 to 160 characters.")]
+    [RegularExpression(
+        BusinessSlug.Pattern,
+        ErrorMessage = "Use lowercase words separated by single hyphens, for example newa-momo-house-lalitpur.")]
+    public string Slug { get; init; } = string.Empty;
+
+    [Required(ErrorMessage = "A business name is required.")]
+    [StringLength(160, MinimumLength = 2, ErrorMessage = "The name must be 2 to 160 characters.")]
+    public string Name { get; init; } = string.Empty;
+
+    [StringLength(20000, ErrorMessage = "The description must be 20000 characters or fewer.")]
+    public string Description { get; init; } = string.Empty;
+
+    [EnumDataType(typeof(BusinessCategory), ErrorMessage = "Choose a valid category.")]
+    public BusinessCategory Category { get; init; }
+
+    [Required(ErrorMessage = "Choose the district this business is in.")]
+    [StringLength(80, ErrorMessage = "The district code must be 80 characters or fewer.")]
+    public string? DistrictCode { get; init; }
+
+    [StringLength(240, ErrorMessage = "The address must be 240 characters or fewer.")]
+    public string? Address { get; init; }
+
+    [StringLength(20, ErrorMessage = "The phone number must be 20 characters or fewer.")]
+    public string? Phone { get; init; }
+
+    [StringLength(254, ErrorMessage = "The email address must be 254 characters or fewer.")]
+    public string? Email { get; init; }
+
+    [StringLength(500, ErrorMessage = "The website must be 500 characters or fewer.")]
+    public string? Website { get; init; }
+
+    public IReadOnlyList<SaveBusinessHoursRequest> OpeningHours { get; init; } = [];
+
+    /// <summary>The registration as the staff rules already understand it: a draft, never live.</summary>
+    internal SaveBusinessRequest AsDraft() => new()
+    {
+        Slug = Slug,
+        Name = Name,
+        Description = Description,
+        Category = Category,
+        DistrictCode = DistrictCode,
+        Address = Address,
+        Phone = Phone,
+        Email = Email,
+        Website = Website,
+        IsPublished = false,
+        IsVerified = false,
+        OpeningHours = OpeningHours,
+    };
+}
+
+/// <summary>How an owner's registration ended.</summary>
+public enum RegisterStatus
+{
+    Created,
+
+    /// <summary>Shape or content rules were not met, reported as field errors.</summary>
+    Invalid,
+
+    /// <summary>Another row already owns that slug.</summary>
+    SlugTaken,
+}
+
+public sealed record RegisterOutcome(
+    RegisterStatus Status,
+    OwnerBusinessResponse? Business = null,
+    IReadOnlyList<FieldError>? FieldErrors = null,
+    string? Message = null);

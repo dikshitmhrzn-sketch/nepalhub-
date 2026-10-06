@@ -5,6 +5,7 @@ using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Admin;
 using NepalHub.Api.Features.Auth;
+using NepalHub.Api.Features.Businesses;
 using NepalHub.Api.Features.Quiz;
 
 namespace NepalHub.Api.Features.Ownership;
@@ -181,7 +182,24 @@ public sealed class OwnershipService(
                 claim.ReviewNote))
             .ToListAsync(cancellationToken);
 
-        return new MyBusinessesResponse(owned, claims);
+        var verifications = await dbContext.BusinessVerificationRequests
+            .Where(request => request.SubmittedByUserId == userId)
+            .Include(request => request.Business)
+            .OrderByDescending(request => request.CreatedAt)
+            .ThenBy(request => request.Id)
+            .Select(request => new VerificationResponse(
+                request.Id,
+                request.BusinessId,
+                request.Business == null ? string.Empty : request.Business.Slug,
+                request.Business == null ? string.Empty : request.Business.Name,
+                request.Status,
+                request.Note,
+                request.CreatedAt,
+                request.ReviewedAt,
+                request.ReviewNote))
+            .ToListAsync(cancellationToken);
+
+        return new MyBusinessesResponse(owned, claims, verifications);
     }
 
     // ----------------------------------------------------------------- staff side

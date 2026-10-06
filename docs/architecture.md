@@ -55,6 +55,9 @@ NepalHub.Api/
     ├── Businesses/       the local directory: staff-written listings with opening hours
     │   ├── BusinessesController.cs           public directory and detail, anonymous
     │   ├── BusinessAdminController.cs        staff-only CRUD and verification
+    │   ├── BusinessVerificationsAdminController.cs  the queue, approve and reject
+    │   ├── BusinessVerificationService.cs    one open request, approve = publish + blockers
+    │   ├── BusinessVerificationContracts.cs  owner and staff read models, the close request
     │   ├── BusinessService.cs                visibility, publish blockers, slug rules
     │   ├── BusinessContracts.cs              public and staff DTOs, category enum
     │   └── BusinessHours.cs                  the seven-day schedule as one value
@@ -100,9 +103,9 @@ NepalHub.Api/
     ├── Ownership/       who manages a listing — asserted by a person, decided by staff
     │   ├── BusinessClaimController.cs          signed-in filing, rate-limited per member
     │   ├── BusinessClaimsAdminController.cs    staff-only queue; approval writes the owner
-    │   ├── AccountBusinessesController.cs      the owner's own listings: read and save
+    │   ├── AccountBusinessesController.cs      register, read, save and ask for a check
     │   ├── OwnershipService.cs                 claim rules, rival settlement, owner scoping
-    │   └── OwnershipContracts.cs               claim, queue and owner-editor DTOs
+    │   └── OwnershipContracts.cs               claim, queue, registration and owner-editor DTOs
     ├── Subscriptions/   plans and granted windows: what a listing buys
     │   ├── PlansController.cs                  the catalogue, anonymous
     │   ├── FeaturedBusinessesController.cs     the strip above the directory, anonymous
@@ -250,6 +253,23 @@ staff editor, because "may edit this listing" and "may publish or verify it" are
 There is no unique index on (business, claimant): a rejected claimant who corrects their evidence
 must be able to try again, and a database that refuses the second row gives no reason at all.
 
+**Registration is the same grant, made from nothing.** `POST /api/account/businesses` creates a
+draft owned by the caller — unpublished, unchecked and 404 on the public site — so the two paths
+agree: a claim moves an existing row to an owner, a registration mints one, and neither publishes
+anything. The owner then asks for a check with `POST /api/account/businesses/{slug}/verification`,
+which opens one `Pending` `business_verification_requests` row (`verification_pending` while one
+waits, `already_published` once there is nothing to decide) and puts it in the queue staff work at
+`/admin/business-verifications`. Approval is the single move that publishes: it runs the same
+`CollectPublishBlockers` a staff publish runs, so a listing with no phone or a one-line description
+is refused with `not_publishable` and each blocker named rather than published broken; when it
+passes, approval stamps `is_verified`, grants the `business` role and writes
+`business.verification_approved` — or `business.verification_rejected` and a note, leaving the draft
+exactly where it was. Both decisions settle from the request row's own `status`, so a second click is
+`verification_closed`, never a second decision. While the listing is a draft its own identity (slug,
+name, category, district) is editable, and a published save simply omits those fields, which is how
+the API is told to leave them alone. Rate-limited 10/hour per IP on both verbs (`Business:RateLimit`)
+because a stranger can mint rows and then ask staff to look at them.
+
 **Entitlement is derived from the Nepal day, exactly like every other clock in this system.**
 Whether a listing is featured is `ends_on >= today` read through `INepalDateProvider` — the same
 argument as the job board's `ClosingSoon` and the events' `is_ongoing`, and for the same reason: a
@@ -292,7 +312,7 @@ src/
 ├── components/     presentational, reusable: layout/ (AppShell), auth/ (RequireAuth, RequireStaff),
 │                   ui/ (Container, Button, StateMessage, Pagination) and per-module components
 │                   (calculators/, quiz/, students/, jobs/, businesses/, deals/, events/, badges/,
-│                   claims/, subscriptions/, bookings/)
+│                   claims/, verifications/, subscriptions/, bookings/)
 ├── config/env.ts   reads VITE_* configuration
 ├── features/       per-module logic: api.ts (requests) + hooks (state) — no JSX
 ├── lib/            cross-cutting infrastructure: apiClient.ts, apiErrors.ts
@@ -448,9 +468,9 @@ the page.
 - **Authorisation:** role-based policies (`user`, `business`, `moderator`, `admin`) enforced by
   `[Authorize(Policy = ...)]` with `admin-only` and `staff-only` policies, plus resource-level
   ownership checks in services. Business accounts can only edit their own listings. The queues are
-  split by consequence: the claims queue is `staff-only` (it moves ownership, a fact staff already
-  curate), while subscription requests and direct grant/cancel are `admin-only` (they are the site's
-  money-equivalent), and event attendance is `staff-only`.
+  split by consequence: the claims and verification queues are `staff-only` (they move ownership and
+  publication, facts staff already curate), while subscription requests and direct grant/cancel are
+  `admin-only` (they are the site's money-equivalent), and event attendance is `staff-only`.
 - **Default deny:** a fallback authorisation policy means every endpoint requires a signed-in user
   unless it opts out with `[AllowAnonymous]`, so a new controller is protected the moment it is added.
 - **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations;
@@ -467,7 +487,9 @@ the page.
   anonymous flood cannot spend the budget a signed-in person needs. Payment checkout and verify get
   20/hour each (`Payment:RateLimit:PermitLimit`) for the same reason a browser will happily re-POST a
   return URL, and `GET /payments/config` is anonymous because it only decides whether a button is
-  shown. Read-only endpoints are not
+  shown. Registering a listing gets 10/hour (`Business:RateLimit:PermitLimit`) for the same reason
+  a claim does: it mints rows a stranger can then ask staff to review, and the submit verb behind it
+  shares the budget rather than opening a second door. Read-only endpoints are not
   limited. Public write endpoints (quiz answers) reuse the same mechanism.
 - **Errors:** Identity failures are translated into stable field codes (`email_taken`,
   `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.

@@ -1,10 +1,13 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and ten modules are live.** The schema below is the as-built
+**Status: MySQL 8.4.9 is installed and fifteen modules are live.** The schema below is the as-built
 result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
 `20260930122740_AddQuiz`, `20260930154447_AddStudentResources`, `20261001041409_AddJobs`,
 `20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`,
-`20261002162619_AddBadges`, `20261005042009_AddModeration` and `20261005042034_AddQuizAttemptCompletedAtIndex`,
+`20261002162619_AddBadges`, `20261005042009_AddModeration`, `20261005042034_AddQuizAttemptCompletedAtIndex`,
+`20261005103010_AddBusinessOwnership`, `20261005104909_AddBusinessSubscriptions`,
+`20261005104931_AddEventBookings`, `20261006035723_AddPayments` and
+`20261006093754_AddBusinessVerifications`,
 not a proposal. Everything from "Planned modules" onwards is still design
 only.
 
@@ -344,7 +347,9 @@ directory, and it landed **staff-managed listings only**: no business account, n
 claim flow, because a portal has nothing to attach to until someone can register as a business. Phase
 7e kept that rule — staff still create, publish and verify every row — and added the missing
 attachment points: `owner_user_id` and the claim queue (Module 11), the plan tables (Module 12), all
-below rather than pre-created empty at the time.
+below rather than pre-created empty at the time. 6c bent it once, in one direction: an owner may now
+register a draft of their own (`business_verification_requests`, Module 15), but publication and the
+verified badge remain a staff decision.
 
 `businesses` is one row per listing. A table per category would mean a copy of every query and a
 client that has to guess which one to ask.
@@ -825,11 +830,51 @@ No card number, no token that stands for one, and no provider secret is ever wri
 the signing key lives in configuration, and a settlement that cannot be verified stays `Pending`
 forever rather than being believed from a URL.
 
+## Module 15 - Business registration and verification (live)
+
+Added by `20261006093754_AddBusinessVerifications`. One table: what an owner asked for, and
+what staff decided about it. Before this, every row in `businesses` was written by staff and an
+owner appeared only by claiming something that already existed; now an owner can register a
+draft of their own, and this table is how they ask for it to become public.
+
+### `business_verification_requests`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `business_id` | `char(36)` → `businesses` | FK `ON DELETE CASCADE`, `business_verifications_fk_business_id`. Deleting a listing takes its requests with it: there is nothing left for a decision to be about |
+| `submitted_by_user_id` | `char(36)` → `users` | FK `ON DELETE CASCADE`. The owner who asked, recorded even if they lose the account later |
+| `note` | `varchar(500)` nullable | The owner's own words about the listing, optional, capped like a claim's evidence |
+| `status` | `varchar(20)` | `BusinessVerificationStatus` by name: `Pending` (default), `Approved`, `Rejected` |
+| `created_at` | `datetime(6)` | default `CURRENT_TIMESTAMP(6)` |
+| `reviewed_by_user_id` | `char(36)` nullable → `users` | FK `ON DELETE SET NULL`. Deleting a staff account must not re-open the question of who checked a listing |
+| `reviewed_at` | `datetime(6)` nullable | The instant staff decided, in UTC like every other written timestamp |
+| `review_note` | `varchar(500)` nullable | What staff recorded when deciding. Lives on the request row, not in the audit `after` |
+| `updated_at` | `datetime(6)` | |
+
+**No unique index on `business_id`.** A rejected owner who corrected their listing must be able
+to ask again, and a database that refused the second row would give no reason at all. The
+one-open-request rule is checked in the service, where the refusal is named `verification_pending`
+alongside `already_published`, and the index that makes that check cheap is
+`ix_business_verifications_business_status` (has this listing already got an open request).
+
+Indexes: `ix_business_verifications_status_created_at` (the queue: pending first, newest first,
+which is exactly what `/admin/business-verifications` asks for) and
+`ix_business_verifications_business_status` as above.
+
+Approval is the only thing that publishes: it runs the same `CollectPublishBlockers` a staff
+publish runs, stamps `is_verified`, grants the `business` role and writes
+`business.verification_approved` — or refuses with `not_publishable` and the blockers named,
+which is why a row can be `Pending` for a draft that would fail if it were published today.
+Rejection closes the request and leaves the draft exactly where it was. Both decisions settle
+from this row's own `status`, so a second click on an already-decided request is
+`verification_closed` rather than a second decision.
+
 ## Planned modules
 
 Everything below this line is still absent from the database. Each will be added as its own
-migration when its module is built. (Ownership, plans, subscriptions, bookings and payments were
-listed here once — they are live as Modules 11–14 above.)
+migration when its module is built. (Ownership, plans, subscriptions, bookings, payments and
+verification were listed here once — they are live as Modules 11–15 above.)
 
 ### Businesses, monetisation and claims
 
