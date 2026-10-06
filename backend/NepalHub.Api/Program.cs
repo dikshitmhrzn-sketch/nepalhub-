@@ -473,6 +473,20 @@ if (databaseConfigured)
     await using var scope = app.Services.CreateAsyncScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
     await RoleSeeder.SeedAsync(roleManager, CancellationToken.None);
+
+    // One development administrator, after the roles it holds exist. Config-driven and
+    // Development-only: with no DevAdmin:Email set it does nothing, which is why the test
+    // host, a fresh clone and production all run past this line unchanged.
+    if (app.Environment.IsDevelopment())
+    {
+        await DevAdminSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+            app.Configuration,
+            app.Environment,
+            app.Logger,
+            CancellationToken.None);
+    }
+
     await CalculatorSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         CancellationToken.None);
