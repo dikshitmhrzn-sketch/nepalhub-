@@ -56,6 +56,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<EventBooking> EventBookings => Set<EventBooking>();
 
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

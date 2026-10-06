@@ -580,6 +580,7 @@ public sealed class EventService(
         calendarEvent.Venue = Blank(request.Venue);
         calendarEvent.RegistrationUrl = NormaliseRegistrationUrl(request.RegistrationUrl);
         calendarEvent.Capacity = request.Capacity;
+        calendarEvent.TicketPrice = request.TicketPrice;
         calendarEvent.IsPublished = request.IsPublished;
     }
 
@@ -803,6 +804,7 @@ public sealed class EventService(
         calendarEvent.Capacity,
         calendarEvent.RegistrationCount,
         RemainingSpots(calendarEvent),
+        calendarEvent.TicketPrice,
         calendarEvent.UpdatedAt);
 
     /// <summary>
@@ -853,6 +855,7 @@ public sealed class EventService(
             calendarEvent.RegistrationUrl,
             calendarEvent.Capacity,
             calendarEvent.RegistrationCount,
+            calendarEvent.TicketPrice,
             calendarEvent.IsPublished,
             calendarEvent.EndsAt < now,
             calendarEvent.CreatedAt,
@@ -880,6 +883,7 @@ public sealed class EventService(
         Venue = calendarEvent.Venue,
         RegistrationUrl = calendarEvent.RegistrationUrl,
         Capacity = calendarEvent.Capacity,
+        TicketPrice = calendarEvent.TicketPrice,
         StartsAt = calendarEvent.StartsAt,
         EndsAt = calendarEvent.EndsAt,
         IsPublished = calendarEvent.IsPublished,

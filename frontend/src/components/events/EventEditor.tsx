@@ -47,6 +47,7 @@ function toRequest(detail: EventAdmin): SaveEventRequest {
     endsAt: detail.endsAt,
     capacity: detail.capacity,
     isPublished: detail.isPublished,
+    ticketPrice: detail.ticketPrice,
   };
 }
 
@@ -121,6 +122,10 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
       registrationUrl: form.registrationUrl?.trim() || null,
       districtCode: form.districtCode || null,
       capacity: form.capacity !== null && form.capacity > 0 ? Math.floor(form.capacity) : null,
+      ticketPrice:
+        Number.isFinite(form.ticketPrice) && form.ticketPrice > 0
+          ? Math.floor(form.ticketPrice)
+          : 0,
     };
 
     try {
@@ -556,6 +561,41 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
           </span>
           {fieldErrors.capacity ? (
             <span className={styles.fieldError}>{fieldErrors.capacity}</span>
+          ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="event-ticket-price">
+            Ticket price (NPR)
+          </label>
+          <input
+            className={styles.input}
+            id="event-ticket-price"
+            name="ticketPrice"
+            type="number"
+            min={0}
+            max={1000000}
+            placeholder="Free"
+            value={form.ticketPrice}
+            aria-invalid={fieldErrors.ticketPrice ? true : undefined}
+            aria-describedby="event-ticket-price-hint"
+            onChange={(changeEvent) => {
+              const parsed = Number(changeEvent.target.value);
+              patch({
+                ticketPrice:
+                  changeEvent.target.value === '' || Number.isNaN(parsed) || parsed < 0
+                    ? 0
+                    : Math.floor(parsed),
+              });
+            }}
+          />
+          <span className={styles.help} id="event-ticket-price-hint">
+            What one place costs, in whole rupees. Leave it at zero for an event that books
+            without any payment; a priced event sends the reader to eSewa and holds their
+            place until the provider confirms it.
+          </span>
+          {fieldErrors.ticketPrice ? (
+            <span className={styles.fieldError}>{fieldErrors.ticketPrice}</span>
           ) : null}
         </div>
       </fieldset>

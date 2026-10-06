@@ -17,4 +17,6 @@ public static class RateLimitPolicies
     public const string Booking = "booking";
 
     public const string Search = "search";
+
+    public const string Payment = "payment";
 }

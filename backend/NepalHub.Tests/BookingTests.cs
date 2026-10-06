@@ -22,7 +22,8 @@ internal static class BookingApi
         int? capacity = null,
         int startsInHours = 24,
         int durationHours = 2,
-        bool published = true)
+        bool published = true,
+        int ticketPrice = 0)
     {
         using var staff = await factory.CreateStaffClientAsync(Roles.Admin);
         var slug = EventApi.NewSlug();
@@ -35,7 +36,8 @@ internal static class BookingApi
                 published,
                 capacity: capacity,
                 startsInHours: startsInHours,
-                durationHours: durationHours));
+                durationHours: durationHours,
+                ticketPrice: ticketPrice));
 
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
 

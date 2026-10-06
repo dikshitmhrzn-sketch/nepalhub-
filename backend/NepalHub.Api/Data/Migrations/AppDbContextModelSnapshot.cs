@@ -1763,6 +1763,12 @@ namespace NepalHub.Api.Data.Migrations
                         .HasColumnType("varchar(400)")
                         .HasColumnName("summary");
 
+                    b.Property<int>("TicketPrice")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ticket_price");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1975,6 +1981,121 @@ namespace NepalHub.Api.Data.Migrations
                         .HasDatabaseName("ix_jobs_is_published_work_mode");
 
                     b.ToTable("jobs", (string)null);
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.PaymentTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AmountNpr")
+                        .HasColumnType("int")
+                        .HasColumnName("amount_npr");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("EventBookingId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("event_booking_id");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("failure_code");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(45)
+                        .HasColumnType("varchar(45)")
+                        .HasColumnName("ip");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("varchar(16)")
+                        .HasDefaultValue("esewa")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("ProviderReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("provider_reference");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("reference");
+
+                    b.Property<DateTime?>("RefundedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("refunded_at");
+
+                    b.Property<DateTime?>("SettledAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("settled_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SubscriptionRequestId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("subscription_request_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_payment_transactions");
+
+                    b.HasIndex("EventBookingId")
+                        .HasDatabaseName("ix_payment_transactions_event_booking_id");
+
+                    b.HasIndex("Reference")
+                        .IsUnique()
+                        .HasDatabaseName("ix_payment_transactions_reference");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_payment_transactions_status");
+
+                    b.HasIndex("SubscriptionRequestId")
+                        .HasDatabaseName("ix_payment_transactions_subscription_request_id");
+
+                    b.HasIndex("UserId", "CreatedAt")
+                        .HasDatabaseName("ix_payment_transactions_user_id_created_at");
+
+                    b.ToTable("payment_transactions", (string)null);
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.Plan", b =>
@@ -2920,6 +3041,34 @@ namespace NepalHub.Api.Data.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("District");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.PaymentTransaction", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.EventBooking", "EventBooking")
+                        .WithMany()
+                        .HasForeignKey("EventBookingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("payment_transactions_fk_event_booking_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.SubscriptionRequest", "SubscriptionRequest")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("payment_transactions_fk_subscription_request_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("payment_transactions_fk_user_id");
+
+                    b.Navigation("EventBooking");
+
+                    b.Navigation("SubscriptionRequest");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.QuizAttempt", b =>

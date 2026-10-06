@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/features/auth/AuthContext';
 import { bookEvent, cancelBooking } from '@/features/bookings/api';
 import type { Booking } from '@/features/bookings/types';
+import { startCheckout } from '@/features/payments/api';
+import { checkoutErrorMessage, openProviderCheckout } from '@/features/payments/checkout';
 import { ApiError } from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/apiErrors';
 
@@ -17,6 +19,11 @@ interface BookingPanelProps {
   remainingSpots: number | null;
   /** Whether the event has already started. Booking latches only before the start. */
   started: boolean;
+  /**
+   * What one place costs, in whole rupees. Zero is the free event this panel has always
+   * taken a place at; anything above it sells the place instead of booking it.
+   */
+  ticketPrice?: number;
   /** Called after a booking or cancellation lands, so the page can reload its counts. */
   onChanged: () => void;
 }
@@ -32,7 +39,14 @@ type Phase = 'idle' | 'sending';
  * 409 with its own sentence, which is what the page says instead. A signed-out visitor gets
  * the sign-in link rather than a form that would fail at the door.
  */
-export function BookingPanel({ slug, capacity, remainingSpots, started, onChanged }: BookingPanelProps) {
+export function BookingPanel({
+  slug,
+  capacity,
+  remainingSpots,
+  started,
+  ticketPrice = 0,
+  onChanged,
+}: BookingPanelProps) {
   const { status } = useAuth();
   const [phase, setPhase] = useState<Phase>('idle');
   const [quantity, setQuantity] = useState(1);
@@ -109,6 +123,36 @@ export function BookingPanel({ slug, capacity, remainingSpots, started, onChange
     return <p className={styles.note}>This event is fully booked.</p>;
   }
 
+  const paid = ticketPrice > 0;
+  const total = ticketPrice * quantity;
+
+  /**
+   * Priced events do not book, they sell: the place is held by the checkout, the buyer
+   * leaves for the provider's own pages, and the seat survives only as long as the money
+   * takes to arrive. The form that carries them is built and posted here rather than
+   * navigated to, because that is the shape the provider signed.
+   */
+  async function handlePay() {
+    setPhase('sending');
+    setError(null);
+
+    try {
+      const handshake = await startCheckout({
+        kind: 'EventTicket',
+        slug,
+        quantity,
+      });
+
+      openProviderCheckout(handshake);
+      return;
+    } catch (payError) {
+      setError(
+        checkoutErrorMessage(payError, 'Could not start the payment. Please try again.'),
+      );
+      setPhase('idle');
+    }
+  }
+
   async function handleBook() {
     setPhase('sending');
     setError(null);
@@ -171,6 +215,14 @@ export function BookingPanel({ slug, capacity, remainingSpots, started, onChange
           : `${remainingSpots} ${remainingSpots === 1 ? 'place' : 'places'} left`}
       </p>
 
+      {paid ? (
+        <p className={styles.meta}>
+          NPR {ticketPrice.toLocaleString()} per place
+          {quantity > 1 ? ` · NPR ${total.toLocaleString()} for ${quantity}` : ''} · paid
+          through eSewa
+        </p>
+      ) : null}
+
       <div className={styles.stepper}>
         <label className={styles.stepperLabel} htmlFor="booking-quantity">
           Places
@@ -205,8 +257,27 @@ export function BookingPanel({ slug, capacity, remainingSpots, started, onChange
         </p>
       ) : null}
 
-      <Button type="button" size="small" disabled={isSending} onClick={() => void handleBook()}>
-        {isSending ? 'Booking…' : quantity === 1 ? 'Book my place' : `Book ${quantity} places`}
+      <Button
+        type="button"
+        size="small"
+        disabled={isSending}
+        onClick={() => {
+          if (paid) {
+            void handlePay();
+          } else {
+            void handleBook();
+          }
+        }}
+      >
+        {isSending
+          ? paid
+            ? 'Taking you to eSewa…'
+            : 'Booking…'
+          : paid
+            ? `Pay NPR ${total.toLocaleString()}`
+            : quantity === 1
+              ? 'Book my place'
+              : `Book ${quantity} places`}
       </Button>
     </div>
   );

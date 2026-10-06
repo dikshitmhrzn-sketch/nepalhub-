@@ -483,11 +483,13 @@ Six decisions are worth stating because they look odd in the schema and are not:
   that 500s because an unrelated row was deleted. The business *name* survives with it; only the
   public `businessSlug` is withheld for an unlisted business, and that is a read-model decision rather
   than a column.
-- **No `cover_url`, `price`, `coupon_code` or `ticket_price`; capacity is the deliberate
-  exception.** There is no image storage decision yet and an offer's headline is text in the
-  business's own words rather than a price pair. An event used to collect nothing at all, but
-  Module 13 gave it `capacity` and `registration_count` — seats a reader can hold *on this site* —
-  while `ticket_price` stays out of the table until a payment provider exists (7f).
+- **No `cover_url`, `price` or `coupon_code`; capacity and now `ticket_price`.** There is no image
+  storage decision yet and an offer's headline is text in the business's own words rather than a
+  price pair. An event used to collect nothing at all; Module 13 gave it `capacity` and
+  `registration_count` — seats a reader can hold *on this site* — and 7f gave it `ticket_price`
+  (Module 14), the price of one of those seats in whole rupees. It is an integer on purpose: the
+  plan catalogue prices whole rupees too, and a payment that arrives as a `decimal` never matches
+  one that left as an `int`.
 
 Indexes: `ix_deals_slug` (unique) and one composite per public filter, each leading with
 `is_published` because every public read tests that first —
@@ -733,8 +735,8 @@ listing — the `request_pending` refusal).
 ## Module 13 — Event bookings (live)
 
 Added by `20261005104931_AddEventBookings`, which also gave the live `events` table the two
-columns the counter needs. Taking a place happens on this site; paying for one does not — that is
-7f, and `events.ticket_price` stays out of the table until then.
+columns the counter needs. Taking a place happens on this site; paying for one does not until
+`ticket_price` is set — and that decision lives in 7f (Module 14), not here.
 
 ### `events.capacity` and `events.registration_count`
 
@@ -756,7 +758,7 @@ and two queries that disagree about availability is how an event sells out twice
 | `event_id` | `char(36)` | FK → `events`, `ON DELETE CASCADE` |
 | `attendee_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE`. The event's stored counter is what survives a deletion, precisely so nothing has to chase rows |
 | `quantity` | `int` | Default 1. One to four in this phase; the column is a number for later |
-| `status` | `varchar(20)` | `EventBookingStatus` by name: `Confirmed` (default), `Cancelled` |
+| `status` | `varchar(20)` | `EventBookingStatus` by name: `Confirmed` (default), `Pending` (a priced seat taken before eSewa answered), `Cancelled` |
 | `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
 | `cancelled_at` | `datetime(6)` nullable | Cancelling toggles the row rather than deleting it, so the record of who had a place survives |
 
@@ -771,11 +773,63 @@ a seat is not one of those.
 Indexes: `ix_event_bookings_event_attendee` (unique) and `ix_event_bookings_event_id_status`
 (the staff attendee list and the event's own "who is coming").
 
+## Module 14 — Payments (live)
+
+Added by `20261006035723_AddPayments`, which also gave `events` its `ticket_price` column.
+Money is asked for through eSewa ePay v2 and recorded here as a reference, an amount and a
+status — the provider's own transaction id and nothing a card could be replayed from.
+
+### `events.ticket_price`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticket_price` | `int` default 0 | Whole rupees for one place. **0 is the free case**, which is why the column is not nullable: every existing event became a free event the moment the migration ran, and NULL would have had to mean the same thing twice |
+
+The price is read by the booking panel (which offers a `Pay NPR …` button instead of `Book` when it
+is above zero) and by the staff event editor, so editing an event cannot silently zero it: the price
+round-trips through the save contract like any other field.
+
+### `payment_transactions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `provider` | `varchar(20)` | e.g. `esewa`; the seam allows more than one |
+| `merchant_txn_id` | `varchar(64)` unique | what we sent as `product_code` — the id eSewa answers about |
+| `provider_txn_id` | `varchar(64)` nullable | whatever the status check reports; unknown until it does |
+| `kind` | `varchar(20)` | `Subscription` or `EventTicket` |
+| `reference` | `varchar(120)` | the request id, the booking id or the slug — what this payment is *for* |
+| `user_id` | `char(36)` → `users` | who is paying |
+| `business_id` | `char(36)` nullable → `businesses` | set for a subscription, null for a ticket |
+| `event_id` | `char(36)` nullable → `events` | set for a ticket, null for a subscription |
+| `amount` | `int` | whole rupees; compared against the plan or `ticket_price × places` before anything is granted |
+| `status` | `varchar(20)` | `PaymentStatus` by name: `Pending`, `Succeeded`, `Failed`, `RefundDue`, `Refunded` |
+| `failure_code` | `varchar(64)` nullable | `amount_mismatch`, `signature_invalid`, `status_unreachable`, `provider_failed` — why we did not believe it |
+| `provider_notice` | `varchar(64)` nullable | what the last status check literally said, for an admin who needs to know the difference between "nothing happened" and "we could not ask" |
+| `created_at`, `updated_at` | `datetime(6)` | |
+
+Indexes: `ix_payment_transactions_reference_status` (settlement and the account history both lead
+with the reference), `ix_payment_transactions_user_id_created_at`, and the unique index on
+`merchant_txn_id` — **one row per attempt**, so two tabs clicking `Pay` resume one checkout instead
+of inventing a second.
+
+**Nothing here is settled by a redirect.** The browser returns to `/payments/return/{reference}`
+carrying eSewa's signed `data` + `signature`, and `PaymentService` settles only after the
+server-to-server status check agrees about the amount. The conditional `UPDATE` that moves
+`Pending → Succeeded` is the latch: two answers grant once, audit once (`payment.succeeded`), and
+leave everything else untouched. A `FULL_REFUND` seen on a later check moves a `Succeeded` row to
+`Refunded` and writes `payment.refunded`; a cancelled paid booking parks the row at `RefundDue`,
+because eSewa has no refund API and *requesting* one is an administrator's decision.
+
+No card number, no token that stands for one, and no provider secret is ever written to this table:
+the signing key lives in configuration, and a settlement that cannot be verified stays `Pending`
+forever rather than being believed from a URL.
+
 ## Planned modules
 
 Everything below this line is still absent from the database. Each will be added as its own
-migration when its module is built. (Ownership, plans, subscriptions and bookings were listed here
-once — they are live as Modules 11–13 above.)
+migration when its module is built. (Ownership, plans, subscriptions, bookings and payments were
+listed here once — they are live as Modules 11–14 above.)
 
 ### Businesses, monetisation and claims
 
@@ -792,11 +846,11 @@ rather than a plan:
   integration and only once there is a way to place a pin that is not invented
 - ratings: `rating_average`, `rating_count`, `view_count`, and the `business_reviews` table behind them
 
-Payments are handled by a gateway adapter behind an interface (`Features/Payments/IPaymentGateway`
-exists as the seam); only the provider's opaque transaction id and the resulting entitlement are
-stored. No card data ever touches this database. When a provider exists, a `payment_transactions`
-table and webhook handling (7f) resolve into the live `subscription_requests` queue rather than a
-second approval path.
+Payments are live as Module 14: the adapter sits behind `Features/Payments/IPaymentGateway`, only
+eSewa's opaque ids and the resulting entitlement are stored, and no card data ever touches this
+database. There is still no webhook handling to design — ePay v2 has none — so the settlement path
+is a status check that resolves into the live `subscription_requests` queue rather than a second
+approval path.
 
 `jobs.business_id` stays nullable and null on staff-written rows. It is reserved for employer-owned
 postings, which needs the `owner_user_id` column that now exists — the claim approval path shows

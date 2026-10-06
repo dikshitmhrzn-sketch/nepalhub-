@@ -46,6 +46,16 @@ public static class AuditActions
     public const string SubscriptionRequestApproved = "subscription_request.approved";
 
     public const string SubscriptionRequestRejected = "subscription_request.rejected";
+
+    /// <summary>
+    /// A provider confirmed money. The actor is the buyer, not an administrator: no
+    /// decision was made by staff, and the entry exists so the queue a payment settles
+    /// can be tied back to who paid for it.
+    /// </summary>
+    public const string PaymentSucceeded = "payment.succeeded";
+
+    /// <summary>A refund was confirmed by the provider, wherever the money was returned from.</summary>
+    public const string PaymentRefunded = "payment.refunded";
 }
 
 /// <summary>

@@ -27,6 +27,7 @@ const navigation: NavigationItem[] = [
   { label: 'Events', to: '/events' },
   { label: 'Leaderboard', to: '/leaderboard' },
   { label: 'Account', to: '/account', requiresAuth: true },
+  { label: 'Payments', to: '/account/payments', requiresAuth: true },
   { label: 'My businesses', to: '/my-business', requiresAuth: true },
   { label: 'Dashboard', to: '/admin', requiresStaff: true },
   { label: 'Report queue', to: '/admin/reports', requiresStaff: true },
@@ -41,6 +42,7 @@ const navigation: NavigationItem[] = [
   { label: 'Accounts', to: '/admin/users', requiresAdmin: true },
   { label: 'Audit log', to: '/admin/audit-log', requiresAdmin: true },
   { label: 'Plan requests', to: '/admin/subscription-requests', requiresAdmin: true },
+  { label: 'Payments', to: '/admin/payments', requiresAdmin: true },
 ];
 
 // Search is reached from the header box on every page rather than from a link here, which would be a

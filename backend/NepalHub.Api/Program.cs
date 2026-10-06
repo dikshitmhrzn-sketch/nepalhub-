@@ -25,6 +25,7 @@ using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Leaderboard;
 using NepalHub.Api.Features.Moderation;
 using NepalHub.Api.Features.Ownership;
+using NepalHub.Api.Features.Payments;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
@@ -97,10 +98,38 @@ var bookingRateLimitWindow = builder.Configuration.GetValue("Booking:RateLimit:W
     ? TimeSpan.FromSeconds(bookingWindowSeconds)
     : TimeSpan.FromHours(1);
 
+// Starting or reconciling a checkout is bounded like booking per IP: both spend something
+// scarce — a seat and now money — and the loop worth stopping is the one firing off
+// checkouts it never intends to pay for. The quota covers verify too, because every
+// verify reaches the provider on the buyer's behalf and that traffic is worth rationing
+// before it reaches the provider's servers.
+var paymentRateLimitPermitLimit = builder.Configuration.GetValue("Payment:RateLimit:PermitLimit", 20);
+var paymentRateLimitWindow = builder.Configuration.GetValue("Payment:RateLimit:WindowSeconds", 3600)
+    is { } paymentWindowSeconds
+    ? TimeSpan.FromSeconds(paymentWindowSeconds)
+    : TimeSpan.FromHours(1);
+
 // Bound once here and injected into the service as well, so the numbers the API advertises
 // and the numbers it awards cannot drift apart.
 var quizSettings = builder.Configuration.GetSection(QuizSettings.SectionName).Get<QuizSettings>() ?? new QuizSettings();
 var quizRateLimit = new QuizRateLimitOptions(quizSettings);
+
+// The payment section as committed carries only the provider name and the environment —
+// the merchant code and the signing key are bound from user-secrets or the environment
+// and are absent from every committed file, which is why IsConfigured stays false on a
+// fresh clone and checkout answers "not configured" until somebody deliberately wires it.
+var paymentSettings = builder.Configuration
+    .GetSection(PaymentSettings.SectionName)
+    .Get<PaymentSettings>() ?? new PaymentSettings();
+
+// The hosts follow the environment rather than being spelled out in configuration, so
+// switching to production is one word and cannot leave a sandbox URL in a live setting.
+// Either can still be overridden in configuration for a host that differs.
+if (string.Equals(paymentSettings.Environment, "production", StringComparison.OrdinalIgnoreCase))
+{
+    paymentSettings.CheckoutBaseUrl = new Uri("https://epay.esewa.com.np");
+    paymentSettings.StatusBaseUrl = new Uri("https://esewa.com.np");
+}
 
 // Enums go over the wire as their names, so the catalogue filter and the input kinds
 // stay readable and a new member cannot silently renumber the ones before it.
@@ -296,6 +325,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    // Checkouts and verifications share booking's hour and quota, for the same reason and
+    // with the same per-IP accounting: each one reaches a payment provider on the caller's
+    // behalf, so a loop of them is traffic we would be sending to eSewa.
+    options.AddPolicy(RateLimitPolicies.Payment, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = paymentRateLimitPermitLimit,
+            Window = paymentRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     // Only the submit endpoint is limited. Reading a day's questions is a cheap, idempotent
     // GET, and a player reloading the page must never be treated as abuse.
     //
@@ -360,6 +402,29 @@ builder.Services.AddScoped<SubscriptionService>();
 // Bookings hold the event counter and the attendee row in one transaction, so they need the
 // same single request-scoped context: the latch and the row it pays for must commit together.
 builder.Services.AddScoped<BookingService>();
+
+// Which provider answers checkout is configuration, not code: a configured provider is
+// registered as the adapter, an unconfigured install gets the one that refuses, and
+// nothing else in the request pipeline knows the difference. The HTTP client is named so
+// a test host can stand in for eSewa's status endpoint without touching either.
+builder.Services.AddSingleton(paymentSettings);
+builder.Services.AddHttpClient(EsewaPaymentGateway.HttpClientName, client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+if (paymentSettings.IsConfigured)
+{
+    builder.Services.AddScoped<IPaymentGateway, EsewaPaymentGateway>();
+}
+else
+{
+    builder.Services.AddSingleton<IPaymentGateway, RejectingPaymentGateway>();
+}
+
+// The settlement engine shares the request's AppDbContext, so the payment row, the seat
+// or entitlement it buys and any audit line all commit by one SaveChanges or not at all.
+builder.Services.AddScoped<PaymentService>();
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.

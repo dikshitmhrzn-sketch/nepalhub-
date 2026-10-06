@@ -12,6 +12,7 @@ import { ClaimsAdminPage } from '@/pages/admin/ClaimsAdminPage';
 import { DealsAdminPage } from '@/pages/admin/DealsAdminPage';
 import { EventsAdminPage } from '@/pages/admin/EventsAdminPage';
 import { JobsAdminPage } from '@/pages/admin/JobsAdminPage';
+import { PaymentsAdminPage } from '@/pages/admin/PaymentsAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
 import { ReportsAdminPage } from '@/pages/admin/ReportsAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
@@ -31,6 +32,8 @@ import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MyBusinessPage } from '@/pages/MyBusinessPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PaymentReturnPage } from '@/pages/PaymentReturnPage';
+import { PaymentsPage } from '@/pages/PaymentsPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { SearchPage } from '@/pages/SearchPage';
@@ -65,8 +68,16 @@ export const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { path: 'account', element: <AccountPage /> },
+          { path: 'account/payments', element: <PaymentsPage /> },
           { path: 'my-business', element: <MyBusinessPage /> },
           { path: 'my-business/:slug', element: <MyBusinessPage /> },
+          /*
+            Where the provider sends a buyer back. Both land on the same page: a return
+            that says "failed" is a claim by a url, and the page asks the provider either
+            way rather than repeating it.
+           */
+          { path: 'payments/return/:reference', element: <PaymentReturnPage /> },
+          { path: 'payments/failed/:reference', element: <PaymentReturnPage declaredFailure /> },
         ],
       },
       {
@@ -88,6 +99,7 @@ export const router = createBrowserRouter([
               { path: 'admin/users', element: <UsersAdminPage /> },
               { path: 'admin/audit-log', element: <AuditLogPage /> },
               { path: 'admin/subscription-requests', element: <SubscriptionRequestsAdminPage /> },
+              { path: 'admin/payments', element: <PaymentsAdminPage /> },
             ],
           },
         ],

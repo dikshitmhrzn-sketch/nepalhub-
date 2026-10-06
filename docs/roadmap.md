@@ -485,12 +485,41 @@ of these decisions.
       the staff event editor. Gates: `dotnet build` 0/0, **614/614** backend tests, frontend
       typecheck and build clean, **50/50** frontend tests
 
-### Phase 7f — Payments (stub, not started)
+### Phase 7f — Payments (eSewa)
 
-- [ ] Real checkout, webhooks and a `payment_transactions` table; refunds and paid tickets. The
-      request queue from 7e is where a provider's webhook resolves, so approval logic stays written
-      once. No card data in this database — the seam (`IPaymentGateway`, `PaymentSettings`) exists
-- [ ] Free event bookings stay free; paid attendance only becomes a question here
+- [x] `payment_transactions` (`AddPayments`) and `events.ticket_price` applied to the dev database;
+      whole-rupee amounts, the same shape as `plans.price_npr`. No card data in this database —
+      the browser posts a signed form and only a signed payload plus a status check come back
+- [x] eSewa ePay v2 behind 7e's seam: `EsewaPaymentGateway` signs the outgoing form and verifies
+      the return payload with `EsewaSignature` (HMAC-SHA256 over the ordered `signed_field_names`),
+      `RejectingPaymentGateway` answers "no provider", and `Payments:Provider = "none"` keeps the
+      whole thing off by default. ePay v2 has no webhook — the signed redirect settles nothing, so
+      every answer is a server-to-server status check against a provider that never saw our session
+- [x] `PaymentService`: one open checkout per listing or seat (a second click resumes it), the seat
+      is latched before the provider is asked, and settlement runs behind a conditional `UPDATE` so
+      two answers about the same reference grant once and audit once. A reply about a different
+      total is recorded as `amount_mismatch` and believed about nothing; an unreachable provider
+      leaves the row exactly as it was
+- [x] Paid plans settle *into* 7e's queue rather than beside it: `SettlePaidRequestAsync` approves
+      the request the checkout opened, carries the reference in `review_note`, and writes
+      `payment.succeeded` instead of a second approval audit. Paid tickets take
+      `events.ticket_price × places`, confirm the seat on success, release it on failure or refund,
+      and mark the payment `refund_due` when the buyer cancels
+- [x] eSewa has no refund API, so a portal refund is *discovered*: the admin status check is also
+      how a settlement nobody returned from is found, and how `FULL_REFUND` flips a row to
+      `refunded` (subscriptions are not auto-revoked — rolling windows make that the
+      administrator's call, written to the audit trail as `payment.refunded`)
+- [x] `Payment:RateLimit` (20/hour per IP) on checkout and verify; `GET /payments/config` is
+      anonymous and says only `available` + `provider` — never a merchant code or a gateway url
+- [x] Free event bookings stay free: a zero price books exactly as before, and `payment_not_required`
+      is the refusal for a checkout against one. `BookStatus.PaymentRequired` is the 409 a priced
+      event gives to a plain booking
+- [x] Frontend: `features/payments` (config, checkout, verify, history, admin list) posting the
+      signed form from the browser; `/payments/{return,failed}/:reference` asks the provider and
+      repeats nothing the url claims; `/account/payments`; `/admin/payments` with URL-owned status
+      windows and a per-row check; the plan panel's `Pay NPR …` button and the booking panel's
+      priced path; the ticket price field in the staff event editor. Gates: `dotnet build` 0/0,
+      **631/631** backend tests, frontend typecheck and build clean, **61/61** frontend tests
 
 ## Phase 8 — Mobile
 

@@ -126,6 +126,7 @@ export function EventPage() {
           capacity={detail.capacity}
           remainingSpots={detail.remainingSpots}
           started={started}
+          ticketPrice={detail.ticketPrice}
           onChanged={event.reload}
         />
 

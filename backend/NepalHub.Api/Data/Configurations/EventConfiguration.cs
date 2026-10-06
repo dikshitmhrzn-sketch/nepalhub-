@@ -37,6 +37,12 @@ public sealed class EventConfiguration : IEntityTypeConfiguration<Event>
             .HasDefaultValue(0)
             .IsRequired();
 
+        // Whole rupees, like the plan catalogue price, and zero rather than null: "free"
+        // is the ordinary case and a nullable column would make every reader handle both.
+        builder.Property(calendarEvent => calendarEvent.TicketPrice)
+            .HasDefaultValue(0)
+            .IsRequired();
+
         builder.Property(calendarEvent => calendarEvent.Category)
             .HasConversion<int>()
             .IsRequired();

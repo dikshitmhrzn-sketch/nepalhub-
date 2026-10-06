@@ -1,15 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import { useAuth } from '@/features/auth/AuthContext';
 import { bookEvent, cancelBooking } from '@/features/bookings/api';
+import { startCheckout } from '@/features/payments/api';
 import { ApiError } from '@/lib/apiClient';
 
 import { BookingPanel } from './BookingPanel';
 
 vi.mock('@/features/auth/AuthContext', () => ({ useAuth: vi.fn() }));
 vi.mock('@/features/bookings/api', () => ({ bookEvent: vi.fn(), cancelBooking: vi.fn() }));
+vi.mock('@/features/payments/api', () => ({ startCheckout: vi.fn() }));
 
 function authAs(status: 'authenticated' | 'anonymous' | 'loading') {
   vi.mocked(useAuth).mockReturnValue({
@@ -77,10 +79,17 @@ function renderPanel(overrides: Partial<Parameters<typeof BookingPanel>[0]> = {}
 }
 
 describe('BookingPanel', () => {
+  let submit: MockInstance;
+
   beforeEach(() => {
     authAs('authenticated');
     vi.mocked(bookEvent).mockReset();
     vi.mocked(cancelBooking).mockReset();
+    vi.mocked(startCheckout).mockReset();
+
+    // The checkout posts a form to the provider. jsdom has no navigation to offer, so the
+    // submit itself is what the test watches.
+    submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {});
   });
 
   it('is not on the page at all for an event with no cap', () => {
@@ -166,5 +175,52 @@ describe('BookingPanel', () => {
     );
     expect(cancelBooking).toHaveBeenCalledWith('kirtan-night');
     expect(onChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it('sells a priced place rather than booking it', async () => {
+    vi.mocked(startCheckout).mockResolvedValue({
+      reference: 'PAY-1',
+      checkoutUrl: 'https://rc-epay.esewa.com.np/api/epay/main/v2/payment',
+      fields: { total_amount: '1000' },
+      status: 'Pending',
+    });
+
+    renderPanel({ ticketPrice: 500 });
+
+    // The price is on the panel before anything is clicked, so the total is never a
+    // surprise at the provider's door.
+    expect(screen.getByText(/NPR 500 per place/u)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'One more place' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pay NPR 1,000' }));
+
+    await waitFor(() => expect(startCheckout).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(startCheckout).mock.calls[0][0]).toEqual({
+      kind: 'EventTicket',
+      slug: 'kirtan-night',
+      quantity: 2,
+    });
+
+    // Nothing was booked: the place is held by the payment, not by a booking.
+    expect(bookEvent).not.toHaveBeenCalled();
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+  });
+
+  it('says why a priced checkout could not start', async () => {
+    vi.mocked(startCheckout).mockRejectedValue(
+      new ApiError(503, 'payments_not_configured', 'No provider.'),
+    );
+
+    renderPanel({ ticketPrice: 500 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pay NPR 500' }));
+
+    expect(
+      await screen.findByText(
+        'Online payment is not switched on on this site yet, so nothing can be bought here.',
+      ),
+    ).toBeTruthy();
+    expect(submit).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Pay NPR 500' })).toBeTruthy();
   });
 });

@@ -84,6 +84,14 @@ public sealed record EventDetailResponse(
     /// number the page itself produced.
     /// </summary>
     int? RemainingSpots,
+
+    /// <summary>
+    /// What one place costs, in whole rupees. Zero is the ordinary case and means free —
+    /// the reader is asked for money only when this is above zero, and the checkout path
+    /// reads the same column, so the button and the charge cannot disagree.
+    /// </summary>
+    int TicketPrice,
+
     DateTime UpdatedAt);
 
 /// <summary>
@@ -128,6 +136,10 @@ public sealed record EventAdminResponse(
     string? RegistrationUrl,
     int? Capacity,
     int RegistrationCount,
+
+    /// <summary>What one place costs in whole rupees; zero for the free events every event was before.</summary>
+    int TicketPrice,
+
     bool IsPublished,
     bool IsFinished,
     DateTime CreatedAt,
@@ -197,6 +209,14 @@ public sealed class SaveEventRequest
     /// </summary>
     [Range(1, 1_000_000, ErrorMessage = "Capacity must be at least one place. Leave it empty for an event with no cap.")]
     public int? Capacity { get; init; }
+
+    /// <summary>
+    /// What one place costs, in whole rupees. Zero — the default — keeps the event free and
+    /// the booking path exactly as it was; anything above it puts a checkout in front of the
+    /// booking button and holds the seat until the payment answers.
+    /// </summary>
+    [Range(0, 1_000_000, ErrorMessage = "The ticket price cannot be negative.")]
+    public int TicketPrice { get; init; }
 
     [Required(ErrorMessage = "Choose when the event starts.")]
     public DateTime? StartsAt { get; init; }

@@ -53,6 +53,30 @@ public sealed record RequestDecisionOutcome(
     RequestDecisionStatus Status,
     AdminSubscriptionRequestResponse? Request = null);
 
+/// <summary>How a paid settlement resolved against the request queue.</summary>
+public enum PaidSettleStatus
+{
+    /// <summary>The window opened or rolled forward, exactly as an approval would have done.</summary>
+    Granted,
+
+    NotFound,
+
+    /// <summary>Staff decided it while the money was still in flight, so there is nothing to grant.</summary>
+    AlreadyReviewed,
+
+    /// <summary>The plan was deactivated between the checkout and the confirmation.</summary>
+    PlanUnavailable,
+}
+
+/// <summary>
+/// What a settlement granted, so the caller can record one audit line naming both the
+/// payment and the window it produced.
+/// </summary>
+internal sealed record PaidSettleOutcome(
+    PaidSettleStatus Status,
+    Guid? SubscriptionId = null,
+    bool Extended = false);
+
 /// <summary>What one grant did, for the caller to record in the audit log.</summary>
 internal sealed record GrantResult(
     Guid SubscriptionId,
@@ -267,6 +291,24 @@ public sealed class SubscriptionService(
         subscription.Status = BusinessSubscriptionStatus.Cancelled;
         subscription.CancelledAt = dates.UtcNow;
 
+        // The window this row held may have been bought rather than granted, and money
+        // that bought a placement staff have now stopped is money owed back. The refund
+        // happens in the provider's own portal, so what is recorded here is that one is
+        // due — the payment row is what the admin list reads to see it outstanding.
+        var payment = subscription.SubscriptionRequestId is { } requestId
+            ? await dbContext.PaymentTransactions
+                .Where(candidate => candidate.SubscriptionRequestId == requestId
+                    && candidate.Status == PaymentStatus.Succeeded)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        if (payment is not null)
+        {
+            payment.Status = PaymentStatus.RefundDue;
+            payment.FailureCode = "subscription_cancelled";
+            payment.UpdatedAt = dates.UtcNow;
+        }
+
         auditLog.Record(
             adminUserId,
             AuditActions.SubscriptionCancelled,
@@ -453,6 +495,63 @@ public sealed class SubscriptionService(
         return new RequestDecisionOutcome(
             RequestDecisionStatus.Rejected,
             await RequestViewAsync(request, cancellationToken));
+    }
+
+    /// <summary>
+    /// Settles a paid checkout into the same queue an admin approval would have gone
+    /// through: the grant runs the one <c>ApplyGrantAsync</c> every other path uses, the
+    /// request is closed as approved with nobody's name on it — no person clicked, the
+    /// provider confirmed — and the note carries the reference so the queue can be tied
+    /// back to the payment that closed it.
+    ///
+    /// <para>
+    /// Nothing is saved here and no audit line is written: the payment engine that called
+    /// this owns the transaction, the payment row and the single <c>payment.succeeded</c>
+    /// entry, so the grant and the money that bought it commit as one thing.
+    /// </para>
+    /// </summary>
+    internal async Task<PaidSettleOutcome> SettlePaidRequestAsync(
+        Guid requestId,
+        string reference,
+        Guid payerUserId,
+        CancellationToken cancellationToken)
+    {
+        var request = await dbContext.SubscriptionRequests
+            .Include(item => item.Business)
+            .Include(item => item.Plan)
+            .FirstOrDefaultAsync(item => item.Id == requestId, cancellationToken);
+
+        if (request is null)
+        {
+            return new PaidSettleOutcome(PaidSettleStatus.NotFound);
+        }
+
+        if (request.Status != SubscriptionRequestStatus.Pending)
+        {
+            return new PaidSettleOutcome(PaidSettleStatus.AlreadyReviewed);
+        }
+
+        var grant = await ApplyGrantAsync(
+            request.Business!,
+            request.Plan!.Tier,
+            payerUserId,
+            requestId: request.Id,
+            cancellationToken);
+
+        if (grant is null)
+        {
+            return new PaidSettleOutcome(PaidSettleStatus.PlanUnavailable);
+        }
+
+        request.Status = SubscriptionRequestStatus.Approved;
+        request.ReviewedByUserId = null;
+        request.ReviewedAt = dates.UtcNow;
+        request.ReviewNote = $"Paid online (reference {reference}).";
+
+        return new PaidSettleOutcome(
+            PaidSettleStatus.Granted,
+            grant.SubscriptionId,
+            grant.Extended);
     }
 
     // ------------------------------------------------------------------ internals

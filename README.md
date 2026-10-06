@@ -9,8 +9,8 @@ badges, leaderboards, saved items, business subscriptions and an admin system.
 This repository currently contains **the data layer, real accounts and seven public
 modules - tools/calculators, the daily quiz, the Student Hub, Jobs, Businesses, Offers and Events**. The
 database, authentication, the account pages, all seven modules, the leaderboard, member reports and the
-staff tools behind them are live, along with ownership claims, plan requests and free event
-bookings; payments are not started, by design.
+staff tools behind them are live, along with ownership claims, plan requests, free event bookings
+and eSewa checkout for paid plans and priced events.
 
 ---
 
@@ -18,9 +18,11 @@ bookings; payments are not started, by design.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, and staff calculator/quiz/resource/job/business/deal/event/report/claim pages plus admin-only account, audit-log and plan-request pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, plans and subscriptions, and event bookings |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 31 application tables plus the EF migration-history table, fourteen migrations applied |
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, a payment history at `/account/payments` and a provider
+return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim pages plus
+admin-only account, audit-log, plan-request and payments pages |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, plans and subscriptions, event bookings, and eSewa payments |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 32 application tables plus the EF migration-history table, fifteen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
@@ -30,15 +32,15 @@ bookings; payments are not started, by design.
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 614 integration tests against the real `nepalhub_test` database, plus 50 frontend tests |
+| Tests | 631 integration tests against the real `nepalhub_test` database, plus 61 frontend tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
 | Ownership and claims | A signed-in person claims a staff-written listing; staff approve or reject at `/admin/claims`, and approval writes the owner, grants the `business` role and settles rival claims in one save; the owner edits contact details and hours at `/my-business` |
 | Plans and featured listings | Free and Featured plans (30 days each), seeded as rows staff can edit; an owner requests a plan and an admin approves at `/admin/subscription-requests` (or grants directly); live featured listings get a labelled strip atop the directory, capped at six and alphabetical |
-| Event bookings | Free bookings of 1–4 places against an atomic capacity counter; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` field |
-| Payments | Not started — `Features/Payments/IPaymentGateway.cs` is the seam; the plan-request queue from the previous row is where a provider's webhook will resolve |
+| Event bookings | Free bookings of 1–4 places against an atomic capacity counter, paid ones through eSewa when `ticket_price` is set; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` and a `Ticket price` field |
+| Payments | eSewa ePay v2 behind `IPaymentGateway`, off until `Payments:Provider` is set; one open checkout per listing or seat, settlement only from the signed return plus a server-to-server status check, refunds discovered through the admin status check, and history at `/account/payments` / `/admin/payments` |
 
 ---
 
@@ -91,9 +93,9 @@ nepalhub/
 │       │   ├── subscriptions/ # plan request card
 │       │   └── ui/            # Container, Button, StateMessage, Pagination
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, reports/, subscriptions/, useradmin/ ...
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, payments/, reports/, subscriptions/, useradmin/ ...
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, my-business, admin, staff dashboard)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, my-business, payment return/history, admin, staff dashboard)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── test/              # Vitest setup (Testing Library cleanup after each test)
 │       ├── App.tsx
@@ -222,6 +224,13 @@ The tenth, `20261005042009_AddModeration`, creates `reports` and `admin_audit_lo
 The eleventh, `20261005042034_AddQuizAttemptCompletedAtIndex`, adds the single-column index the
 leaderboard's today/week boards filter on - separate from the tenth for the same reason the eighth
 was separate: it is an index, not a table, and a migration named for one job does one job.
+The twelfth, `20261005103010_AddBusinessOwnership`, adds `businesses.owner_user_id`.
+The thirteenth, `20261005104909_AddBusinessSubscriptions`, creates `plans`,
+`business_subscriptions` and `subscription_requests`.
+The fourteenth, `20261005104931_AddEventBookings`, creates `event_bookings` and gives `events` its
+`capacity` and `registration_count`.
+The fifteenth, `20261006035723_AddPayments`, creates `payment_transactions` and gives `events` its
+`ticket_price`.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -701,9 +710,9 @@ stand-in for a row that somehow has none - that falls back to `Member`.
 ## Ownership, plans and bookings
 
 Phase 7e's three moves: a person can take over a listing they recognise, a listing can buy a
-position, and a reader can hold a place at an event. No money moves against any of them yet — the
-plan-request queue *is* the checkout, and `Features/Payments/IPaymentGateway.cs` is where a provider
-will attach (7f).
+position, and a reader can hold a place at an event. The first two still run through the
+plan-request queue, and the third still latches a seat — 7f made two of them cost money without
+adding a second approval path (see **Payments** below).
 
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
@@ -756,6 +765,52 @@ take no audit rows — the trail is for staff decisions, not a reader taking a s
 are rate-limited per IP (20/hour). Event detail carries `capacity`, `registrationCount` and a
 `remainingSpots` that never goes negative, with a booking panel beside them; the staff attendee list
 is `GET /api/admin/events/{id}/bookings`.
+
+---
+
+## Payments
+
+eSewa ePay v2, off until `Payments:Provider` is set to `esewa` with `Payments:ProductCode`,
+`Payments:SecretKey` and `Payments:ReturnBaseUrl` alongside it — all four are required by
+`PaymentSettings.IsConfigured`, so a half-configured deployment answers `available: false` instead
+of sending a buyer somewhere that cannot take the money. `SecretKey` comes from user-secrets or the
+environment only (`Payments__SecretKey`), never from a committed file; `Payments:Environment` is
+`sandbox` or `production` and picks the hosts (sandbox `rc-epay.esewa.com.np` / `rc.esewa.com.np`,
+production `epay.esewa.com.np` / `esewa.com.np`) rather than storing them. When nothing is
+configured, DI registers `RejectingPaymentGateway`, so the seam is never a null reference. The seam
+7e left, `Features/Payments/IPaymentGateway.cs`, is the whole of what a second provider would have
+to implement: `Initiate` and `CheckStatus`.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/payments/config` | anonymous | `{ available, provider }` — enough to hide a button, never a merchant code or a gateway url |
+| `POST /api/payments/checkout` | required | Open or resume one checkout for a plan request or 1–4 seats; returns the signed form fields to post; 20/hour per IP |
+| `POST /api/payments/verify` | required | The signed return, plus a server-to-server status check; 20/hour per IP |
+| `GET /api/payments/{reference}` | required | This account's row for one reference |
+| `GET /api/account/payments` | required | The buyer's own history, newest first, paged with a `status` filter |
+| `GET /api/admin/payments` | admin-only | The list: paged, `status` and `kind` filters, buyer name per row |
+| `POST /api/admin/payments/{reference}/check-status` | admin-only | Ask eSewa again — how a settlement nobody returned from, and a portal refund, are found |
+
+**Nothing settles on a redirect.** The browser comes back to `/payments/return/{reference}` carrying
+eSewa's Base64 `data` and `signature`, and `POST /api/payments/verify` believes them only insofar as
+the status check agrees about the total: an answer about a different amount is recorded as
+`amount_mismatch` and grants nothing, an unreachable provider leaves the row `Pending`, and a bad
+signature is `payment_signature_invalid` rather than a plausible URL. Settlement moves
+`Pending → Succeeded` through one conditional `UPDATE`, so two answers grant once and write one
+`payment.succeeded` audit row (actor: the payer, not the gateway).
+
+A paid plan opens the same `subscription_requests` row a free one does and approves *that row* on
+success, with the provider's reference in `review_note` — approval logic stays in one service with
+one audit trail instead of a second "system approved it" path. A paid seat latches the seat before
+the provider is asked (release on failure or refund), confirms it on success, and parking a
+cancelled paid booking at `refund_due` is how eSewa's lack of a refund API is handled: requesting
+one from the provider's portal is an administrator's call, and the next status check records it as
+`payment.refunded`. Free events are unaffected — `ticket_price` is 0 by default, and the booking
+panel never mentions money until it is above zero.
+
+The buyer's history is `/account/payments`, and `/admin/payments` (admin-only, URL-owned status
+tabs) is where staff see every row and press **Check with provider**. Both are rate-limited by the
+same `Payment:RateLimit` policy as checkout and verify (20/hour per IP).
 
 ---
 
@@ -836,7 +891,7 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-614 tests pass, of which 60 cover Offers and 54 cover Events:
+631 tests pass, of which 60 cover Offers, 54 cover Events and 17 cover Payments:
 
 | File | Tests |
 | --- | --- |
@@ -853,6 +908,7 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `LeaderboardTests.cs` | 9 |
 | `ModerationTests.cs` | 10 |
 | `OwnershipTests.cs` | 8 |
+| `PaymentTests.cs` | 17 |
 | `QuizTests.cs` | 35 |
 | `RateLimitingTests.cs` | 4 |
 | `ReferenceDataTests.cs` | 5 |
@@ -871,11 +927,14 @@ cd frontend
 npm test
 ```
 
-50 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
+61 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
 period tabs and its loading and empty states, the report button's lifecycle - filing, the
 duplicate and vanished-target answers it shows as sentences, and cancelling without sending
 anything - plus the claim panel's four answers, the claim queue card, the featured strip's
-loading/empty/error silence, and the booking panel from stepper to sold-out and release.
+loading/empty/error silence, the booking panel from stepper to sold-out and release (including the
+priced path and why a checkout that cannot start says so), the payment return page's five answers,
+and `checkout.ts` - the signed form it builds and posts, and every sentence an error code can
+produce.
 
 ---
 

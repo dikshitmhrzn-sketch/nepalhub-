@@ -8,6 +8,13 @@ public enum EventBookingStatus
 {
     Confirmed,
     Cancelled,
+
+    /// <summary>
+    /// A place held while its payment is still open. The seat is latched the moment
+    /// checkout starts so the provider can never confirm a purchase of something that was
+    /// sold out in the meantime, and it is released if the payment fails.
+    /// </summary>
+    Pending,
 }
 
 /// <summary>

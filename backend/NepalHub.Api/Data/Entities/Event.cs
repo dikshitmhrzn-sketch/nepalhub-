@@ -113,6 +113,15 @@ public sealed class Event
     public int RegistrationCount { get; set; }
 
     /// <summary>
+    /// What one place costs, in whole rupees. Zero — the default — means the event is free
+    /// and booking behaves exactly as it did before payments existed: no checkout, no
+    /// payment row, a place is simply held. A price above zero sends the buyer through the
+    /// provider first, and the place is only confirmed once the provider has been asked
+    /// directly and has said yes.
+    /// </summary>
+    public int TicketPrice { get; set; }
+
+    /// <summary>
     /// Whether readers can see this row. Retracting an event is always allowed; deleting a published
     /// one is not, so the record of what was public is not simply lost.
     /// </summary>

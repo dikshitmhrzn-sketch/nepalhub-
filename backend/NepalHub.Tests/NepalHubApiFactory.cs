@@ -26,6 +26,7 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _logoutRateLimitPermitLimit;
     private readonly int _claimRateLimitPermitLimit;
     private readonly int _bookingRateLimitPermitLimit;
+    private readonly int _paymentRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -40,7 +41,8 @@ private readonly int _authRateLimitPermitLimit;
         int reportRateLimitPermitLimit = 10_000,
         int logoutRateLimitPermitLimit = 10_000,
         int claimRateLimitPermitLimit = 10_000,
-        int bookingRateLimitPermitLimit = 10_000)
+        int bookingRateLimitPermitLimit = 10_000,
+        int paymentRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
@@ -50,6 +52,7 @@ private readonly int _authRateLimitPermitLimit;
         _logoutRateLimitPermitLimit = logoutRateLimitPermitLimit;
         _claimRateLimitPermitLimit = claimRateLimitPermitLimit;
         _bookingRateLimitPermitLimit = bookingRateLimitPermitLimit;
+        _paymentRateLimitPermitLimit = paymentRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
@@ -58,7 +61,8 @@ private readonly int _authRateLimitPermitLimit;
                 _reportRateLimitPermitLimit,
                 _logoutRateLimitPermitLimit,
                 _claimRateLimitPermitLimit,
-                _bookingRateLimitPermitLimit)
+                _bookingRateLimitPermitLimit,
+                _paymentRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 

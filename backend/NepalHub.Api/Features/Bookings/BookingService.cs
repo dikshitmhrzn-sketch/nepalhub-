@@ -15,6 +15,9 @@ public enum BookStatus
     EventStarted,
     AlreadyBooked,
     Full,
+
+    /// <summary>The event has a price, so a place is bought rather than simply taken.</summary>
+    PaymentRequired,
 }
 
 public enum CancelBookingStatus
@@ -81,6 +84,15 @@ public sealed class BookingService(
         if (calendarEvent.StartsAt <= now)
         {
             return new BookOutcome(BookStatus.EventStarted);
+        }
+
+        // Priced events are bought, not booked. Answering here rather than in the
+        // controller keeps the rule beside the latch it guards: the only way past this
+        // line is the payment path, which holds the place the same way and confirms it
+        // when the provider says the money arrived.
+        if (calendarEvent.TicketPrice > 0)
+        {
+            return new BookOutcome(BookStatus.PaymentRequired);
         }
 
         var existing = await dbContext.EventBookings
@@ -207,10 +219,169 @@ public sealed class BookingService(
         booking.Status = EventBookingStatus.Cancelled;
         booking.CancelledAt = now;
 
+        // A place that cost something and is now given up is money owed back. The refund
+        // itself happens in the provider's own portal — eSewa has no refund API — so the
+        // payment row is flipped to say it is due, which is what the admin list reads to
+        // know a refund is outstanding.
+        var payment = await dbContext.PaymentTransactions
+            .Where(candidate => candidate.EventBookingId == booking.Id
+                && candidate.Status == PaymentStatus.Succeeded)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (payment is not null)
+        {
+            payment.Status = PaymentStatus.RefundDue;
+            payment.FailureCode = "booking_cancelled";
+            payment.UpdatedAt = now;
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return new CancelOutcome(CancelBookingStatus.Cancelled, ToResponse(booking, booking.Event!));
+    }
+
+    // ------------------------------------------------------ the paid path's primitives
+
+    /// <summary>
+    /// Takes places for a checkout that has not been paid for yet: the same latch as
+    /// <see cref="BookAsync"/>, writing a row that stands at <see cref="EventBookingStatus.Pending"/>
+    /// instead of a confirmed one. The seat is held before the provider is asked because a
+    /// provider that confirms a purchase of something sold out in the meantime has no way
+    /// to give the money back — eSewa's refunds are a manual act in a merchant portal.
+    ///
+    /// <para>
+    /// The caller owns the transaction, wrapping this and the payment row it belongs to so
+    /// the latch, the booking and the payment commit as one thing. A duplicate-key failure
+    /// is left to surface to that caller, which is what can roll the latch back.
+    /// </para>
+    /// </summary>
+    internal async Task<BookOutcome> HoldPlaceAsync(
+        Guid attendeeUserId,
+        string slug,
+        int quantity,
+        CancellationToken cancellationToken)
+    {
+        var now = dates.NepalNow;
+
+        var calendarEvent = await PublicContentScope.Events(dbContext.Events, now)
+            .Where(single => single.Slug == slug)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (calendarEvent is null)
+        {
+            return new BookOutcome(BookStatus.NotFound);
+        }
+
+        if (calendarEvent.StartsAt <= now)
+        {
+            return new BookOutcome(BookStatus.EventStarted);
+        }
+
+        var existing = await dbContext.EventBookings
+            .Where(booking => booking.EventId == calendarEvent.Id
+                && booking.AttendeeUserId == attendeeUserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // A row already standing means something is already held for this person: a
+        // confirmed place, or a seat this same buyer's open checkout is holding. Neither
+        // may be taken again, and neither may raise the counter twice.
+        if (existing is { Status: EventBookingStatus.Confirmed or EventBookingStatus.Pending })
+        {
+            return new BookOutcome(BookStatus.AlreadyBooked, ToResponse(existing, calendarEvent));
+        }
+
+        var claimed = await dbContext.Events
+            .Where(single => single.Id == calendarEvent.Id
+                && (single.Capacity == null
+                    || single.RegistrationCount + quantity <= single.Capacity))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    single => single.RegistrationCount,
+                    single => single.RegistrationCount + quantity),
+                cancellationToken);
+
+        if (claimed == 0)
+        {
+            return new BookOutcome(BookStatus.Full);
+        }
+
+        if (existing is null)
+        {
+            existing = new EventBooking
+            {
+                Id = Guid.NewGuid(),
+                EventId = calendarEvent.Id,
+                AttendeeUserId = attendeeUserId,
+                Quantity = quantity,
+                Status = EventBookingStatus.Pending,
+                CreatedAt = now,
+            };
+
+            dbContext.EventBookings.Add(existing);
+        }
+        else
+        {
+            // A cancelled row coming back as a held one: same bookkeeping as rebooking,
+            // except the status says the place is waiting on a payment rather than held.
+            existing.Quantity = quantity;
+            existing.Status = EventBookingStatus.Pending;
+            existing.CancelledAt = null;
+            existing.CreatedAt = now;
+        }
+
+        return new BookOutcome(BookStatus.Booked, ToResponse(existing, calendarEvent));
+    }
+
+    /// <summary>
+    /// Turns a held place into a confirmed one once the provider has confirmed the money.
+    /// The seat was latched at checkout, so this only moves the status — no counter is
+    /// touched, because the place was counted when it was taken.
+    /// </summary>
+    internal async Task ConfirmPlaceAsync(Guid bookingId, CancellationToken cancellationToken)
+    {
+        var booking = await dbContext.EventBookings
+            .Where(candidate => candidate.Id == bookingId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (booking is null || booking.Status == EventBookingStatus.Cancelled)
+        {
+            return;
+        }
+
+        booking.Status = EventBookingStatus.Confirmed;
+        booking.CancelledAt = null;
+    }
+
+    /// <summary>
+    /// Gives a place back — used when a payment fails, when an abandoned checkout is
+    /// reconciled, and when a paid place is refunded. The counter returns with the same
+    /// guarded, floored arithmetic cancelling uses, and a row already cancelled changes
+    /// nothing, so releasing twice cannot take two seats away.
+    /// </summary>
+    internal async Task ReleasePlaceAsync(Guid bookingId, DateTime now, CancellationToken cancellationToken)
+    {
+        var booking = await dbContext.EventBookings
+            .Where(candidate => candidate.Id == bookingId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (booking is null || booking.Status == EventBookingStatus.Cancelled)
+        {
+            return;
+        }
+
+        await dbContext.Events
+            .Where(single => single.Id == booking.EventId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    single => single.RegistrationCount,
+                    single => single.RegistrationCount > booking.Quantity
+                        ? single.RegistrationCount - booking.Quantity
+                        : 0),
+                cancellationToken);
+
+        booking.Status = EventBookingStatus.Cancelled;
+        booking.CancelledAt = now;
     }
 
     /// <summary>
@@ -275,6 +446,6 @@ public sealed class BookingService(
         dbContext.Entry(booking).State = EntityState.Detached;
 
     /// <summary>MySQL error 1062 is ER_DUP_ENTRY, matching the other write paths.</summary>
-    private static bool IsDuplicateKey(DbUpdateException exception) =>
+    internal static bool IsDuplicateKey(DbUpdateException exception) =>
         exception.InnerException is MySqlException { Number: 1062 };
 }

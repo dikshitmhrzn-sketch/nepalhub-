@@ -23,6 +23,9 @@ import {
   claimStatusLabels,
   type SaveOwnerBusinessRequest,
 } from '@/features/ownership/types';
+import { startCheckout } from '@/features/payments/api';
+import { checkoutErrorMessage, openProviderCheckout } from '@/features/payments/checkout';
+import { usePaymentConfig } from '@/features/payments/usePayments';
 import { requestPlan } from '@/features/subscriptions/api';
 import {
   describeSubscription,
@@ -234,6 +237,7 @@ function Editor({ slug }: { slug: string }) {
   const business = useMyBusiness(slug);
   const subscription = useSubscriptionState(slug);
   const plans = usePlans();
+  const paymentConfig = usePaymentConfig();
 
   const [form, setForm] = useState<SaveOwnerBusinessRequest | null>(null);
   const [saving, setSaving] = useState(false);
@@ -346,10 +350,33 @@ function Editor({ slug }: { slug: string }) {
     }
   }
 
-  async function handleChoosePlan(tier: 'Free' | 'Featured') {
+  // Whether checkout exists at all. A screen that has not loaded that answer yet keeps to
+  // the request path, and the server refuses any checkout it cannot serve.
+  const canPay = paymentConfig.status === 'success' && paymentConfig.data.available;
+
+  async function handleChoosePlan(tier: 'Free' | 'Featured', priceNpr: number) {
     setPlanBusy(true);
     setPlanMessage(null);
     setPlanError(null);
+
+    // A plan with a price and a provider to take it goes to the provider: the checkout
+    // opens the question in the queue, the money answers it, and the browser is on its
+    // way to eSewa before anything else happens here. Without a provider the request
+    // path below stands, which is what the site did before payment existed.
+    if (priceNpr > 0 && canPay) {
+      try {
+        const handshake = await startCheckout({ kind: 'Subscription', slug, tier });
+        openProviderCheckout(handshake);
+      } catch (payError) {
+        setPlanError(
+          checkoutErrorMessage(payError, 'Could not start the payment. Please try again.'),
+        );
+        setPlanBusy(false);
+      }
+
+      // Either the browser is leaving, or the reason it could not is on screen.
+      return;
+    }
 
     try {
       await requestPlan(slug, tier, null);
@@ -649,15 +676,17 @@ function Editor({ slug }: { slug: string }) {
                             state.tier === plan.tier && state.isActive ? 'ghost' : 'secondary'
                           }
                           disabled={planBusy}
-                          onClick={() => void handleChoosePlan(plan.tier)}
+                          onClick={() => void handleChoosePlan(plan.tier, plan.priceNpr)}
                         >
                           {planBusy
                             ? 'Sending…'
-                            : state.tier === plan.tier && state.isActive
-                              ? 'Extend'
-                              : state.tier === plan.tier
-                                ? 'Renew'
-                                : 'Choose'}
+                            : plan.priceNpr > 0 && canPay
+                              ? `Pay NPR ${plan.priceNpr.toLocaleString()}`
+                              : state.tier === plan.tier && state.isActive
+                                ? 'Extend'
+                                : state.tier === plan.tier
+                                  ? 'Renew'
+                                  : 'Choose'}
                         </Button>
                       </li>
                     ))
@@ -667,8 +696,10 @@ function Editor({ slug }: { slug: string }) {
 
               <p className={styles.planNote}>
                 {planTierLabels.Featured} placements are approved by an administrator and are
-                labelled on the directory. No payment is taken on Nepal Hub yet — approving a
-                request is what turns the placement on.
+                labelled on the directory.{' '}
+                {canPay
+                  ? 'A paid plan is settled through eSewa: the placement opens as soon as the provider confirms the money, and the queue row settles itself with it.'
+                  : 'No payment is taken on Nepal Hub yet — approving a request is what turns the placement on.'}
               </p>
             </div>
           ) : null}

@@ -73,6 +73,10 @@ public sealed class EventBookingsController(
             BookStatus.AlreadyBooked => Conflict(ApiResponse<object>.Fail(
                 new ApiError("already_booked", "You already hold a place at this event."))),
 
+            BookStatus.PaymentRequired => Conflict(ApiResponse<object>.Fail(new ApiError(
+                "payment_required",
+                "This event charges for a place, so a place is bought rather than booked."))),
+
             _ => Conflict(ApiResponse<object>.Fail(
                 new ApiError("event_full", "This event is fully booked."))),
         };

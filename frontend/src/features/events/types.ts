@@ -67,6 +67,12 @@ export interface EventDetail extends Omit<EventSummary, 'createdAt'> {
 
   /** Spots left, or null when uncapped. Never negative: a lost race shows as zero. */
   remainingSpots: number | null;
+
+  /**
+   * What one place costs, in whole rupees. Zero means the event is free and takes no
+   * checkout — a free event books the way it always did.
+   */
+  ticketPrice: number;
   updatedAt: string;
 }
 
@@ -109,6 +115,7 @@ export interface EventAdmin
   registrationUrl: string | null;
   capacity: number | null;
   registrationCount: number;
+  ticketPrice: number;
   isFinished: boolean;
   createdAt: string;
   updatedAt: string;
@@ -144,6 +151,13 @@ export interface SaveEventRequest {
    */
   capacity: number | null;
   isPublished: boolean;
+
+  /**
+   * What one place costs, in whole rupees. Sent on every save, including when it is zero,
+   * because a field left out of the body would quietly clear the price of an event a staff
+   * member was editing for some other reason.
+   */
+  ticketPrice: number;
 }
 
 export interface EventListQuery {
@@ -234,6 +248,7 @@ export function emptyEventRequest(): SaveEventRequest {
     endsAt: defaultEnd(),
     capacity: null,
     isPublished: false,
+    ticketPrice: 0,
   };
 }
 
