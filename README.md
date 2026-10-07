@@ -997,5 +997,6 @@ See `docs/database.md` for the live schema and the planned tables.
 8. No unnecessary packages, no heavy animation, no copied design.
 9. The API is client-agnostic so a Flutter app can use the same endpoints.
 
-See `docs/architecture.md` for the communication contract and `docs/database.md` for the live schema
-and planned tables.
+See `docs/architecture.md` for the communication contract, `docs/database.md` for the live schema
+and planned tables, and `docs/deployment.md` for the production runbook - configuration, TLS and
+the proxy, logging, health probes, backups and restores.
