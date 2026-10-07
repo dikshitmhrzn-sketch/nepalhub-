@@ -531,17 +531,37 @@ if (databaseConfigured)
         scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
         CancellationToken.None);
 
-    // The job seeder gets the same date for the same reason: a seeded deadline has to be computed
-    // against the same "today" the application will use to decide what has already closed.
-    await JobSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
-        CancellationToken.None);
+    // The listing seeders below are demo content; the calculators, quiz, resources, roles and
+    // plans above and below are not. An empty production database without roles or calculators
+    // is a broken one, while one that grew twenty-six fictional businesses simply by booting is
+    // a lie the directory would then tell its users. The policy lives in SeedingPolicy so the
+    // rule has one definition and one test, and it defaults to off only in Production.
+    var seedDemoContent = SeedingPolicy.SeedsDemoContent(builder.Configuration, builder.Environment);
+    if (!seedDemoContent)
+    {
+        app.Logger.LogInformation(
+            "Demo listings are not seeded on this host ({Environment}): businesses, jobs, deals and events keep whatever the database already holds.",
+            app.Environment.EnvironmentName);
+    }
 
-    // The business seeder needs no date: opening hours are wall-clock times that do not expire.
-    await BusinessSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        CancellationToken.None);
+    if (seedDemoContent)
+    {
+        // The job seeder gets the same date as the resource seeder for the same reason: a seeded
+        // deadline has to be computed against the same "today" the application will use to decide
+        // what has already closed.
+        await JobSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today,
+            CancellationToken.None);
+    }
+
+    if (seedDemoContent)
+    {
+        // The business seeder needs no date: opening hours are wall-clock times that do not expire.
+        await BusinessSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            CancellationToken.None);
+    }
 
     // Plans are reference data, inserted once by tier and never touched again, so a staff
     // price edit or a deactivated plan survives a restart.
@@ -549,21 +569,24 @@ if (databaseConfigured)
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         CancellationToken.None);
 
-    // The offers and events seeders get the same date the resource and job seeders get, for the same
-    // reason: a seeded end date has to be computed against the same "today" the application will use to
-    // decide what has already expired. Two different clocks would let a row be seeded as live and be
-    // treated as finished on the same request.
-    var nepalToday = scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today;
+    if (seedDemoContent)
+    {
+        // The offers and events seeders get the same date the resource and job seeders get, for the
+        // same reason: a seeded end date has to be computed against the same "today" the application
+        // will use to decide what has already expired. Two different clocks would let a row be seeded
+        // as live and be treated as finished on the same request.
+        var nepalToday = scope.ServiceProvider.GetRequiredService<INepalDateProvider>().Today;
 
-    await DealSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        nepalToday,
-        CancellationToken.None);
+        await DealSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            nepalToday,
+            CancellationToken.None);
 
-    await EventSeeder.SeedAsync(
-        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        nepalToday,
-        CancellationToken.None);
+        await EventSeeder.SeedAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            nepalToday,
+            CancellationToken.None);
+    }
 }
 
 app.Run();
