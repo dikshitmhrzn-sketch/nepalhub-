@@ -42,7 +42,7 @@ class BrowsePage extends StatelessWidget {
               for (final module in _modules)
                 _ModuleCard(
                   tile: module,
-                  onTap: module.isLive ? () => context.go(module.path) : null,
+                  onTap: module.isLive ? () => context.push(module.path) : null,
                 ),
             ],
           ),
@@ -59,7 +59,7 @@ class _ModuleTile {
   final IconData icon;
   final String path;
 
-  bool get isLive => false;
+  bool get isLive => true;
 }
 
 class _ModuleCard extends StatelessWidget {
