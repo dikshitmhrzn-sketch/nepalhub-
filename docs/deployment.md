@@ -26,7 +26,7 @@ non-secret defaults, and no secret is ever committed.
 | `Cors__AllowedOrigins` | empty means same-origin only, which is the normal case behind one host |
 | `ForwardedHeaders__KnownProxies__0` | an extra proxy IP to believe beyond the loopback default - only needed when there is more than one hop in front |
 | `ASPNETCORE_HTTPS_PORTS` | `443` when the app itself should redirect plain http to https |
-| `Payments__Provider`, `Payments__ProductCode`, `Payments__SecretKey`, `Payments__ReturnBaseUrl`, `Payments__Environment` | eSewa; the payments section below covers when and how |
+| `Payments__Provider`, `Payments__ProductCode`, `Payments__SecretKey`, `Payments__ReturnBaseUrl`, `Payments__Environment`, `Payments__ReconcileIntervalSeconds` | eSewa; the payments section below covers when and how |
 
 ## Build and publish
 
@@ -138,6 +138,55 @@ Two probes, for two jobs:
 | `GET /api/health` | the app itself | JSON with `status` and `database` detail |
 
 Point liveness checks at `/health`. If logs go to a file rather than journald, rotate them.
+
+## Payments
+
+Payments ship **off**: `appsettings.Production.json` holds `Payments:Provider = none`, which
+makes every checkout answer "no provider" instead of taking money. Turning eSewa on is the
+variables below plus the site's URL registered with eSewa's merchant panel.
+
+| Variable | What it does |
+| --- | --- |
+| `Payments__Provider` | `esewa` to take money; the default `none` refuses every checkout |
+| `Payments__ProductCode` | the merchant id eSewa issued - not a secret, it is posted to the buyer's browser |
+| `Payments__SecretKey` | the HMAC key that signs requests and verifies callbacks - secret, environment only |
+| `Payments__ReturnBaseUrl` | the public origin (`https://nepalhub.example.com`): buyers are sent to `{ReturnBaseUrl}/payments/return/{reference}` and `{ReturnBaseUrl}/payments/failed/{reference}`, so it must be exactly how the site is reached |
+| `Payments__Environment` | `sandbox` against eSewa's test hosts (the default), `production` against the real ones |
+| `Payments__ReconcileIntervalSeconds` | how often the background sweep checks on abandoned checkouts (default `300`, `0` disables the sweep) |
+
+Provider, product code, secret key and return URL are all required before anything is offered -
+a half-configured install refuses checkout rather than half-taking money. Buy the cheapest thing
+in sandbox end to end first, then flip `Payments__Environment` and buy once more in production.
+
+### How a payment settles
+
+**No redirect settles anything.** The browser returns to `/payments/return/{reference}` carrying
+eSewa's signed `data` and `signature`; the API verifies the signature and only then moves the
+row. There is no IPN endpoint - eSewa's asynchronous callback is not wired in - so what actually
+settles money is one of these:
+
+1. the verified signed return (above)
+2. the buyer's own `GET /api/payments/{reference}`, which reconciles a row quiet for more than
+   five minutes before answering
+3. the buyer retrying checkout - the open reference resumes instead of a second payment
+4. a ticket checkout that meets an event looking full - abandoned holds there are reconciled
+   first, because they may be what is filling it
+5. the background sweep (below)
+6. an administrator's **check with the provider** on `/admin/payments`
+
+Whichever arrives first wins: `Pending` moves to `Succeeded` exactly once, so the entitlement is
+granted once even when two answers race.
+
+### The background sweep
+
+Every `ReconcileIntervalSeconds` the API takes the five oldest checkouts that have sat `Pending`
+for more than five minutes, asks eSewa about them oldest first, and settles what was paid - a
+buyer who closed the tab never has to come back. It is a hosted worker inside the API process
+(nothing to schedule), one status call per row per pass, bounded so a backlog cannot become a
+burst of calls; a pass that fails is logged and retried at the next interval. With no provider
+configured the sweep finds nothing to ask about, and `Payments__ReconcileIntervalSeconds=0`
+stops the worker at boot (that is what the test suite runs with). A pass that examined anything
+logs one line: `Reconciled N stale pending payment(s) against the provider.`
 
 ## Backups
 

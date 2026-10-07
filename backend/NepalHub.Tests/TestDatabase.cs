@@ -120,6 +120,11 @@ internal static class TestDatabase
             "Business__RateLimit__PermitLimit",
             businessRateLimitPermitLimit.ToString());
 
+        // The stale-payment sweep is a timer nobody needs ticking inside a test run; the
+        // tests drive the sweep method itself, so a background pass can never settle a row
+        // out from under an assertion.
+        Environment.SetEnvironmentVariable("Payments__ReconcileIntervalSeconds", "0");
+
         if (_isReady)
         {
             return;

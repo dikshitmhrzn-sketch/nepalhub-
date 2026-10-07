@@ -474,6 +474,7 @@ else
 // The settlement engine shares the request's AppDbContext, so the payment row, the seat
 // or entitlement it buys and any audit line all commit by one SaveChanges or not at all.
 builder.Services.AddScoped<PaymentService>();
+builder.Services.AddHostedService<PaymentReconciliationWorker>();
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.

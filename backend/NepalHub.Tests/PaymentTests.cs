@@ -58,6 +58,7 @@ public class PaymentsApiFactory : NepalHubApiFactory
             ProductCode = ProductCode,
             SecretKey = SecretKey,
             ReturnBaseUrl = "https://app.nepalhub.test",
+            ReconcileIntervalSeconds = 0,
         };
 
         Gateway = new FakePaymentGateway(Settings);

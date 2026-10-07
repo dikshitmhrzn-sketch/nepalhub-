@@ -130,6 +130,13 @@ public sealed class PaymentSettings
     /// <summary>Base URL of the server-to-server status check, by environment.</summary>
     public Uri StatusBaseUrl { get; set; } = new("https://rc.esewa.com.np");
 
+    /// <summary>
+    /// How often the background sweep asks the provider about checkouts left Pending for
+    /// nobody to come back to. Zero disables the sweep, which is what tests and hosts
+    /// without a provider run with.
+    /// </summary>
+    public int ReconcileIntervalSeconds { get; set; } = 300;
+
     /// <summary>Whether a provider has actually been configured, for a feature to check before offering checkout.</summary>
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(Provider)

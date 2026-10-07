@@ -808,6 +808,37 @@ public sealed class PaymentService(
     }
 
     /// <summary>
+    /// The sweep nobody has to remember: every checkout left Pending long enough that the
+    /// provider has certainly finished with it is asked about, oldest first, so one that was
+    /// nevertheless paid settles without the buyer or an administrator ever coming back.
+    /// Bounded to <see cref="MaxStaleReconciles"/> per pass because each one is a call to the
+    /// provider, and skipped whole when there is no provider to ask. Returns how many were
+    /// examined, which is what the caller logs.
+    /// </summary>
+    internal async Task<int> ReconcileStaleAsync(CancellationToken cancellationToken)
+    {
+        if (!settings.IsConfigured)
+        {
+            return 0;
+        }
+
+        var cutoff = dates.UtcNow - StaleAfter;
+
+        var stale = await dbContext.PaymentTransactions
+            .Where(item => item.Status == PaymentStatus.Pending && item.UpdatedAt <= cutoff)
+            .OrderBy(item => item.UpdatedAt)
+            .Take(MaxStaleReconciles)
+            .ToListAsync(cancellationToken);
+
+        foreach (var payment in stale)
+        {
+            await ReconcileAsync(payment, payment.UserId, ip: null, cancellationToken);
+        }
+
+        return stale.Count;
+    }
+
+    /// <summary>
     /// What to do about a checkout that already exists: ask the provider whether it
     /// finished while the buyer was away, resume it if it did not, and stand out of the
     /// way if it did. Null means "carry on and start a fresh one".
