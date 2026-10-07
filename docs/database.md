@@ -954,7 +954,9 @@ as Module 10 now, above.
 4. Apply to `nepalhub_test` as well as `nepalhub`, so the integration tests run against the same
    schema the app uses.
 5. Never edit an applied migration; add a new one.
-6. Before going live: backup strategy, `innodb_file_per_table`, and a tested restore.
+6. Before going live: a backup strategy with a restore you have actually drilled —
+   `scripts/backup-db.sh` and the runbook's backups section cover both (`innodb_file_per_table`
+   is on by default in MySQL 8).
 
 ```powershell
 dotnet ef migrations add <Name> --project backend/NepalHub.Api --startup-project backend/NepalHub.Api --output-dir Data/Migrations

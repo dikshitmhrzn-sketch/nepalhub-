@@ -576,6 +576,43 @@ of these decisions.
       build apk --debug` and `--release` green, backend `dotnet build` 0/0 and **641/641** tests,
       frontend typecheck and **61/61** tests
 
+## Phase 9 — Production readiness ✅ complete
+
+Production hardening only — no new product features: the deployment runbook, a proxy-aware
+pipeline, real health and logging, backup and restore, self-applying migrations, a payments
+sweep, Android release signing, and a content pass over the seeded material.
+
+- [x] Demo content off in production: `Seeding:DemoContent` (default `false`) gates the seeded
+      businesses, jobs, offers and events, while reference data, calculators, plans, quiz
+      questions and student resources still seed — the site cannot run without them
+- [x] The API serves the built SPA itself (`Frontend:DistPath` plus SPA fallback, unknown
+      `/api/...` still answering the JSON envelope) and `appsettings.Production.json` holds the
+      non-secret production defaults
+- [x] `docs/deployment.md`: one host, one origin — config, publish, systemd, migrations applied
+      on startup (`Database:AutoMigrate`), nginx TLS proxy, JSON request logs with `X-Request-Id`,
+      `/health` backed by a real database check, and tested `backup-db.sh` / `restore-db.sh`
+      with a restore drill
+- [x] Reverse-proxy awareness: forwarded headers trusted from loopback so HTTPS, Secure cookies,
+      HSTS and client IPs are restored behind a proxy (never for `localhost`, which HSTS
+      excludes and `ForwardedHeaders:KnownProxies` ignores)
+- [x] Payments go-live: the runbook's payments section covers the eSewa variables, the signed
+      return as the settlement path, every way a payment settles, and the background sweep that
+      reconciles checkouts left `Pending` more than five minutes (`Payments:ReconcileIntervalSeconds`,
+      default 300, `0` off), verified against the eSewa test status endpoint
+- [x] Android release signing from the git-ignored `android/key.properties` (debug fallback so a
+      fresh clone still builds) and `mobile/README.md` documenting the keystore plus the
+      `--dart-define=API_BASE_URL` that points a build at the deployed API
+- [x] Content pass: all 31 quiz questions verified, seeded resource links repointed at the
+      authorities that actually hold the material (NEB, NEC, Ministry of Education) after the old
+      links turned out to be a private consultancy or dead, and the fabricated "Council for Higher
+      Education" provider removed; the two expired scholarships stay — they are the catalogue's
+      deliberate closed-listing fixtures
+- [ ] Play Store listing (screenshots, privacy policy, store copy) and real eSewa merchant
+      credentials: out of scope for this phase, required before publishing
+- [x] Gates: `dotnet build` 0/0 and **667/667** backend tests (26 added this phase), frontend
+      typecheck, build and **61/61** tests, `flutter analyze` clean and **96/96** Flutter tests,
+      both Android release-signing paths built and verified by certificate
+
 ## Standing rules
 
 - No feature is built before its data model and API contract are agreed.

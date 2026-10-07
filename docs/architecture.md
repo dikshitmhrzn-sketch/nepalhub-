@@ -27,8 +27,10 @@ layer-plumbing ceremony. Folders give the same navigational clarity.
 NepalHub.Api/
 ├── Program.cs          composition root: DI, CORS, Swagger, exception handling, rate limiting
 ├── Common/             cross-cutting primitives: ApiResponse envelope, PagedResult/PageRequest,
-│                       LikePattern (escaped LIKE for every search box)
-├── Data/               AppDbContext, design-time factory, entity configurations, seeding, migrations
+│                       LikePattern (escaped LIKE for every search box), RequestLoggingMiddleware
+│                       (X-Request-Id in and out, one structured line per request)
+├── Data/               AppDbContext, design-time factory, entity configurations, seeding,
+│                       migrations, DatabaseHealthCheck (the real check behind /health)
 └── Features/<Module>/  vertical slices, one folder per product module
     ├── Auth/
     ├── Health/
@@ -125,6 +127,7 @@ NepalHub.Api/
     │   ├── AccountPaymentsController.cs        the payer's own history
     │   ├── PaymentsAdminController.cs          the list, plus "check with the provider"
     │   ├── PaymentService.cs                   one open checkout, the settlement latch, refunds
+    │   ├── PaymentReconciliationWorker.cs      the background sweep of stale Pending checkouts
     │   ├── PaymentContracts.cs                 filter, row and checkout DTOs
     │   ├── IPaymentGateway.cs                  the seam 7e left: initiate and status-check
     │   ├── EsewaPaymentGateway.cs              eSewa ePay v2, signed form out, status in
