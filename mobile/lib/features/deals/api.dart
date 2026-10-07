@@ -48,6 +48,7 @@ class DealSummary {
 
 class DealDetail {
   const DealDetail({
+    required this.id,
     required this.slug,
     required this.title,
     this.summary,
@@ -64,6 +65,7 @@ class DealDetail {
     required this.isRunning,
   });
 
+  final String id;
   final String slug;
   final String title;
   final String? summary;
@@ -80,6 +82,7 @@ class DealDetail {
   final bool isRunning;
 
   factory DealDetail.fromJson(Map<String, dynamic> json) => DealDetail(
+        id: '${json['id'] ?? ''}',
         slug: '${json['slug'] ?? ''}',
         title: '${json['title'] ?? ''}',
         summary: json['summary'] as String?,

@@ -70,6 +70,7 @@ class JobSummary {
 
 class JobDetail {
   const JobDetail({
+    required this.id,
     required this.slug,
     required this.title,
     required this.organization,
@@ -84,6 +85,7 @@ class JobDetail {
     required this.applicationUrl,
   });
 
+  final String id;
   final String slug;
   final String title;
   final String organization;
@@ -98,6 +100,7 @@ class JobDetail {
   final String applicationUrl;
 
   factory JobDetail.fromJson(Map<String, dynamic> json) => JobDetail(
+        id: '${json['id'] ?? ''}',
         slug: '${json['slug'] ?? ''}',
         title: '${json['title'] ?? ''}',
         organization: '${json['organization'] ?? ''}',

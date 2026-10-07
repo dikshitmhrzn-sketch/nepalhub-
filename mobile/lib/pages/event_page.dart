@@ -3,16 +3,99 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api/api_client.dart';
+import '../../core/api/api_exception.dart';
+import '../../core/auth/session_gate.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/util/external.dart';
 import '../../core/util/formats.dart';
+import '../../core/widgets/common.dart';
 import '../../core/widgets/loadable_view.dart';
+import '../../core/widgets/report_action.dart';
+import '../../features/bookings/api.dart';
 import '../../features/events/api.dart';
 
-class EventPage extends StatelessWidget {
+class EventPage extends StatefulWidget {
   const EventPage({super.key, required this.slug});
 
   final String slug;
+
+  @override
+  State<EventPage> createState() => _EventPageState();
+}
+
+class _EventPageState extends State<EventPage> {
+  int _quantity = 1;
+  bool _submitting = false;
+  Booking? _booking;
+  String? _message;
+
+  Future<void> _book() async {
+    if (!await ensureSignedIn(context)) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final api = BookingsApi(context.read<ApiClient>());
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
+    try {
+      final booking = await api.book(widget.slug, quantity: _quantity);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _booking = booking;
+        _submitting = false;
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _message = ApiMessage.message(error);
+      });
+    }
+  }
+
+  Future<void> _release() async {
+    final api = BookingsApi(context.read<ApiClient>());
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
+    try {
+      await api.cancel(widget.slug);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _booking = null;
+        _submitting = false;
+        _message = 'Your place has been released.';
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _message = ApiMessage.message(error);
+      });
+    }
+  }
+
+  void _changeQuantity(int delta) {
+    setState(() {
+      final next = _quantity + delta;
+      if (next >= 1 && next <= 4) {
+        _quantity = next;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +105,7 @@ class EventPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Event')),
       body: LoadableView<EventDetail>(
-        load: () => api.detail(slug),
+        load: () => api.detail(widget.slug),
         builder: (context, event, _) {
           final place = [
             if ((event.venue ?? '').trim().isNotEmpty) event.venue!,
@@ -82,7 +165,9 @@ class EventPage extends StatelessWidget {
               _Fact(label: 'Tickets', value: event.ticketPrice == 0 ? 'Free' : npr(event.ticketPrice)),
               _Fact(
                 label: 'Places',
-                value: '${event.remainingSpots} of ${event.capacity} left',
+                value: event.capacity == 0
+                    ? 'Unlimited'
+                    : '${event.remainingSpots} of ${event.capacity} left',
               ),
               if (event.description.trim().isNotEmpty) ...[
                 const SizedBox(height: NhSpace.s4),
@@ -93,6 +178,8 @@ class EventPage extends StatelessWidget {
                 const SizedBox(height: NhSpace.s2),
                 Text(event.description, style: theme.textTheme.bodyMedium),
               ],
+              const SizedBox(height: NhSpace.s5),
+              _buildBooking(theme, colors, event),
               if (event.businessSlug != null && event.businessSlug!.isNotEmpty) ...[
                 const SizedBox(height: NhSpace.s4),
                 OutlinedButton.icon(
@@ -119,9 +206,132 @@ class EventPage extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: NhSpace.s5),
+              ReportAction(targetType: 'Event', targetId: event.id),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildBooking(ThemeData theme, ColorScheme colors, EventDetail event) {
+    final booked = _booking;
+    final seatsLeft = event.capacity == 0 || event.remainingSpots > 0;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(NhSpace.s3),
+        child: booked == null
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Book your place',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: NhSpace.s1),
+                  Text(
+                    event.capacity == 0
+                        ? 'This event has no fixed capacity.'
+                        : '${event.remainingSpots} of ${event.capacity} places left.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: NhSpace.s3),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'One place fewer',
+                        onPressed: _submitting || _quantity == 1
+                            ? null
+                            : () => _changeQuantity(-1),
+                        icon: const Icon(Icons.remove_circle_outline_rounded),
+                      ),
+                      Text(
+                        _quantity == 1 ? '1 place' : '$_quantity places',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      IconButton(
+                        tooltip: 'One place more',
+                        onPressed: _submitting || _quantity == 4
+                            ? null
+                            : () => _changeQuantity(1),
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: NhSpace.s2),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: !_submitting && seatsLeft ? _book : null,
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              event.ticketPrice == 0
+                                  ? 'Book my place'
+                                  : 'Buy a place',
+                            ),
+                    ),
+                  ),
+                  if (_message != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: NhSpace.s2),
+                      child: Text(
+                        _message!,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: colors.error),
+                      ),
+                    ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    booked.quantity == 1
+                        ? 'You hold 1 place at this event'
+                        : 'You hold ${booked.quantity} places at this event',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: NhSpace.s1),
+                  Text(
+                    'Booked on ${formatDay(booked.createdAt)}.',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                  if (_message != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: NhSpace.s1),
+                      child: Text(
+                        _message!,
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.error),
+                      ),
+                    ),
+                  const SizedBox(height: NhSpace.s3),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _submitting ? null : _release,
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Release my place'),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

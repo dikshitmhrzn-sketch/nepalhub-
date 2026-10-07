@@ -75,6 +75,7 @@ class ResourceSummary {
 
 class ResourceDetail {
   const ResourceDetail({
+    required this.id,
     required this.slug,
     required this.type,
     required this.category,
@@ -91,6 +92,7 @@ class ResourceDetail {
     required this.isExpired,
   });
 
+  final String id;
   final String slug;
   final String type;
   final String category;
@@ -107,6 +109,7 @@ class ResourceDetail {
   final bool isExpired;
 
   factory ResourceDetail.fromJson(Map<String, dynamic> json) => ResourceDetail(
+        id: '${json['id'] ?? ''}',
         slug: '${json['slug'] ?? ''}',
         type: '${json['type'] ?? 'Note'}',
         category: '${json['category'] ?? ''}',

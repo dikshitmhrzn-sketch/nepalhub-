@@ -78,6 +78,7 @@ class OpeningHour {
 
 class BusinessDetail {
   const BusinessDetail({
+    required this.id,
     required this.slug,
     required this.name,
     required this.category,
@@ -94,6 +95,7 @@ class BusinessDetail {
     required this.description,
   });
 
+  final String id;
   final String slug;
   final String name;
   final String category;
@@ -110,6 +112,7 @@ class BusinessDetail {
   final String description;
 
   factory BusinessDetail.fromJson(Map<String, dynamic> json) => BusinessDetail(
+        id: '${json['id'] ?? ''}',
         slug: '${json['slug'] ?? ''}',
         name: '${json['name'] ?? ''}',
         category: '${json['category'] ?? ''}',

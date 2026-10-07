@@ -6,6 +6,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/external.dart';
 import '../../core/util/formats.dart';
 import '../../core/widgets/loadable_view.dart';
+import '../../core/widgets/report_action.dart';
 import '../../features/jobs/api.dart';
 
 class JobPage extends StatefulWidget {
@@ -93,6 +94,8 @@ class _JobPageState extends State<JobPage> {
                     ),
                   ),
                 ),
+              const SizedBox(height: NhSpace.s5),
+              ReportAction(targetType: 'Job', targetId: job.id),
             ],
           );
         },

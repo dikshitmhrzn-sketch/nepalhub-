@@ -6,6 +6,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/external.dart';
 import '../../core/util/formats.dart';
 import '../../core/widgets/loadable_view.dart';
+import '../../core/widgets/report_action.dart';
 import '../../features/students/api.dart';
 
 class StudentResourcePage extends StatelessWidget {
@@ -82,6 +83,8 @@ class StudentResourcePage extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: NhSpace.s5),
+              ReportAction(targetType: 'StudentResource', targetId: resource.id),
             ],
           );
         },

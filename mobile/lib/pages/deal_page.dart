@@ -6,6 +6,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/external.dart';
 import '../../core/util/formats.dart';
 import '../../core/widgets/loadable_view.dart';
+import '../../core/widgets/report_action.dart';
 import '../../features/deals/api.dart';
 
 class DealPage extends StatelessWidget {
@@ -97,6 +98,8 @@ class DealPage extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: NhSpace.s5),
+              ReportAction(targetType: 'Deal', targetId: deal.id),
             ],
           );
         },

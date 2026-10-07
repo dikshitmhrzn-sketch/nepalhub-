@@ -62,6 +62,7 @@ class EventSummary {
 
 class EventDetail {
   const EventDetail({
+    required this.id,
     required this.slug,
     required this.title,
     this.summary,
@@ -83,6 +84,7 @@ class EventDetail {
     required this.ticketPrice,
   });
 
+  final String id;
   final String slug;
   final String title;
   final String? summary;
@@ -104,6 +106,7 @@ class EventDetail {
   final num ticketPrice;
 
   factory EventDetail.fromJson(Map<String, dynamic> json) => EventDetail(
+        id: '${json['id'] ?? ''}',
         slug: '${json['slug'] ?? ''}',
         title: '${json['title'] ?? ''}',
         summary: json['summary'] as String?,
