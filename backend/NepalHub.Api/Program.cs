@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
@@ -470,6 +471,18 @@ if (databaseConfigured)
 
 var app = builder.Build();
 
+// The built SPA, when one has been placed where the API can find it, is served from this same
+// origin: the deployment runbook copies frontend/dist to Frontend:DistPath (wwwroot by default)
+// and one host then ships both halves. The decision is taken after Build() and the provider is
+// passed explicitly to every piece of static-file middleware, so serving does not depend on the
+// web-root convention being resolvable for a folder that may sit outside the content root. A host
+// without that folder keeps answering JSON only, exactly as it does today.
+var spaRootPath = Path.Combine(
+    app.Environment.ContentRootPath,
+    app.Configuration["Frontend:DistPath"] ?? "wwwroot");
+var spaFiles = Directory.Exists(spaRootPath) ? new PhysicalFileProvider(spaRootPath) : null;
+
+
 if (!databaseConfigured)
 {
     app.Logger.LogWarning(
@@ -487,6 +500,12 @@ else
     app.UseExceptionHandler();
 }
 
+if (spaFiles is not null)
+{
+    app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = spaFiles });
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = spaFiles });
+}
+
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
@@ -495,6 +514,22 @@ app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHealthChecks("/health").AllowAnonymous();
+
+if (spaFiles is not null)
+{
+    // A typo'd API path must still answer as the API. Without this route the SPA fallback below
+    // would return index.html with a 200 for any unknown /api/... path, and every client would
+    // then fail to parse a page as an envelope. Real controller routes are more specific, so
+    // they keep winning the match, and both of these opt out of the default-deny fallback policy
+    // because neither the page nor a 404 body is a protected resource.
+    app.Map("/api/{**path}", () => Results.Json(
+            ApiResponse<object>.Fail(new ApiError("not_found", "No such endpoint.")),
+            statusCode: StatusCodes.Status404NotFound))
+        .AllowAnonymous();
+
+    app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = spaFiles })
+        .AllowAnonymous();
+}
 
 if (databaseConfigured)
 {
