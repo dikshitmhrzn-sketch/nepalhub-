@@ -1,6 +1,8 @@
 import '../../core/api/api_client.dart';
 import '../../core/api/paged_result.dart';
 import '../../core/api/query_params.dart';
+import '../../core/offline/cached_load.dart';
+import '../../core/offline/reference_cache.dart';
 import '../../core/util/formats.dart';
 
 const calculatorCategories = <String>[
@@ -30,6 +32,13 @@ class CalculatorSummary {
         summary: '${json['summary'] ?? ''}',
         category: '${json['category'] ?? ''}',
       );
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'slug': slug,
+        'name': name,
+        'summary': summary,
+        'category': category,
+      };
 }
 
 class CalculatorInput {
@@ -182,26 +191,46 @@ class CalculationResult {
 }
 
 class CalculatorsApi {
-  CalculatorsApi(this._client);
+  CalculatorsApi(this._client, {this.cache = const ReferenceCache()});
 
   final ApiClient _client;
+  final ReferenceCache cache;
 
   Future<PagedResult<CalculatorSummary>> list({
     int page = 1,
     int pageSize = 24,
     String? search,
     String? category,
-  }) =>
-      _client.getPaged<CalculatorSummary>(
+  }) {
+    final query = queryParams(
+      page: page,
+      pageSize: pageSize,
+      search: search,
+      filters: <String, String?>{'category': category},
+    );
+    return cachedLoad<PagedResult<CalculatorSummary>>(
+      cache: cache,
+      key: 'calculators/$page/$pageSize/${search ?? ''}/${category ?? ''}',
+      fetch: () => _client.getPaged<CalculatorSummary>(
         '/calculators',
-        query: queryParams(
-          page: page,
-          pageSize: pageSize,
-          search: search,
-          filters: <String, String?>{'category': category},
-        ),
+        query: query,
         fromJson: CalculatorSummary.fromJson,
-      );
+      ),
+      encode: (result) => <String, Object?>{
+        'items': result.items.map((summary) => summary.toJson()).toList(),
+        'page': result.page,
+        'pageSize': result.pageSize,
+        'totalCount': result.totalCount,
+        'totalPages': result.totalPages,
+        'hasPrevious': result.hasPrevious,
+        'hasNext': result.hasNext,
+      },
+      decode: (raw) => PagedResult.fromJson(
+        raw! as Map<String, dynamic>,
+        CalculatorSummary.fromJson,
+      ),
+    );
+  }
 
   Future<CalculatorDetail> detail(String slug) => _client.getObject<CalculatorDetail>(
         '/calculators/$slug',

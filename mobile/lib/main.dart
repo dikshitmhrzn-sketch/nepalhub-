@@ -5,9 +5,12 @@ import 'app.dart';
 import 'core/api/api_client.dart';
 import 'core/api/secure_cookie_storage.dart';
 import 'core/config/api_environment.dart';
+import 'core/offline/reference_cache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await ReferenceCache.open();
 
   final CookieJar cookieJar = PersistCookieJar(
     storage: SecureCookieStorage(),
