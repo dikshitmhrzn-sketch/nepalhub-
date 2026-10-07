@@ -2,12 +2,14 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../features/health/api.dart';
+import '../../features/payments/api.dart';
 import '../widgets/app_shell.dart';
 import '../../pages/account_page.dart';
 import '../../pages/browse_page.dart';
 import '../../pages/business_page.dart';
 import '../../pages/businesses_page.dart';
 import '../../pages/calculator_page.dart';
+import '../../pages/checkout_page.dart';
 import '../../pages/deal_page.dart';
 import '../../pages/deals_page.dart';
 import '../../pages/event_page.dart';
@@ -149,6 +151,12 @@ GoRouter createAppRouter() => GoRouter(
         GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterPage(),
+        ),
+        GoRoute(
+          path: '/checkout',
+          builder: (context, state) => CheckoutPage(
+            checkout: state.extra is Checkout ? state.extra! as Checkout : null,
+          ),
         ),
       ],
     );

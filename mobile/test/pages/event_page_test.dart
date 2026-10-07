@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nepal_hub/core/api/api_client.dart';
 import 'package:nepal_hub/core/auth/session_controller.dart';
+import 'package:nepal_hub/features/payments/api.dart';
+import 'package:nepal_hub/pages/checkout_page.dart';
 import 'package:nepal_hub/pages/event_page.dart';
 import 'package:nepal_hub/pages/login_page.dart';
 import 'package:provider/provider.dart';
@@ -60,6 +62,12 @@ GoRouter eventRouter() => GoRouter(
         GoRoute(
           path: '/login',
           builder: (context, state) => const LoginPage(),
+        ),
+        GoRoute(
+          path: '/checkout',
+          builder: (context, state) => CheckoutPage(
+            checkout: state.extra is Checkout ? state.extra! as Checkout : null,
+          ),
         ),
       ],
     );
@@ -245,5 +253,65 @@ void main() {
     expect(api.countOf('DELETE', '/events/tech-meetup/booking'), 1);
     expect(find.text('Your place has been released.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Book my place'), findsOneWidget);
+  });
+
+  testWidgets('a paid event asks for sign in before checkout', (tester) async {
+    final paidApi = TestApi();
+    registerSessionRoutes(paidApi);
+    paidApi.onJson(
+      'GET',
+      '/events/tech-meetup',
+      envelope(<String, Object?>{...eventPayload, 'ticketPrice': 500}),
+    );
+    final paidSession = SessionController(paidApi.client);
+    await tester.runAsync(() => paidSession.restore());
+    await pumpEvent(tester, paidApi, paidSession);
+
+    expect(find.textContaining('Buy a place'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Buy a place'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(paidApi.countOf('POST', '/payments/checkout'), 0);
+    expect(paidApi.countOf('POST', '/events/tech-meetup/booking'), 0);
+  });
+
+  testWidgets('a paid event starts a ticket checkout', (tester) async {
+    final paidApi = TestApi();
+    registerSessionRoutes(paidApi);
+    paidApi.onJson(
+      'GET',
+      '/events/tech-meetup',
+      envelope(<String, Object?>{...eventPayload, 'ticketPrice': 500}),
+    );
+    paidApi.onJson(
+      'POST',
+      '/payments/checkout',
+      envelope(<String, Object?>{
+        'reference': 'PAY-1001',
+        'checkoutUrl': 'https://pay.example.com/step1',
+        'fields': <String, Object?>{'amt': '500', 'pid': 'PAY-1001'},
+        'status': 'Pending',
+      }),
+    );
+    final paidSession = SessionController(paidApi.client);
+    await tester.runAsync(() => paidSession.restore());
+    await tester.runAsync(
+      () => paidSession.signIn(email: 'asha@example.com', password: 'Str0ng!pass'),
+    );
+    await pumpEvent(tester, paidApi, paidSession);
+
+    await tester.tap(find.textContaining('Buy a place'));
+    await tester.pumpAndSettle();
+
+    final body = paidApi.requestsWhere('POST', '/payments/checkout').single.jsonBody!;
+    expect(body, <String, Object?>{
+      'kind': 'EventTicket',
+      'slug': 'tech-meetup',
+      'quantity': 1,
+    });
+    expect(find.text('Complete your payment'), findsOneWidget);
+    expect(paidApi.countOf('POST', '/events/tech-meetup/booking'), 0);
   });
 }

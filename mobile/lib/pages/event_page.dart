@@ -13,6 +13,7 @@ import '../../core/widgets/loadable_view.dart';
 import '../../core/widgets/report_action.dart';
 import '../../features/bookings/api.dart';
 import '../../features/events/api.dart';
+import '../../features/payments/api.dart';
 
 class EventPage extends StatefulWidget {
   const EventPage({super.key, required this.slug});
@@ -95,6 +96,44 @@ class _EventPageState extends State<EventPage> {
         _quantity = next;
       }
     });
+  }
+
+  Future<void> _startCheckout() async {
+    if (!await ensureSignedIn(context)) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final api = PaymentsApi(context.read<ApiClient>());
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
+    try {
+      final checkout = await api.checkout(
+        kind: 'EventTicket',
+        slug: widget.slug,
+        quantity: _quantity,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _submitting = false);
+      if (!checkout.needsForm) {
+        setState(() => _message = 'That payment has already finished.');
+        return;
+      }
+      await context.push('/checkout', extra: checkout);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _message = ApiMessage.message(error);
+      });
+    }
   }
 
   @override
@@ -267,7 +306,9 @@ class _EventPageState extends State<EventPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: !_submitting && seatsLeft ? _book : null,
+                      onPressed: !_submitting && seatsLeft
+                          ? (event.ticketPrice == 0 ? _book : _startCheckout)
+                          : null,
                       child: _submitting
                           ? const SizedBox(
                               width: 18,
@@ -277,7 +318,7 @@ class _EventPageState extends State<EventPage> {
                           : Text(
                               event.ticketPrice == 0
                                   ? 'Book my place'
-                                  : 'Buy a place',
+                                  : 'Buy a place  ·  ${npr(event.ticketPrice)}',
                             ),
                     ),
                   ),
