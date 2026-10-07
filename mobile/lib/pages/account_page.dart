@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api/api_client.dart';
@@ -29,10 +30,30 @@ class AccountPage extends StatelessWidget {
               title: 'Checking your session',
             )
           else if (session.user == null)
-            StateMessage(
-              tone: StateMessageTone.empty,
-              title: 'You are not signed in',
-              description: 'Sign in to see your XP, badges, saved listings and payments.',
+            Column(
+              children: [
+                StateMessage(
+                  tone: StateMessageTone.empty,
+                  title: 'You are not signed in',
+                  description:
+                      'Sign in to see your XP, badges, saved listings and payments.',
+                ),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => context.push('/login'),
+                    child: const Text('Sign in'),
+                  ),
+                ),
+                const SizedBox(height: NhSpace.s2),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => context.push('/register'),
+                    child: const Text('Create an account'),
+                  ),
+                ),
+              ],
             )
           else
             Card(
@@ -57,6 +78,15 @@ class AccountPage extends StatelessWidget {
                       'Level ${session.user!.level}  ·  ${session.user!.xp} XP',
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: NhSpace.s3),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.logout_rounded, size: 18),
+                        label: const Text('Sign out'),
+                        onPressed: () => context.read<SessionController>().signOut(),
+                      ),
                     ),
                   ],
                 ),

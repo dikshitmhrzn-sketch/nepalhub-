@@ -16,8 +16,10 @@ import '../../pages/home_page.dart';
 import '../../pages/job_page.dart';
 import '../../pages/jobs_page.dart';
 import '../../pages/leaderboard_page.dart';
+import '../../pages/login_page.dart';
 import '../../pages/misc_pages.dart';
 import '../../pages/quiz_page.dart';
+import '../../pages/register_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/student_resource_page.dart';
 import '../../pages/students_page.dart';
@@ -139,6 +141,14 @@ GoRouter createAppRouter() => GoRouter(
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (context, state) => const LoginPage(),
+        ),
+        GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterPage(),
         ),
       ],
     );
