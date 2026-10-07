@@ -20,6 +20,7 @@ import '../../pages/jobs_page.dart';
 import '../../pages/leaderboard_page.dart';
 import '../../pages/login_page.dart';
 import '../../pages/misc_pages.dart';
+import '../../pages/payments_page.dart';
 import '../../pages/quiz_page.dart';
 import '../../pages/register_page.dart';
 import '../../pages/search_page.dart';
@@ -139,6 +140,10 @@ GoRouter createAppRouter() => GoRouter(
                 GoRoute(
                   path: '/settings',
                   builder: (context, state) => const SettingsPage(),
+                ),
+                GoRoute(
+                  path: '/account/payments',
+                  builder: (context, state) => const PaymentsPage(),
                 ),
               ],
             ),
