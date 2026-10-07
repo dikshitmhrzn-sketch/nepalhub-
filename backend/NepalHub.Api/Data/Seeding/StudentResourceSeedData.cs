@@ -294,7 +294,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.Mathematics,
             EducationLevel.Grade9to10,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-002",
@@ -314,7 +314,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.English,
             EducationLevel.Grade9to10,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-003",
@@ -334,7 +334,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.Science,
             EducationLevel.Grade9to10,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-004",
@@ -353,7 +353,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.SocialStudies,
             EducationLevel.Grade9to10,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-005",
@@ -373,7 +373,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.Mathematics,
             EducationLevel.Grade11to12,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-006",
@@ -393,7 +393,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.Science,
             EducationLevel.Grade11to12,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
         new(
             "paper-007",
@@ -413,7 +413,7 @@ internal static class StudentResourceSeedData
             ResourceType.QuestionPaper,
             ResourceCategory.English,
             EducationLevel.Grade11to12,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://neb.gov.np/",
             AcademicYear: 2081),
 
         // ------------------------------------------------------------ scholarships
@@ -472,8 +472,8 @@ internal static class StudentResourceSeedData
             ResourceType.Scholarship,
             ResourceCategory.General,
             EducationLevel.Grade11to12,
-            ExternalUrl: "https://www.cec.edu.np/",
-            Provider: "Council for Higher Education",
+            ExternalUrl: "https://www.moest.gov.np/",
+            Provider: "Ministry of Education",
             AwardAmountNpr: 40000m,
             Eligibility: "Students enrolled in Grades 11 or 12, selected on previous year results.",
             ExpiresInDays: 60),
@@ -495,7 +495,7 @@ internal static class StudentResourceSeedData
             ResourceType.Scholarship,
             ResourceCategory.Science,
             EducationLevel.Bachelors,
-            ExternalUrl: "https://www.nepalengineering.org/",
+            ExternalUrl: "https://nec.gov.np/",
             Provider: "Nepal Engineering Council",
             AwardAmountNpr: 120000m,
             Eligibility: "Entrants to a Bachelor of Engineering programme; preference for students "
@@ -562,7 +562,7 @@ internal static class StudentResourceSeedData
             ResourceType.Scholarship,
             ResourceCategory.Science,
             EducationLevel.PlusTwo,
-            ExternalUrl: "https://www.cec.edu.np/",
+            ExternalUrl: "https://www.moest.gov.np/",
             Provider: "Ministry of Education",
             AwardAmountNpr: 20000m,
             Eligibility: "Students entering Plus Two in the science stream, awarded on Grade 10 "

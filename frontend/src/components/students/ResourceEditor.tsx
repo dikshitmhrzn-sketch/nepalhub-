@@ -355,7 +355,7 @@ export function ResourceEditor({ id, onCancel, onSaved }: ResourceEditorProps) {
                 id="resource-external-url"
                 name="externalUrl"
                 type="url"
-                placeholder="https://www.cec.edu.np/"
+                placeholder="https://www.moest.gov.np/"
                 value={form.externalUrl ?? ''}
                 aria-invalid={fieldErrors.externalUrl ? true : undefined}
                 onChange={(event) => patch({ externalUrl: event.target.value })}

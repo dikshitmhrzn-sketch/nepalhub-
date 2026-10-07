@@ -14,7 +14,7 @@ internal sealed record QuizSeedQuestion(
 /// <summary>
 /// The bootstrap question pool.
 ///
-/// This is starter content, not the long-term source. Thirty questions is roughly three
+/// This is starter content, not the long-term source. Thirty-one questions is roughly three
 /// days of rotation at ten a day, so the pool has to be replenished through the staff
 /// question editor well before the site opens. The facts here were chosen because they are
 /// settled and uncontroversial; anything a subject-matter reviewer would want to check
@@ -116,10 +116,10 @@ internal static class QuizSeedData
         new(
             "geo-002",
             "What is the longest river in Nepal?",
-               "The Karnali rises in the Himalayas and runs roughly 920 kilometres before joining the "
-               + "Ghaghara, making it the longest river in the country. It is not confined to Nepal: it "
-               + "crosses into northern India on its way to the Ganges.",
-               QuizCategory.Geography,
+            "The Karnali rises in the Himalayas and runs roughly 920 kilometres before joining the "
+            + "Ghaghara, making it the longest river in the country. It is not confined to Nepal: it "
+            + "crosses into northern India on its way to the Ganges.",
+            QuizCategory.Geography,
             [
                 new("Koshi", false),
                 new("Bagmati", false),
