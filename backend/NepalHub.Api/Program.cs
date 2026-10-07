@@ -36,6 +36,19 @@ using NepalHub.Api.Features.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Outside Development the logs are read by a shipper or a grep on the server rather than by a
+// person watching a terminal scroll, so each line is one JSON object: level, timestamp, scope
+// (which carries the request id) and message as fields instead of colour and padding. Development
+// keeps the plain console because that log is read by eye as it goes past.
+if (builder.Environment.IsProduction())
+{
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.UseUtcTimestamp = true;
+    });
+}
+
 const string FrontendCorsPolicy = "frontend";
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -151,7 +164,7 @@ builder.Services
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 builder.Services.AddProblemDetails();
 
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -472,6 +485,10 @@ if (databaseConfigured)
 }
 
 var app = builder.Build();
+
+// Outermost, so the request id and the timing line cover every other piece of the pipeline,
+// including the answer an exception handler produces.
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 // The built SPA, when one has been placed where the API can find it, is served from this same
 // origin: the deployment runbook copies frontend/dist to Frontend:DistPath (wwwroot by default)
