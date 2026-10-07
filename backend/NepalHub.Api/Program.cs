@@ -1,9 +1,11 @@
+using System.Net;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -499,6 +501,29 @@ else
 {
     app.UseExceptionHandler();
 }
+
+// One host behind one reverse proxy, so the default believed-proxy rule (loopback) is already
+// the right one: only a proxy this app trusts may rewrite X-Forwarded-For and X-Forwarded-Proto,
+// and forged headers arriving from the open internet are dropped rather than believed. Any further
+// hop can be named in ForwardedHeaders:KnownProxies. This runs before everything the forwarded
+// values decide: the rate limiter buckets by client address, HSTS applies only once the scheme is
+// https, and both auth cookies keep SecurePolicy.SameAsRequest, which under the forwarded scheme
+// means "Secure in production, not Secure on localhost" without a second code path.
+var forwardedHeaders = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [])
+{
+    if (IPAddress.TryParse(proxy, out var knownProxy))
+    {
+        forwardedHeaders.KnownProxies.Add(knownProxy);
+    }
+}
+
+app.UseForwardedHeaders(forwardedHeaders);
+app.UseHsts();
+app.UseHttpsRedirection();
 
 if (spaFiles is not null)
 {
