@@ -555,8 +555,20 @@ of these decisions.
 
 ## Phase 8 — Mobile
 
-- [ ] Flutter app against the same public API
-- [ ] Push notifications, offline caching of reference data
+- [x] Flutter app against the same public API: an Android-first `mobile/` app with module list and
+      detail for every module, global search, sign in and registration, event booking, paid tickets
+      through a web view checkout that posts the provider form and verifies by reference, listing
+      reports, and an account page carrying badges, XP and payment history. No second backend, no
+      `/admin/**` screens, and no JWT — the app speaks the cookie plus `X-CSRF-TOKEN` pair the API
+      already uses
+- [x] Offline caching of reference data: provinces, districts, plans and the calculator catalogue
+      are written on a successful load and served back when the request fails, opened once from
+      `main()` by `ReferenceCache.open()`
+- [ ] Push notifications, deferred for V1: the API runs `Push:Provider=none` with nothing sending,
+      so registering a device token would have no consumer
+- [x] Gates: `flutter analyze` clean, **89/89** Flutter tests, `flutter build apk --debug` and
+      `--release` green, backend `dotnet build` 0/0 and **641/641** tests, frontend typecheck and
+      **61/61** tests
 
 ## Standing rules
 
