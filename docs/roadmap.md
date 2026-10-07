@@ -566,9 +566,15 @@ of these decisions.
       `main()` by `ReferenceCache.open()`
 - [ ] Push notifications, deferred for V1: the API runs `Push:Provider=none` with nothing sending,
       so registering a device token would have no consumer
-- [x] Gates: `flutter analyze` clean, **95/95** Flutter tests, `flutter build apk --debug` and
-      `--release` green, backend `dotnet build` 0/0 and **641/641** tests, frontend typecheck and
-      **61/61** tests
+- [x] Live contract smoke: `mobile/test/live_smoke_test.dart` drives the real `ApiClient` against
+      `http://localhost:5080/api` and covers health, reference, plans, calculator list, detail and
+      calculation with rendered summary lines, daily quiz, jobs, businesses, deals, events, student
+      resources, leaderboard, global search, registration plus sign in of a throwaway account,
+      badges, payment history and the payment config. It skips itself when the API is not
+      reachable, so the suite stays green without a backend
+- [x] Gates: `flutter analyze` clean, **96/96** Flutter tests including the live smoke, `flutter
+      build apk --debug` and `--release` green, backend `dotnet build` 0/0 and **641/641** tests,
+      frontend typecheck and **61/61** tests
 
 ## Standing rules
 
