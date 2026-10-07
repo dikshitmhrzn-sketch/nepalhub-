@@ -22,6 +22,7 @@ non-secret defaults, and no secret is ever committed.
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 | `ConnectionStrings__Default` | the MySQL connection string - secret, environment only |
 | `Seeding__DemoContent` | `false` by default in Production: the demo businesses, jobs, offers and events never seed. Reference data, calculators, plans, quiz questions and student resources still do, because the site cannot run without them |
+| `Database__AutoMigrate` | `true` by default: pending migrations are applied on startup, before seeding. Set `false` to apply them yourself (see below) |
 | `Cors__AllowedOrigins` | empty means same-origin only, which is the normal case behind one host |
 | `ForwardedHeaders__KnownProxies__0` | an extra proxy IP to believe beyond the loopback default - only needed when there is more than one hop in front |
 | `ASPNETCORE_HTTPS_PORTS` | `443` when the app itself should redirect plain http to https |
@@ -67,6 +68,24 @@ WantedBy=multi-user.target
 
 Secrets can come from an `EnvironmentFile=` (`/etc/nepalhub.env`, mode 600) instead of the unit
 file itself - either way they are outside the repository and outside the process arguments.
+
+## Applying migrations
+
+No manual step: on startup the API applies whatever pending EF Core migrations it finds, before
+any seeder reads the schema (`Database:AutoMigrate`, default `true`). The deploy order that makes
+that safe is:
+
+1. take the nightly backup (or run `backup-db.sh` by hand) - the backup and the migration are the
+   two things that touch data, and backup-then-migrate is what makes a bad migration recoverable
+2. publish the new build and restart the service
+3. watch the logs for the migration and check `GET /health` afterwards
+
+A host that wants the schema change applied deliberately - reviewed, and applied while the old
+build is still running - sets `Database__AutoMigrate=false`, runs
+`dotnet ef database update` from a checkout with the same `ConnectionStrings__Default`, then
+starts the new build. Either way the application never runs against a schema it does not
+understand: with auto-migrate off, applying the migrations is the operator's half of the same
+contract.
 
 ## TLS and the proxy
 

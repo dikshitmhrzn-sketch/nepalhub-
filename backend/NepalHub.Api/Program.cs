@@ -55,6 +55,11 @@ var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get
 var connectionString = builder.Configuration.GetConnectionString("Default");
 var serverVersionText = builder.Configuration.GetValue("Database:ServerVersion", "8.4.0-mysql");
 var databaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
+
+// The schema is applied by the API itself, so a deploy is a restart rather than a manual
+// `dotnet ef database update` somebody has to remember. A host that wants the schema change
+// applied separately sets this to false and runs the update itself before starting the build.
+var autoMigrate = builder.Configuration.GetValue("Database:AutoMigrate", true);
 var authRateLimitPermitLimit = builder.Configuration.GetValue("Auth:RateLimit:PermitLimit", 20);
 var authRateLimitWindow = builder.Configuration.GetValue("Auth:RateLimit:WindowSeconds", 60) is { } windowSeconds
     ? TimeSpan.FromSeconds(windowSeconds)
@@ -576,6 +581,17 @@ if (spaFiles is not null)
 if (databaseConfigured)
 {
     await using var scope = app.Services.CreateAsyncScope();
+
+    // Pending migrations are applied here, before the first seeder reads the schema, because a
+    // fresh database has to reach a runnable state on its own and every seeder below assumes the
+    // tables exist. One host means no second process can race the schema, and MySQL's implicit
+    // commits make a half-applied migration visible rather than silent - the history row is
+    // written after the DDL, so a crash leaves the migration pending and the next start retries.
+    if (autoMigrate)
+    {
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    }
+
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
     await RoleSeeder.SeedAsync(roleManager, CancellationToken.None);
 
