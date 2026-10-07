@@ -912,7 +912,7 @@ Everything else below is still design.
 | `jobs.business_id` | nullable → `businesses`, for employer-owned postings; null on staff-written rows |
 | `jobs.salary_min`, `jobs.salary_max`, `jobs.currency` | nullable, added only when there is a rule for what a verified range means |
 | `deals.redemption_codes`, `deals.redemption_uses` | only if offers ever become redeemable on this site rather than at the counter; a code table needs a rule about who mints codes |
-| `events.ticket_price` | only with a payment provider (7f). `events.capacity` and `events.registration_count` are live as Module 13 — seats are held here, payments are not taken here |
+| `events.ticket_price` | live since Module 14 (7f) — listed here for history; `events.capacity` and `events.registration_count` are live as Module 13 — seats are held here, payments are not taken here |
 | `businesses.owner_user_id` → `deals`/`events` | ownership of an offer or event, reusing the `owner_user_id` column and claim path of Module 11 |
 
 Offers deliberately collect nothing on this site. A deal is redeemed at a counter and an event's

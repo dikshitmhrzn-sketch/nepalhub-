@@ -152,7 +152,7 @@ reader cannot apply through is still worth having, because the reader follows th
 link. Salary was left out because a range nobody verifies is worse than none, and Nepal's
 conventions for publishing one are not settled.
 
-## Phase 6 — Businesses (first slice, live)
+## Phase 6 — Businesses (first slice, live) ✅
 
 A public directory of staff-written local listings. The scope is deliberately a directory and
 nothing else: no business accounts, because an owner portal has nothing to attach to until someone can
@@ -183,10 +183,10 @@ register as a business.
 Deliberately not in this slice: business accounts and an owner portal, paid subscriptions, featured
 placement, reviews and ratings, image uploads, saved businesses, messaging, map integration
 and claims. `docs/database.md` records the schema note for each; the one that gates the most of them
-is `businesses.owner_user_id`, which does not exist yet by design. Deals arrived separately as
+is `businesses.owner_user_id`, which Phase 7e has since added. Deals arrived separately as
 Phase 6b, on the same rule that a listing is staff-written until there is an owner to attach to.
 
-## Phase 6b — Deals and events (live)
+## Phase 6b — Deals and events (live) ✅
 
 A public offers page and a public events calendar, both staff-written and both linking into the
 business directory rather than replacing it. An offer is a discount with an end date; an event is a
@@ -233,7 +233,7 @@ portals, claims, subscriptions, saved offers, notifications and maps. An offer h
 and an event has no ticket, so a payment provider would have nothing to attach to yet; `docs/database.md`
 records the column each of those would need.
 
-## Phase 6c — Business registration and verification (live)
+## Phase 6c — Business registration and verification (live) ✅
 
 The rule that held through 6a and 6b — a listing is staff-written until there is an owner to
 attach to — now has its second half: an owner can put a draft of their own into the system and
@@ -517,7 +517,7 @@ of these decisions.
       the staff event editor. Gates: `dotnet build` 0/0, **614/614** backend tests, frontend
       typecheck and build clean, **50/50** frontend tests
 
-### Phase 7f — Payments (eSewa)
+### Phase 7f — Payments (eSewa) ✅
 
 - [x] `payment_transactions` (`AddPayments`) and `events.ticket_price` applied to the dev database;
       whole-rupee amounts, the same shape as `plans.price_npr`. No card data in this database —
@@ -553,7 +553,7 @@ of these decisions.
       priced path; the ticket price field in the staff event editor. Gates: `dotnet build` 0/0,
       **631/631** backend tests, frontend typecheck and build clean, **61/61** frontend tests
 
-## Phase 8 — Mobile
+## Phase 8 — Mobile ✅ complete
 
 - [x] Flutter app against the same public API: an Android-first `mobile/` app with module list and
       detail for every module, global search, sign in and registration, event booking, paid tickets
@@ -564,8 +564,8 @@ of these decisions.
 - [x] Offline caching of reference data: provinces, districts, plans and the calculator catalogue
       are written on a successful load and served back when the request fails, opened once from
       `main()` by `ReferenceCache.open()`
-- [ ] Push notifications, deferred for V1: the API runs `Push:Provider=none` with nothing sending,
-      so registering a device token would have no consumer
+- [ ] Push notifications, deferred for V1: no push configuration or delivery code exists anywhere
+      in the API yet, so a registered device token would have no consumer
 - [x] Live contract smoke: `mobile/test/live_smoke_test.dart` drives the real `ApiClient` against
       `http://localhost:5080/api` and covers health, reference, plans, calculator list, detail and
       calculation with rendered summary lines, daily quiz, jobs, businesses, deals, events, student

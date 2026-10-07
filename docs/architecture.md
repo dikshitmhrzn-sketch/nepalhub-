@@ -16,7 +16,7 @@
 ```
 
 The frontend is a pure API consumer. It shares no code, no build output and no database access with
-the backend. That is what allows a Flutter mobile app to be added later without changing the API.
+the backend. That is what allowed the Flutter app of Phase 8 to be added without changing the API.
 
 ## 2. Backend layout (single project, folder-layered)
 
@@ -474,7 +474,8 @@ the page.
 - **Default deny:** a fallback authorisation policy means every endpoint requires a signed-in user
   unless it opts out with `[AllowAnonymous]`, so a new controller is protected the moment it is added.
 - **Input safety:** EF Core parameterises all SQL; request DTOs are validated with DataAnnotations;
-  file uploads are validated by content type and size and stored outside the web root.
+  file uploads are not implemented yet; the roadmap defers them, and the rule when they arrive is
+  content-type and size validation with storage outside the web root.
 - **Rate limiting:** a fixed-window limiter per policy, returning `429 rate_limited`. Auth endpoints
   get 20 requests/minute/IP (`Auth:RateLimit:PermitLimit`) and the public calculation endpoint gets 60
   requests/minute/IP (`Calculate:RateLimit:PermitLimit`), so one visitor cannot burn the server on
@@ -514,5 +515,9 @@ One host, one origin, no reverse-proxy complexity to debug at first:
 
 1. `npm run build` in `frontend/` → static `dist/`
 2. `dotnet publish` the API
-3. The API serves `dist/` as static files with SPA fallback to `index.html`
+3. `dist/` is copied into the publish output's `wwwroot/`; the API serves that folder as
+   static files with SPA fallback to `index.html`, while an unknown `/api/...` path still
+   answers the JSON envelope rather than the page
 4. Secrets and the connection string come from environment variables only
+5. `dotnet ef database update` applies the migrations; reference data seeds itself on the first
+   boot and demo listings stay out of Production unless `Seeding__DemoContent` says otherwise
