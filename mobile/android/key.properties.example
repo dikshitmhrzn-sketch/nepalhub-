@@ -1,0 +1,7 @@
+# Copy this file to key.properties (same directory, git-ignored) and fill it in.
+# storeFile is absolute, or relative to mobile/android/app - so ../upload-keystore.jks
+# for a keystore sitting next to the android/ folder.
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=changeme
+keyAlias=upload
+keyPassword=changeme
