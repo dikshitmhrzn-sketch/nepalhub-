@@ -175,15 +175,20 @@ class CalculationResult {
   final List<CalculationLine> breakdown;
   final List<String> notes;
 
-  factory CalculationResult.fromJson(Map<String, dynamic> json) => CalculationResult(
-        slug: '${json['slug'] ?? ''}',
-        name: '${json['name'] ?? ''}',
-        summary: _lines(json['summary']),
-        breakdown: _lines(json['breakdown']),
-        notes: json['notes'] is List
-            ? (json['notes'] as List).map((note) => '$note').toList()
-            : <String>[],
-      );
+  factory CalculationResult.fromJson(Map<String, dynamic> json) {
+    final payload = json['result'] is Map<String, dynamic>
+        ? json['result'] as Map<String, dynamic>
+        : json;
+    return CalculationResult(
+      slug: '${json['slug'] ?? ''}',
+      name: '${json['name'] ?? ''}',
+      summary: _lines(payload['summary']),
+      breakdown: _lines(payload['breakdown']),
+      notes: payload['notes'] is List
+          ? (payload['notes'] as List).map((note) => '$note').toList()
+          : <String>[],
+    );
+  }
 
   static List<CalculationLine> _lines(Object? raw) => raw is List
       ? raw.whereType<Map<String, dynamic>>().map(CalculationLine.fromJson).toList()

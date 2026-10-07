@@ -566,7 +566,7 @@ of these decisions.
       `main()` by `ReferenceCache.open()`
 - [ ] Push notifications, deferred for V1: the API runs `Push:Provider=none` with nothing sending,
       so registering a device token would have no consumer
-- [x] Gates: `flutter analyze` clean, **89/89** Flutter tests, `flutter build apk --debug` and
+- [x] Gates: `flutter analyze` clean, **95/95** Flutter tests, `flutter build apk --debug` and
       `--release` green, backend `dotnet build` 0/0 and **641/641** tests, frontend typecheck and
       **61/61** tests
 
