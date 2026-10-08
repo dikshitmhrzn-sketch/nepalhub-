@@ -42,6 +42,30 @@ public sealed class LoginRequest
 
 public sealed record CsrfTokenResponse(string HeaderName, string Token);
 
+public sealed class VerifyEmailRequest
+{
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [StringLength(254)]
+    public string Email { get; init; } = string.Empty;
+
+    // The token travels beside the address because it is not self-describing: it is an
+    // opaque Identity payload, and the account it belongs to is looked up by email.
+    // The bound is an upper limit for the body only — Identity's own token is a few
+    // hundred characters of base64.
+    [Required(ErrorMessage = "Token is required.")]
+    [StringLength(2000)]
+    public string Token { get; init; } = string.Empty;
+}
+
+public sealed class ResendVerificationRequest
+{
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [StringLength(254)]
+    public string Email { get; init; } = string.Empty;
+}
+
 public sealed record SessionUserResponse(
     Guid Id,
     string Email,

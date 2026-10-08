@@ -229,10 +229,22 @@ builder.Services
         options.Lockout.AllowedForNewUsers = true;
         options.Lockout.MaxFailedAccessAttempts = 5;
         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        // The confirmation gate is enforced in the endpoints rather than here: Identity's
+        // own switch refuses unconfirmed accounts before it has even looked at the
+        // password, which would answer differently for an address that exists — and the
+        // answer for a wrong password has to stay the same for everyone.
         options.SignIn.RequireConfirmedEmail = false;
+
+        // Identity mints and verifies the email and reset tokens with these two providers,
+        // each on its own configured clock, so a reset link expires in an hour while a
+        // confirmation link stays valid for the day.
+        options.Tokens.EmailConfirmationTokenProvider = EmailConfirmationTokenProvider.ProviderName;
+        options.Tokens.PasswordResetTokenProvider = PasswordResetTokenProvider.ProviderName;
     })
     .AddEntityFrameworkStores<AppDbContext>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    .AddTokenProvider<EmailConfirmationTokenProvider>(EmailConfirmationTokenProvider.ProviderName)
+    .AddTokenProvider<PasswordResetTokenProvider>(PasswordResetTokenProvider.ProviderName);
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -523,6 +535,10 @@ else
 {
     builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
 }
+
+// The account events that end in a message: scoped, so it shares the request's
+// UserManager and mints its tokens against the same user the endpoint is acting on.
+builder.Services.AddScoped<EmailDispatchService>();
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.

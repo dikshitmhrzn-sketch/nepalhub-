@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using NepalHub.Api.Common;
 using NepalHub.Api.Data.Entities;
+using NepalHub.Api.Features.Email;
 
 namespace NepalHub.Api.Features.Auth;
 
@@ -14,6 +15,8 @@ namespace NepalHub.Api.Features.Auth;
 public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
+    EmailSettings emailSettings,
+    EmailDispatchService emailDispatch,
     IAntiforgery antiforgery,
     ILogger<AuthController> logger) : ControllerBase
 {
@@ -39,6 +42,7 @@ public sealed class AuthController(
         CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
+        var requiresVerification = emailSettings.EnforcesVerification;
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -46,9 +50,10 @@ public sealed class AuthController(
             Email = email,
             FullName = request.FullName.Trim(),
             PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
-            // No mail provider exists yet; verification is introduced with the
-            // notification module, so accounts start confirmed.
-            EmailConfirmed = true,
+            // With no way to send the link, demanding one would lock every new account out
+            // of the site it just joined — so verification only applies once a provider is
+            // configured, and the default install keeps starting accounts confirmed.
+            EmailConfirmed = !requiresVerification,
         };
 
         var created = await userManager.CreateAsync(user, request.Password);
@@ -71,6 +76,19 @@ public sealed class AuthController(
                 ApiResponse<object>.Fail(new ApiError("role_assignment_failed", "Could not finish creating the account.")));
         }
 
+        if (requiresVerification)
+        {
+            // The account is created but not signed into: a session before confirmation would
+            // make the confirmation optional, and the answer carries the same shape it always
+            // did — isEmailConfirmed: false — so the client knows to show "check your email".
+            await emailDispatch.SendVerificationAsync(user, cancellationToken);
+            logger.LogInformation("Registered user {UserId} pending email confirmation.", user.Id);
+
+            return Created(
+                "/api/account/me",
+                ApiResponse<SessionUserResponse>.Ok(await SessionUserMapper.MapAsync(user, userManager, cancellationToken)));
+        }
+
         await signInManager.SignInAsync(user, isPersistent: true, AuthConstants.Scheme);
         logger.LogInformation("Registered user {UserId}.", user.Id);
 
@@ -91,23 +109,22 @@ public sealed class AuthController(
         CancellationToken cancellationToken)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        var result = await signInManager.PasswordSignInAsync(
-            email,
-            request.Password,
-            isPersistent: request.RememberMe,
-            lockoutOnFailure: true);
+        var user = await userManager.FindByNameAsync(email);
+        if (user is null)
+        {
+            // The same answer a wrong password gets: whether an address holds an account
+            // must not be readable from which failure message comes back.
+            return Unauthorized(ApiResponse<object>.Fail(
+                new ApiError("invalid_credentials", "Email or password is incorrect.")));
+        }
+
+        // The password is checked before anything else is allowed to name a reason, and the
+        // cookie is only minted once every check has passed — so an unconfirmed or disabled
+        // account never carries a session, not even for the length of a response.
+        var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
 
         if (result.Succeeded)
         {
-            var user = await userManager.FindByNameAsync(email);
-            if (user is null)
-            {
-                logger.LogError("Signed in user {Email} could not be loaded.", email);
-                return StatusCode(
-                    StatusCodes.Status500InternalServerError,
-                    ApiResponse<object>.Fail(new ApiError("session_failed", "Could not start the session.")));
-            }
-
             if (!user.IsActive)
             {
                 await signInManager.SignOutAsync();
@@ -115,6 +132,21 @@ public sealed class AuthController(
                     StatusCodes.Status403Forbidden,
                     ApiResponse<object>.Fail(new ApiError("account_disabled", "This account has been disabled.")));
             }
+
+            if (emailSettings.EnforcesVerification && !user.EmailConfirmed)
+            {
+                // Only now, with the password matched, does the answer say why: telling an
+                // anonymous caller "confirm your email first" would confirm the account
+                // exists, but a caller who already knows the password learns only the
+                // next step they are owed.
+                return StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    ApiResponse<object>.Fail(new ApiError(
+                        "email_not_confirmed",
+                        "Confirm your email address before signing in.")));
+            }
+
+            await signInManager.SignInAsync(user, isPersistent: request.RememberMe, AuthConstants.Scheme);
 
             return Ok(ApiResponse<SessionUserResponse>.Ok(
                 await SessionUserMapper.MapAsync(user, userManager, cancellationToken)));
@@ -155,6 +187,56 @@ public sealed class AuthController(
         await signInManager.SignOutAsync();
 
         return Ok(ApiResponse<object>.Ok(new { signedOut = true }));
+    }
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<object>>> VerifyEmail(VerifyEmailRequest request)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await userManager.FindByEmailAsync(email);
+
+        if (user is not null)
+        {
+            // Identity checks the token — purpose, expiry, security stamp — and confirming an
+            // address that is already confirmed succeeds again, so the browser's back button
+            // or a duplicated link lands on the same answer instead of an error page.
+            var confirmed = await userManager.ConfirmEmailAsync(user, request.Token);
+            if (confirmed.Succeeded)
+            {
+                logger.LogInformation("Email confirmed for user {UserId}.", user.Id);
+                return Ok(ApiResponse<object>.Ok(new { verified = true }));
+            }
+        }
+
+        // One answer for a bad token, an expired token, a token minted for another purpose
+        // and an address nobody holds: a reply that distinguishes them would be a lookup
+        // oracle for which addresses are registered.
+        return BadRequest(ApiResponse<object>.Fail(
+            new ApiError("token_invalid", "This link is invalid or has expired. Request a new one.")));
+    }
+
+    [HttpPost("resend-verification")]
+    [AllowAnonymous]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<object>>> ResendVerification(
+        ResendVerificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await userManager.FindByEmailAsync(email);
+
+        if (user is { EmailConfirmed: false })
+        {
+            await emailDispatch.SendVerificationAsync(user, cancellationToken);
+        }
+
+        // The same answer whether the address holds an unconfirmed account, a confirmed one
+        // or nothing at all — send or no-send is exactly the signal this endpoint must not
+        // give away. The send itself, if any, fails into a log line rather than the reply.
+        return Ok(ApiResponse<object>.Ok(new { sent = true }));
     }
 
     [HttpGet("session")]
