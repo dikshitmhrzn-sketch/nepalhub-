@@ -5,6 +5,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +24,7 @@ using NepalHub.Api.Features.Calculators;
 using NepalHub.Api.Features.Calculators.Handlers;
 using NepalHub.Api.Features.Businesses;
 using NepalHub.Api.Features.Deals;
+using NepalHub.Api.Features.Email;
 using NepalHub.Api.Features.Events;
 using NepalHub.Api.Features.Jobs;
 using NepalHub.Api.Features.Leaderboard;
@@ -160,6 +162,19 @@ if (string.Equals(paymentSettings.Environment, "production", StringComparison.Or
 {
     paymentSettings.CheckoutBaseUrl = new Uri("https://epay.esewa.com.np");
     paymentSettings.StatusBaseUrl = new Uri("https://esewa.com.np");
+}
+
+// Where mail leaves the building. Checked before the host starts, so a bad setting — an
+// unknown provider, a development sender pointed at a live deployment, links built from no
+// origin at all — stops the boot with one sentence instead of surfacing later as mail that
+// never arrives or an account nobody can sign into.
+var emailSettings = builder.Configuration
+    .GetSection(EmailSettings.SectionName)
+    .Get<EmailSettings>() ?? new EmailSettings();
+
+if (emailSettings.Validate(builder.Environment.IsProduction()) is { } emailProblem)
+{
+    throw new InvalidOperationException(emailProblem);
 }
 
 // Enums go over the wire as their names, so the catalogue filter and the input kinds
@@ -475,6 +490,35 @@ else
 // or entitlement it buys and any audit line all commit by one SaveChanges or not at all.
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddHostedService<PaymentReconciliationWorker>();
+
+// One identity for the data-protection keys, whatever the deployment's content-root path
+// happens to be: the default discriminator is that path, so without this every redeploy
+// (or clone, or CI workspace) rotates the key ring and every verification link and session
+// cookie issued before the change stops verifying. DataProtection:KeyPath points the ring
+// itself at a folder that survives a redeploy — or is shared across instances — instead of
+// living beside the binaries.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("NepalHub");
+if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
+{
+    dataProtection.PersistKeysToFileSystem(Directory.CreateDirectory(keyPath));
+}
+
+// Which sender answers is configuration, not code, mirroring the payment gateway: a
+// configured provider is registered as the adapter, and an unconfigured install gets the
+// one that accepts every message and sends none — so the default host behaves exactly as
+// it did before this module existed.
+builder.Services.AddSingleton(emailSettings);
+builder.Services.AddSingleton<EmailLinkBuilder>();
+builder.Services.AddSingleton<EmailSendCooldown>();
+
+if (string.Equals(emailSettings.Provider, EmailSettings.ProviderFile, StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IEmailSender, FileEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
+}
 
 // Grants badges after a quiz commits and serves the account page's list. Scoped, so it
 // shares the request's AppDbContext and sees the quiz writes in that same context.
