@@ -53,3 +53,9 @@ export interface ResetPasswordRequest {
   token: string;
   password: string;
 }
+
+/** Signed-in only: the current password is the credential, the new one the change. */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}

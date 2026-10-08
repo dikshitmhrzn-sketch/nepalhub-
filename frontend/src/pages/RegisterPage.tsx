@@ -32,13 +32,23 @@ export function RegisterPage() {
     setFormError(null);
 
     try {
-      await signUp({
+      const created = await signUp({
         fullName: fullName.trim(),
         email: email.trim(),
         password,
         phoneNumber: phoneNumber.trim() || null,
       });
-      navigate('/account', { replace: true });
+
+      // An address the server wants confirmed has no session yet: the visitor waits on
+      // the link instead of landing on a page that would ask the server who they are.
+      if (created.isEmailConfirmed) {
+        navigate('/account', { replace: true });
+      } else {
+        navigate('/check-email', {
+          replace: true,
+          state: { email: created.email, purpose: 'verify' },
+        });
+      }
     } catch (error) {
       setFieldErrors(getFieldErrors(error));
       setFormError(getErrorMessage(error, 'Could not create your account. Please try again.'));

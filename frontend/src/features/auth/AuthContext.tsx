@@ -20,7 +20,12 @@ interface AuthContextValue {
   isAdmin: boolean;
   isStaff: boolean;
   signIn: (request: LoginRequest) => Promise<void>;
-  signUp: (request: RegisterRequest) => Promise<void>;
+  /**
+   * Returns the account that was created. Whether it is signed in depends on the
+   * server's confirmation policy: an address that still has to be confirmed comes back
+   * without a session, and the caller decides where that leaves the visitor.
+   */
+  signUp: (request: RegisterRequest) => Promise<SessionUser>;
   signOut: () => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -81,9 +86,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp: async (request) => {
         const created = await authApi.register(request);
         if (mounted.current) {
-          setUser(created);
-          setStatus('authenticated');
+          if (created.isEmailConfirmed) {
+            setUser(created);
+            setStatus('authenticated');
+          } else {
+            // The server minted no cookie for an unconfirmed address — there is a link to
+            // wait for, not a session to use — so pretending to be signed in would break
+            // the moment anything asked the server who the visitor is.
+            setUser(null);
+            setStatus('anonymous');
+          }
         }
+
+        return created;
       },
       signOut: async () => {
         await authApi.logout();

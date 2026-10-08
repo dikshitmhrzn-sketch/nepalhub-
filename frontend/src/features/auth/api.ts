@@ -1,6 +1,7 @@
 import { apiClient, clearCsrfToken } from '@/lib/apiClient';
 
 import type {
+  ChangePasswordRequest,
   CsrfToken,
   ForgotPasswordRequest,
   LoginRequest,
@@ -80,4 +81,12 @@ export function resetPassword(
   signal?: AbortSignal,
 ): Promise<{ reset: boolean }> {
   return apiClient.post<{ reset: boolean }>('/auth/reset-password', request, { signal });
+}
+
+/** Unlike everything above, this one runs on a session: it is the account changing its own door. */
+export function changePassword(
+  request: ChangePasswordRequest,
+  signal?: AbortSignal,
+): Promise<{ changed: boolean }> {
+  return apiClient.post<{ changed: boolean }>('/account/change-password', request, { signal });
 }

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
 import { StateMessage } from '@/components/ui/StateMessage';
 import { useAuth } from '@/features/auth/AuthContext';
+import { resendVerification } from '@/features/auth/api';
+import { ApiError } from '@/lib/apiClient';
 import { getErrorMessage, getFieldErrors } from '@/lib/apiErrors';
 
 import styles from './AuthPage.module.css';
@@ -24,6 +26,8 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   if (status === 'authenticated') {
     return <Navigate to="/account" replace />;
@@ -41,8 +45,38 @@ export function LoginPage() {
       navigate(destination, { replace: true });
     } catch (error) {
       setFieldErrors(getFieldErrors(error));
-      setFormError(getErrorMessage(error, 'Could not sign you in. Please try again.'));
+
+      /*
+       * The password was right — the server checked it before saying this — so the only
+       * useful reply is the link the person is missing, not a retype of the password
+       * they just got through.
+       */
+      if (error instanceof ApiError && error.code === 'email_not_confirmed') {
+        setNeedsConfirmation(true);
+        setFormError('Confirm your email address before signing in. We can send the link again.');
+      } else {
+        setNeedsConfirmation(false);
+        setFormError(getErrorMessage(error, 'Could not sign you in. Please try again.'));
+      }
+
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleResendConfirmation() {
+    setIsResending(true);
+    setFormError(null);
+
+    try {
+      const submitted = email.trim();
+      await resendVerification({ email: submitted });
+      navigate('/check-email', {
+        replace: true,
+        state: { email: submitted, purpose: 'verify' },
+      });
+    } catch (error) {
+      setFormError(getErrorMessage(error, 'Could not send the link. Please try again.'));
+      setIsResending(false);
     }
   }
 
@@ -112,6 +146,10 @@ export function LoginPage() {
               ) : null}
             </div>
 
+            <p className={styles.hint}>
+              <Link to="/forgot-password">Forgot your password?</Link>
+            </p>
+
             <label className={styles.checkbox}>
               <input
                 type="checkbox"
@@ -125,6 +163,18 @@ export function LoginPage() {
             <Button type="submit" fullWidth disabled={isSubmitting}>
               {isSubmitting ? 'Signing in…' : 'Sign in'}
             </Button>
+
+            {needsConfirmation ? (
+              <Button
+                type="button"
+                variant="secondary"
+                fullWidth
+                disabled={isResending}
+                onClick={() => void handleResendConfirmation()}
+              >
+                {isResending ? 'Sending the link…' : 'Email me the confirmation link again'}
+              </Button>
+            ) : null}
           </form>
         )}
 

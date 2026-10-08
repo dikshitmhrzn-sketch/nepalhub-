@@ -101,6 +101,84 @@
   margin-top: var(--nh-space-5);
 }
 
+/* The password form gets its own panel: it is an action, not a fact about the account,
+   and a definition list is the wrong shape for two inputs and a button. */
+.passwordPanel {
+  max-width: 40rem;
+  margin-inline: auto;
+  padding: var(--nh-space-6);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-lg);
+  background-color: var(--nh-surface);
+  box-shadow: var(--nh-shadow-sm);
+}
+
+.passwordTitle {
+  margin: 0;
+  font-size: var(--nh-font-size-xl);
+}
+
+.passwordSubtitle {
+  margin-top: var(--nh-space-2);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.passwordForm {
+  display: grid;
+  gap: var(--nh-space-4);
+  margin-top: var(--nh-space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--nh-space-2);
+}
+
+.label {
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-md);
+}
+
+.input:focus-visible {
+  border-color: var(--nh-focus-ring);
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--nh-danger);
+}
+
+.hint {
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-xs);
+}
+
+.fieldError {
+  color: var(--nh-status-danger-text);
+  font-size: var(--nh-font-size-xs);
+}
+
+.alert {
+  margin-top: var(--nh-space-4);
+  padding: var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-danger);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-sm);
+}
+
 /* The badges sit in their own panel rather than inside the account details: three cards need
    more width than a definition list does, and a single column at 320px is enough on a phone. */
 .badgesPanel {

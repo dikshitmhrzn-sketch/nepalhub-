@@ -21,8 +21,9 @@ internal static class IdentityErrors
         // Change-password is the only endpoint that ever hears PasswordMismatch as an
         // IdentityResult: sign-in answers its own generic line instead, and the reset half
         // of recovery has no old password to mismatch, so this code can only mean the
-        // current password was guessed badly.
-        ["PasswordMismatch"] = (FieldErrors.PasswordField, "password_incorrect"),
+        // current password was guessed badly — and it belongs under that input rather
+        // than beside the new password a form is also collecting.
+        ["PasswordMismatch"] = (FieldErrors.CurrentPasswordField, "password_incorrect"),
         ["PhoneNumberAlreadyExists"] = (FieldErrors.PhoneNumberField, "phone_taken"),
     };
 
