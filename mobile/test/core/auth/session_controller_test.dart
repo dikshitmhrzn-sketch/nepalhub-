@@ -135,6 +135,78 @@ void main() {
     expect(body?['fullName'], 'New Member');
   });
 
+  test('sign-up for an unconfirmed address returns the user but starts no session',
+      () async {
+    api.onJson('GET', '/auth/session', sessionPayload(authenticated: false));
+    await session.restore();
+    routeCsrf();
+    final unconfirmed = userPayload(name: 'New Member')
+      ..['email'] = 'new@example.com'
+      ..['isEmailConfirmed'] = false;
+    api.onJson('POST', '/auth/register', <String, Object?>{
+      'success': true,
+      'data': unconfirmed,
+      'error': null,
+    });
+
+    final result = await session.signUp(
+      fullName: 'New Member',
+      email: 'new@example.com',
+      password: 'Str0ng!pass',
+    );
+
+    // The server minted no cookie, so holding the user here would only describe a
+    // session the next request would fail to find.
+    expect(result.error, isNull);
+    expect(result.user?.email, 'new@example.com');
+    expect(result.user!.isEmailConfirmed, isFalse);
+    expect(session.status, SessionStatus.anonymous);
+    expect(session.user, isNull);
+  });
+
+  test('recovery posts their one-time answers and change no session', () async {
+    api.onJson('GET', '/auth/session', sessionPayload(authenticated: false));
+    await session.restore();
+    routeCsrf();
+    Object? answer(Map<String, Object?> data) => <String, Object?>{
+          'success': true,
+          'data': data,
+          'error': null,
+        };
+    api.onJson('POST', '/auth/verify-email', answer(<String, Object?>{'verified': true}));
+    api.onJson('POST', '/auth/resend-verification', answer(<String, Object?>{'sent': true}));
+    api.onJson('POST', '/auth/forgot-password', answer(<String, Object?>{'sent': true}));
+    api.onJson('POST', '/auth/reset-password', answer(<String, Object?>{'reset': true}));
+    api.onJson('POST', '/account/change-password', answer(<String, Object?>{'changed': true}));
+
+    await session.verifyEmail(email: 'asha@example.com', token: 'the-token');
+    await session.resendVerification(email: 'asha@example.com');
+    await session.forgotPassword(email: 'asha@example.com');
+    await session.resetPassword(
+      email: 'asha@example.com',
+      token: 'the-token',
+      password: 'BrandNewPass1!',
+    );
+    await session.changePassword(
+      currentPassword: 'Str0ng!pass',
+      newPassword: 'BrandNewPass1!',
+    );
+
+    final verify = api.requestsWhere('POST', '/auth/verify-email').single;
+    expect(verify.jsonBody?['email'], 'asha@example.com');
+    expect(verify.jsonBody?['token'], 'the-token');
+    final reset = api.requestsWhere('POST', '/auth/reset-password').single;
+    expect(reset.jsonBody?['password'], 'BrandNewPass1!');
+    final change = api.requestsWhere('POST', '/account/change-password').single;
+    expect(change.jsonBody?['currentPassword'], 'Str0ng!pass');
+    expect(api.countOf('POST', '/auth/forgot-password'), 1);
+    expect(api.countOf('POST', '/auth/resend-verification'), 1);
+
+    // None of them sign anyone in, sign anyone out, or otherwise move the session.
+    expect(session.status, SessionStatus.anonymous);
+    expect(session.user, isNull);
+  });
+
   test('sign-out clears the session even if the server is unreachable', () async {
     api.onJson('GET', '/auth/session', sessionPayload(authenticated: true, user: userPayload()));
     await session.restore();

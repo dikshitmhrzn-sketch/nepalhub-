@@ -3,9 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api/api_client.dart';
+import '../core/api/api_exception.dart';
 import '../core/auth/session_controller.dart';
+import '../core/auth/validators.dart';
 import '../core/theme/tokens.dart';
 import '../core/util/formats.dart';
+import '../core/widgets/error_banner.dart';
 import '../core/widgets/loadable_view.dart';
 import '../core/widgets/state_message.dart';
 import '../features/badges/api.dart';
@@ -96,6 +99,8 @@ class AccountPage extends StatelessWidget {
               ),
             ),
           if (session.user != null) ...[
+            const SizedBox(height: NhSpace.s5),
+            const _ChangePasswordCard(),
             const SizedBox(height: NhSpace.s5),
             Text(
               'Badges',
@@ -192,6 +197,170 @@ class AccountPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The account changing its own door: the current password is the credential, and the
+/// change ends every other session while this one stays exactly where it was.
+class _ChangePasswordCard extends StatefulWidget {
+  const _ChangePasswordCard();
+
+  @override
+  State<_ChangePasswordCard> createState() => _ChangePasswordCardState();
+}
+
+class _ChangePasswordCardState extends State<_ChangePasswordCard> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _current = TextEditingController();
+  final TextEditingController _next = TextEditingController();
+  Map<String, String> _fieldErrors = const <String, String>{};
+  ApiException? _error;
+  bool _obscurePassword = true;
+  bool _submitting = false;
+  bool _changed = false;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _fieldErrors = const <String, String>{};
+      _error = null;
+      _changed = false;
+    });
+    try {
+      await context.read<SessionController>().changePassword(
+            currentPassword: _current.text,
+            newPassword: _next.text,
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _changed = true;
+        _submitting = false;
+        _current.clear();
+        _next.clear();
+      });
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _error = error;
+        _fieldErrors = error.fieldMessages;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(NhSpace.s4),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Change password',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: NhSpace.s1),
+              Text(
+                'The current password is required. Everywhere the old one was still '
+                'signed in is signed out when the new one takes.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: colors.onSurfaceVariant),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: NhSpace.s3),
+                ErrorBanner.fromApi(_error!),
+              ],
+              if (_changed) ...[
+                const SizedBox(height: NhSpace.s3),
+                Text(
+                  'Password changed. Use the new one the next time you sign in.',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: colors.primary, fontWeight: FontWeight.w600),
+                ),
+              ],
+              const SizedBox(height: NhSpace.s3),
+              TextFormField(
+                controller: _current,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.next,
+                autofillHints: const <String>[AutofillHints.password],
+                decoration: const InputDecoration(labelText: 'Current password'),
+                validator: (value) => _fieldErrors['currentPassword'] ??
+                    signInPasswordValidator(value),
+                onChanged: (_) {
+                  if (_fieldErrors.containsKey('currentPassword')) {
+                    setState(() {
+                      _fieldErrors = Map<String, String>.from(_fieldErrors)
+                        ..remove('currentPassword');
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: NhSpace.s3),
+              TextFormField(
+                controller: _next,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const <String>[AutofillHints.newPassword],
+                decoration: InputDecoration(
+                  labelText: 'New password',
+                  helperText:
+                      'At least 8 characters with upper case, lower case, a digit and a symbol.',
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_rounded
+                          : Icons.visibility_off_rounded,
+                    ),
+                  ),
+                ),
+                validator: (value) =>
+                    _fieldErrors['password'] ?? passwordValidator(value),
+                onFieldSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: NhSpace.s4),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Change password'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

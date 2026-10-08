@@ -9,11 +9,13 @@ import '../../pages/browse_page.dart';
 import '../../pages/business_page.dart';
 import '../../pages/businesses_page.dart';
 import '../../pages/calculator_page.dart';
+import '../../pages/check_email_page.dart';
 import '../../pages/checkout_page.dart';
 import '../../pages/deal_page.dart';
 import '../../pages/deals_page.dart';
 import '../../pages/event_page.dart';
 import '../../pages/events_page.dart';
+import '../../pages/forgot_password_page.dart';
 import '../../pages/home_page.dart';
 import '../../pages/job_page.dart';
 import '../../pages/jobs_page.dart';
@@ -23,10 +25,12 @@ import '../../pages/misc_pages.dart';
 import '../../pages/payments_page.dart';
 import '../../pages/quiz_page.dart';
 import '../../pages/register_page.dart';
+import '../../pages/reset_password_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/student_resource_page.dart';
 import '../../pages/students_page.dart';
 import '../../pages/tools_page.dart';
+import '../../pages/verify_email_page.dart';
 
 String _slug(GoRouterState state) => state.pathParameters['slug'] ?? '';
 
@@ -156,6 +160,40 @@ GoRouter createAppRouter() => GoRouter(
         GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterPage(),
+        ),
+        /*
+          The roads of account recovery, all anonymous: the link in the mail — not a
+          session — is the credential each one runs on, and the address plus token travel
+          in the query the mail carried.
+         */
+        GoRoute(
+          path: '/forgot-password',
+          builder: (context, state) => const ForgotPasswordPage(),
+        ),
+        GoRoute(
+          path: '/check-email',
+          builder: (context, state) => CheckEmailPage(
+            args: state.extra is CheckEmailArgs
+                ? state.extra! as CheckEmailArgs
+                : const CheckEmailArgs(
+                    email: '',
+                    purpose: RecoveryMailPurpose.verification,
+                  ),
+          ),
+        ),
+        GoRoute(
+          path: '/verify-email',
+          builder: (context, state) => VerifyEmailPage(
+            email: state.uri.queryParameters['email'] ?? '',
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
+        ),
+        GoRoute(
+          path: '/reset-password',
+          builder: (context, state) => ResetPasswordPage(
+            email: state.uri.queryParameters['email'] ?? '',
+            token: state.uri.queryParameters['token'] ?? '',
+          ),
         ),
         GoRoute(
           path: '/checkout',

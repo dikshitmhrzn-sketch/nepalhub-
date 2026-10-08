@@ -30,6 +30,14 @@ class ApiException implements Exception {
   bool get isCsrfFailed => code == csrfFailed;
   bool get isSessionInvalid => status == 401 || code == sessionInvalid;
 
+  /// The password was right and the address has not been confirmed yet: the sign-in
+  /// page should offer the link rather than invite another password attempt.
+  bool get isEmailNotConfirmed => code == emailNotConfirmed;
+
+  /// A one-time link ran out — expired, spent, or minted for another purpose. The
+  /// server refuses every reason identically, so the only reply is a fresh link.
+  bool get isTokenInvalid => code == tokenInvalid;
+
   String messageFor(String field) {
     for (final detail in details) {
       if (detail.field == field) {
@@ -57,6 +65,8 @@ class ApiException implements Exception {
   static const String csrfFailed = 'csrf_failed';
   static const String rateLimited = 'rate_limited';
   static const String sessionInvalid = 'session_invalid';
+  static const String emailNotConfirmed = 'email_not_confirmed';
+  static const String tokenInvalid = 'token_invalid';
   static const String unexpectedError = 'unexpected_error';
   static const String serverError = 'server_error';
 }

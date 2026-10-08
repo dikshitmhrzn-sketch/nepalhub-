@@ -7,6 +7,7 @@ import '../core/auth/session_controller.dart';
 import '../core/auth/validators.dart';
 import '../core/theme/tokens.dart';
 import '../core/widgets/error_banner.dart';
+import 'check_email_page.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -65,7 +66,19 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
     if (result.user != null) {
-      context.go('/account');
+      // An address the server wants confirmed has no session yet: the visitor waits on
+      // the link instead of landing on a page that would ask the server who they are.
+      if (result.user!.isEmailConfirmed) {
+        context.go('/account');
+      } else {
+        context.go(
+          '/check-email',
+          extra: CheckEmailArgs(
+            email: result.user!.email,
+            purpose: RecoveryMailPurpose.verification,
+          ),
+        );
+      }
       return;
     }
     final error = result.error!;

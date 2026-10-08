@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nepal_hub/core/api/api_client.dart';
 import 'package:nepal_hub/core/auth/session_controller.dart';
+import 'package:nepal_hub/pages/check_email_page.dart';
+import 'package:nepal_hub/pages/forgot_password_page.dart';
 import 'package:nepal_hub/pages/login_page.dart';
 import 'package:nepal_hub/pages/register_page.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +38,25 @@ GoRouter authRouter(String initialLocation) => GoRouter(
         GoRoute(
           path: '/register',
           builder: (context, state) => const RegisterPage(),
+        ),
+        GoRoute(
+          path: '/forgot-password',
+          builder: (context, state) => const ForgotPasswordPage(),
+        ),
+        GoRoute(
+          path: '/check-email',
+          builder: (context, state) => CheckEmailPage(
+            args: state.extra! as CheckEmailArgs,
+          ),
+        ),
+        GoRoute(
+          path: '/check-email-none',
+          builder: (context, state) => const CheckEmailPage(
+            args: CheckEmailArgs(
+              email: '',
+              purpose: RecoveryMailPurpose.verification,
+            ),
+          ),
         ),
         GoRoute(
           path: '/account',
@@ -194,5 +215,92 @@ void main() {
       findsOneWidget,
     );
     expect(api.countOf('POST', '/auth/register'), 0);
+  });
+
+  testWidgets('an unconfirmed registration waits on the confirmation link instead '
+      'of signing in', (tester) async {
+    final unconfirmed = Map<String, Object?>.from(sessionUser)
+      ..['isEmailConfirmed'] = false;
+    api.onJson('POST', '/auth/register', envelope(unconfirmed));
+
+    await pumpAuth(tester, api, initialLocation: '/register');
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'Asha Kumari');
+    await tester.enterText(find.byType(TextFormField).at(1), 'asha@example.com');
+    await tester.enterText(find.byType(TextFormField).at(3), 'Str0ng!pass');
+    await tester.enterText(find.byType(TextFormField).at(4), 'Str0ng!pass');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create account'));
+    await tester.pumpAndSettle();
+
+    // No session was minted, so the account page — which would ask the server who the
+    // visitor is — is not where they land.
+    expect(find.text('account-screen'), findsNothing);
+    expect(find.text('Confirm your email'), findsNWidgets(2));
+    expect(find.textContaining('asha@example.com'), findsOneWidget);
+  });
+
+  testWidgets('a sign in refused for an unconfirmed address offers the link again',
+      (tester) async {
+    api.onError(
+      'POST',
+      '/auth/login',
+      403,
+      'email_not_confirmed',
+      'Confirm your email address first.',
+    );
+    api.onJson(
+      'POST',
+      '/auth/resend-verification',
+      envelope(<String, Object?>{'sent': true}),
+    );
+
+    await pumpAuth(tester, api);
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'asha@example.com');
+    await tester.enterText(find.byType(TextFormField).at(1), 'Str0ng!pass');
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm your email address first.'), findsOneWidget);
+
+    await tester.tap(
+      find.widgetWithText(OutlinedButton, 'Email me the confirmation link again'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(api.countOf('POST', '/auth/resend-verification'), 1);
+    expect(find.text('Confirm your email'), findsNWidgets(2));
+    expect(find.textContaining('asha@example.com'), findsOneWidget);
+  });
+
+  testWidgets('asking for a reset link lands on the shared screen and can ask again',
+      (tester) async {
+    api.onJson(
+      'POST',
+      '/auth/forgot-password',
+      envelope(<String, Object?>{'sent': true}),
+    );
+
+    await pumpAuth(tester, api, initialLocation: '/forgot-password');
+
+    await tester.enterText(find.byType(TextFormField).first, 'asha@example.com');
+    await tester.tap(find.widgetWithText(FilledButton, 'Send a reset link'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Check your email'), findsNWidgets(2));
+    expect(find.textContaining('asha@example.com'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Send it again'));
+    await tester.pumpAndSettle();
+
+    expect(api.countOf('POST', '/auth/forgot-password'), 2);
+    expect(find.textContaining('Another link is on its way'), findsOneWidget);
+  });
+
+  testWidgets('the check email screen without an address points at sign in',
+      (tester) async {
+    await pumpAuth(tester, api, initialLocation: '/check-email-none');
+
+    expect(find.text('Nothing to check for'), findsOneWidget);
   });
 }

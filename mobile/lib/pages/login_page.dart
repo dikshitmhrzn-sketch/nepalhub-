@@ -7,6 +7,7 @@ import '../core/auth/session_controller.dart';
 import '../core/auth/validators.dart';
 import '../core/theme/tokens.dart';
 import '../core/widgets/error_banner.dart';
+import 'check_email_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,6 +25,8 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = true;
   bool _obscurePassword = true;
   bool _submitting = false;
+  bool _needsConfirmation = false;
+  bool _resending = false;
 
   @override
   void dispose() {
@@ -67,7 +70,40 @@ class _LoginPageState extends State<LoginPage> {
       _submitting = false;
       _error = error;
       _fieldErrors = error.fieldMessages;
+      // The password was right — the server checked it before saying this — so the only
+      // useful reply is the link the person is missing, not another password attempt.
+      _needsConfirmation = error.isEmailNotConfirmed;
     });
+  }
+
+  Future<void> _resendConfirmation() async {
+    final session = context.read<SessionController>();
+    final submitted = _email.text.trim();
+    setState(() {
+      _resending = true;
+      _error = null;
+    });
+    try {
+      await session.resendVerification(email: submitted);
+      if (!mounted) {
+        return;
+      }
+      context.go(
+        '/check-email',
+        extra: CheckEmailArgs(
+          email: submitted,
+          purpose: RecoveryMailPurpose.verification,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _resending = false;
+        _error = error;
+      });
+    }
   }
 
   @override
@@ -136,6 +172,14 @@ class _LoginPageState extends State<LoginPage> {
                     onChanged: (_) => _clearFieldError('password'),
                     onFieldSubmitted: (_) => _submit(),
                   ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed:
+                          _submitting ? null : () => context.push('/forgot-password'),
+                      child: const Text('Forgot your password?'),
+                    ),
+                  ),
                   CheckboxListTile(
                     value: _rememberMe,
                     onChanged: _submitting
@@ -159,6 +203,22 @@ class _LoginPageState extends State<LoginPage> {
                           : const Text('Sign in'),
                     ),
                   ),
+                  if (_needsConfirmation) ...[
+                    const SizedBox(height: NhSpace.s2),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: _resending ? null : _resendConfirmation,
+                        child: _resending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Email me the confirmation link again'),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: NhSpace.s3),
                   Wrap(
                     alignment: WrapAlignment.center,

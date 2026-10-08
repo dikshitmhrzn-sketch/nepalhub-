@@ -101,12 +101,63 @@ class SessionController extends ChangeNotifier {
         fromJson: SessionUser.fromJson,
       );
       _api.csrf.clear();
-      _set(SessionStatus.authenticated, registered);
+      if (registered.isEmailConfirmed) {
+        _set(SessionStatus.authenticated, registered);
+      } else {
+        // The server minted no cookie for an unconfirmed address — there is a link to
+        // wait for, not a session to use — so holding the user here would only describe
+        // a session the next request would fail to find.
+        _set(SessionStatus.anonymous, null);
+      }
       return SignInResult.success(registered);
     } on ApiException catch (error) {
       return SignInResult.failure(error);
     }
   }
+
+  /*
+   * Confirmation and recovery: none of these sign anyone in, and the server answers the
+   * same whether or not the address is known — so they throw an ApiException for the
+   * page to show and change nothing about the session.
+   */
+
+  Future<void> verifyEmail({required String email, required String token}) => _api.postVoid(
+        '/auth/verify-email',
+        body: <String, Object?>{'email': email, 'token': token},
+      );
+
+  Future<void> resendVerification({required String email}) => _api.postVoid(
+        '/auth/resend-verification',
+        body: <String, Object?>{'email': email},
+      );
+
+  Future<void> forgotPassword({required String email}) => _api.postVoid(
+        '/auth/forgot-password',
+        body: <String, Object?>{'email': email},
+      );
+
+  Future<void> resetPassword({
+    required String email,
+    required String token,
+    required String password,
+  }) =>
+      _api.postVoid(
+        '/auth/reset-password',
+        body: <String, Object?>{'email': email, 'token': token, 'password': password},
+      );
+
+  /// Signed in only: the current password is the credential, the new one the change.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) =>
+      _api.postVoid(
+        '/account/change-password',
+        body: <String, Object?>{
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
 
   Future<void> signOut() async {
     try {
