@@ -33,3 +33,23 @@ export interface CsrfToken {
   headerName: string;
   token: string;
 }
+
+/** Mirrors the anonymous answers: the server replies the same whether or not the address is known. */
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+export interface VerifyEmailRequest {
+  email: string;
+  token: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  token: string;
+  password: string;
+}

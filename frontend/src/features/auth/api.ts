@@ -2,10 +2,14 @@ import { apiClient, clearCsrfToken } from '@/lib/apiClient';
 
 import type {
   CsrfToken,
+  ForgotPasswordRequest,
   LoginRequest,
   RegisterRequest,
+  ResendVerificationRequest,
+  ResetPasswordRequest,
   Session,
   SessionUser,
+  VerifyEmailRequest,
 } from './types';
 
 /**
@@ -45,4 +49,35 @@ export async function register(request: RegisterRequest, signal?: AbortSignal): 
 export async function logout(signal?: AbortSignal): Promise<void> {
   await apiClient.post<{ signedOut: boolean }>('/auth/logout', undefined, { signal });
   sessionChanged();
+}
+
+/*
+ * Recovery and confirmation never sign anyone in and never mint a session, so none of
+ * them touch the antiforgery token: the answers are the same whether or not the address
+ * belongs to an account, and the link itself — not a cookie — is what the next step runs on.
+ */
+
+export function verifyEmail(request: VerifyEmailRequest, signal?: AbortSignal): Promise<{ verified: boolean }> {
+  return apiClient.post<{ verified: boolean }>('/auth/verify-email', request, { signal });
+}
+
+export function resendVerification(
+  request: ResendVerificationRequest,
+  signal?: AbortSignal,
+): Promise<{ sent: boolean }> {
+  return apiClient.post<{ sent: boolean }>('/auth/resend-verification', request, { signal });
+}
+
+export function forgotPassword(
+  request: ForgotPasswordRequest,
+  signal?: AbortSignal,
+): Promise<{ sent: boolean }> {
+  return apiClient.post<{ sent: boolean }>('/auth/forgot-password', request, { signal });
+}
+
+export function resetPassword(
+  request: ResetPasswordRequest,
+  signal?: AbortSignal,
+): Promise<{ reset: boolean }> {
+  return apiClient.post<{ reset: boolean }>('/auth/reset-password', request, { signal });
 }

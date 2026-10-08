@@ -22,10 +22,12 @@ import { VerificationsAdminPage } from '@/pages/admin/VerificationsAdminPage';
 import { BusinessPage } from '@/pages/BusinessPage';
 import { BusinessesPage } from '@/pages/BusinessesPage';
 import { CalculatorPage } from '@/pages/CalculatorPage';
+import { CheckEmailPage } from '@/pages/CheckEmailPage';
 import { DealPage } from '@/pages/DealPage';
 import { DealsPage } from '@/pages/DealsPage';
 import { EventPage } from '@/pages/EventPage';
 import { EventsPage } from '@/pages/EventsPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { HomePage } from '@/pages/HomePage';
 import { JobPage } from '@/pages/JobPage';
 import { JobsPage } from '@/pages/JobsPage';
@@ -37,11 +39,13 @@ import { PaymentReturnPage } from '@/pages/PaymentReturnPage';
 import { PaymentsPage } from '@/pages/PaymentsPage';
 import { QuizPage } from '@/pages/QuizPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { SearchPage } from '@/pages/SearchPage';
 import { StaffDashboardPage } from '@/pages/StaffDashboardPage';
 import { StudentResourcePage } from '@/pages/StudentResourcePage';
 import { StudentsPage } from '@/pages/StudentsPage';
 import { ToolsPage } from '@/pages/ToolsPage';
+import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 
 export const router = createBrowserRouter([
   {
@@ -50,6 +54,15 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
+      /*
+        The three roads of account recovery: ask for a link, spend it, and the screen
+        both the confirmation and the recovery asks wait on. All four are anonymous —
+        the link in the mail, not a session, is the credential each one runs on.
+       */
+      { path: 'forgot-password', element: <ForgotPasswordPage /> },
+      { path: 'reset-password', element: <ResetPasswordPage /> },
+      { path: 'verify-email', element: <VerifyEmailPage /> },
+      { path: 'check-email', element: <CheckEmailPage /> },
       { path: 'tools', element: <ToolsPage /> },
       { path: 'quiz', element: <QuizPage /> },
       { path: 'students', element: <StudentsPage /> },
