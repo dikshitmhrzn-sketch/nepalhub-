@@ -180,6 +180,105 @@ public class EmailSenderTests
         Assert.IsType<NullEmailSender>(factory.Services.GetRequiredService<IEmailSender>());
     }
 
+    /// <summary>
+    /// The production provider, once every part the relay needs is described: host to
+    /// connect to, a From the receiver can answer, an origin for the links inside.
+    /// </summary>
+    [Fact]
+    public void Settings_accept_the_smtp_provider_when_the_relay_is_fully_described()
+    {
+        Assert.Null(SmtpReady().Validate(isProduction: true));
+    }
+
+    [Fact]
+    public void Settings_explain_which_smtp_part_the_connection_would_be_missing()
+    {
+        var noHost = SmtpReady();
+        noHost.Smtp.Host = " ";
+        Assert.Contains("Smtp:Host", noHost.Validate(isProduction: true));
+
+        var badPort = SmtpReady();
+        badPort.Smtp.Port = 0;
+        Assert.Contains("Smtp:Port", badPort.Validate(isProduction: true));
+
+        var badEncryption = SmtpReady();
+        badEncryption.Smtp.Encryption = "opportunistic-maybe";
+        Assert.Contains("Smtp:Encryption", badEncryption.Validate(isProduction: true));
+    }
+
+    /// <summary>
+    /// A message with no From is one a relay either refuses or rewrites beyond recognition,
+    /// and credentials supplied in half are a secret rotated to a value that no longer works.
+    /// </summary>
+    [Fact]
+    public void Settings_explain_which_smtp_part_the_envelope_would_be_missing()
+    {
+        var noFrom = SmtpReady();
+        noFrom.From = string.Empty;
+        Assert.Contains("Email:From", noFrom.Validate(isProduction: true));
+
+        var passwordAlone = SmtpReady();
+        passwordAlone.Smtp.Password = "half-a-credential";
+        Assert.Contains("must be set together", passwordAlone.Validate(isProduction: true));
+
+        var userAlone = SmtpReady();
+        userAlone.Smtp.UserName = "half-a-credential";
+        Assert.Contains("must be set together", userAlone.Validate(isProduction: true));
+    }
+
+    /// <summary>
+    /// The one host-level assertion for SMTP: with the mail section pointed at a relay, the
+    /// host resolves the sender that speaks SMTP — and still never opens a socket to prove it.
+    ///
+    /// <para>
+    /// The keys travel as environment variables rather than an in-memory configuration
+    /// source: the application binds its mail section while it is still building, before a
+    /// fixture's own source would be applied, which is the same reason every other
+    /// startup-time override in this suite (<c>ConnectionStrings__Default</c>,
+    /// <c>Payments__ReconcileIntervalSeconds</c>) is an environment variable too. The suite
+    /// runs serialized, so setting them around this one host and clearing them in the
+    /// finally means no other host is ever built while they are set.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void A_host_configured_for_smtp_resolves_the_smtp_sender()
+    {
+        var mail = new Dictionary<string, string?>
+        {
+            ["Email__Provider"] = EmailSettings.ProviderSmtp,
+            ["Email__WebBaseUrl"] = "https://nepalhub.example.com",
+            ["Email__From"] = "no-reply@nepalhub.test",
+            ["Email__Smtp__Host"] = "smtp.example.test",
+        };
+
+        try
+        {
+            foreach (var (key, value) in mail)
+            {
+                Environment.SetEnvironmentVariable(key, value);
+            }
+
+            using var factory = new NepalHubApiFactory();
+
+            Assert.IsType<SmtpEmailSender>(factory.Services.GetRequiredService<IEmailSender>());
+        }
+        finally
+        {
+            foreach (var key in mail.Keys)
+            {
+                Environment.SetEnvironmentVariable(key, null);
+            }
+        }
+    }
+
+    private static EmailSettings SmtpReady() => new()
+    {
+        Provider = EmailSettings.ProviderSmtp,
+        WebBaseUrl = "https://nepalhub.example.com",
+        From = "no-reply@nepalhub.test",
+        Smtp = new EmailSmtpSettings { Host = "smtp.example.test" },
+    };
+
     private static string NewScratchDirectory()
     {
         var directory = Path.Combine(Path.GetTempPath(), "nepalhub-email-tests", Guid.NewGuid().ToString("N"));

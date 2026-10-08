@@ -21,6 +21,8 @@ public sealed class EmailSettings
 
     public const string ProviderFile = "file";
 
+    public const string ProviderSmtp = "smtp";
+
     /// <summary>Which sender answers. "none" until one is deliberately configured.</summary>
     public string Provider { get; set; } = ProviderNone;
 
@@ -62,6 +64,8 @@ public sealed class EmailSettings
 
     public EmailFileSettings File { get; set; } = new();
 
+    public EmailSmtpSettings Smtp { get; set; } = new();
+
     /// <summary>Whether any sender is configured at all.</summary>
     public bool HasProvider =>
         !string.IsNullOrWhiteSpace(Provider)
@@ -84,13 +88,17 @@ public sealed class EmailSettings
     /// </summary>
     public string? Validate(bool isProduction)
     {
-        if (!string.Equals(Provider, ProviderNone, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(Provider, ProviderFile, StringComparison.OrdinalIgnoreCase))
+        var isFile = string.Equals(Provider, ProviderFile, StringComparison.OrdinalIgnoreCase);
+        var isSmtp = string.Equals(Provider, ProviderSmtp, StringComparison.OrdinalIgnoreCase);
+
+        if (!isFile
+            && !isSmtp
+            && !string.Equals(Provider, ProviderNone, StringComparison.OrdinalIgnoreCase))
         {
-            return $"Email:Provider '{Provider}' is not supported. Set it to one of: none, file.";
+            return $"Email:Provider '{Provider}' is not supported. Set it to one of: none, file, smtp.";
         }
 
-        if (isProduction && string.Equals(Provider, ProviderFile, StringComparison.OrdinalIgnoreCase))
+        if (isProduction && isFile)
         {
             return "Email:Provider 'file' writes messages to disk for local development and is "
                 + "refused in Production, where nobody would ever read them. Use smtp or none.";
@@ -103,6 +111,42 @@ public sealed class EmailSettings
             return "Email:WebBaseUrl must be the absolute http(s) origin of the site (for "
                 + "example https://nepalhub.example.com) while a provider is configured, because "
                 + "every link in an email is built from it.";
+        }
+
+        if (isSmtp)
+        {
+            if (string.IsNullOrWhiteSpace(Smtp.Host))
+            {
+                return "Email:Smtp:Host is required when the provider is smtp.";
+            }
+
+            if (Smtp.Port is < 1 or > 65535)
+            {
+                return "Email:Smtp:Port must be between 1 and 65535.";
+            }
+
+            if (!EmailSmtpSettings.EncryptionOptions.Contains(
+                    Smtp.Encryption.Trim(),
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                return $"Email:Smtp:Encryption '{Smtp.Encryption}' is not supported. Set it to one of: "
+                    + string.Join(", ", EmailSmtpSettings.EncryptionOptions) + ".";
+            }
+
+            if (string.IsNullOrWhiteSpace(From))
+            {
+                return "Email:From is required when the provider is smtp, because a message "
+                    + "without an envelope the receiver can answer is one that gets dropped.";
+            }
+
+            var hasUser = !string.IsNullOrWhiteSpace(Smtp.UserName);
+            var hasPassword = Smtp.Password is { Length: > 0 };
+
+            if (hasUser != hasPassword)
+            {
+                return "Email:Smtp:UserName and Email:Smtp:Password must be set together — an "
+                    + "unauthenticated relay needs neither, a provider account needs both.";
+            }
         }
 
         if (ConfirmTokenLifetimeMinutes < 1)
@@ -132,4 +176,35 @@ public sealed class EmailFileSettings
     /// which needs no setup on any machine a developer is likely to use.
     /// </summary>
     public string Directory { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// How to reach the SMTP relay: host, port, whether the conversation is or becomes
+/// encrypted, and the credentials if the relay wants them — bound from user-secrets or the
+/// environment like every other credential in this codebase, so the host and the port are
+/// all the committed files ever carry.
+/// </summary>
+public sealed class EmailSmtpSettings
+{
+    /// <summary>The relay's hostname, for example <c>smtp.provider.example</c>.</summary>
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>587 for STARTTLS submission, 465 for implicit TLS — the two the world uses.</summary>
+    public int Port { get; set; } = 587;
+
+    /// <summary>
+    /// How the connection is protected: <c>auto</c> upgrades when the server offers it,
+    /// <c>starttls</c> insists on the upgrade, <c>ssl</c> is TLS from the first byte
+    /// (port 465), <c>none</c> is for a local relay on a trusted machine.
+    /// </summary>
+    public string Encryption { get; set; } = "auto";
+
+    /// <summary>The relay account, empty for an unauthenticated local relay.</summary>
+    public string UserName { get; set; } = string.Empty;
+
+    /// <summary>The relay account's password or API key. From secrets or the environment only.</summary>
+    public string Password { get; set; } = string.Empty;
+
+    /// <summary>The accepted spellings of <see cref="Encryption"/>, shared with validation.</summary>
+    internal static readonly string[] EncryptionOptions = ["auto", "starttls", "ssl", "none"];
 }

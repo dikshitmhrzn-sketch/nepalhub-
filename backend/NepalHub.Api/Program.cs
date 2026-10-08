@@ -515,6 +515,10 @@ if (string.Equals(emailSettings.Provider, EmailSettings.ProviderFile, StringComp
 {
     builder.Services.AddSingleton<IEmailSender, FileEmailSender>();
 }
+else if (string.Equals(emailSettings.Provider, EmailSettings.ProviderSmtp, StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+}
 else
 {
     builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
