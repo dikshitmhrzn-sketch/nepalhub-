@@ -136,6 +136,38 @@ public class EmailVerificationTests
         Assert.Equal(2, host.Recorder.Messages.Count);
     }
 
+    /// <summary>
+    /// The per-address quiet window: the first message to an address goes, the second one
+    /// inside the window does not, and the endpoint answers the same either way. The rate
+    /// limiter counts calls per IP, this counts sends per address, and together a loop
+    /// cannot spend one quota to keep one mailbox busy with the other — while a neighbour's
+    /// own registration, a different address, sends as usual.
+    /// </summary>
+    [Fact]
+    public async Task A_second_message_to_the_same_address_inside_the_quiet_window_is_not_sent()
+    {
+        using var host = MailApiFactory.Create(openWindow: false);
+        var api = new AuthApiClient(host.CreateClient());
+        var email = TestData.UniqueEmail();
+
+        using var registered = await api.RegisterAsync(email, NepalHubApiFactory.ValidPassword, "Sita Sharma");
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        Assert.Single(host.Recorder.Messages);
+
+        using var resend = await api.PostAsync("/api/auth/resend-verification", new { email });
+        Assert.Equal(HttpStatusCode.OK, resend.StatusCode);
+        Assert.Single(host.Recorder.Messages);
+
+        // The window is keyed by address, not by host: another account's own mail still
+        // goes out, so one quiet mailbox is never a quiet service.
+        using var neighbour = await api.RegisterAsync(
+            TestData.UniqueEmail("neighbour"),
+            NepalHubApiFactory.ValidPassword,
+            "Nirmala Neighbour");
+        Assert.Equal(HttpStatusCode.Created, neighbour.StatusCode);
+        Assert.Equal(2, host.Recorder.Messages.Count);
+    }
+
     [Fact]
     public async Task A_bad_token_and_an_unknown_address_get_the_same_answer()
     {
@@ -196,19 +228,26 @@ public class EmailVerificationTests
 /// <para>
 /// The mail section is bound while the application starts, before any in-memory
 /// configuration source a fixture could add would apply, so the provider travels as
-/// environment variables for the length of the startup and is cleared the moment the host
-/// is up — the same reason every other startup-time override in this suite travels that
-/// way. The suite runs serialized, so no other host is built inside that window.
+/// environment variables for the length of the startup and is cleared the moment the
+/// host is up — the same reason every other startup-time override in this suite travels
+/// that way. The suite runs serialized, so no other host is built inside that window.
+/// </para>
+/// <para>
+/// The per-address quiet window is open by default here, because these tests drive
+/// several messages to one address within seconds of each other — the window itself has
+/// its own unit test and its own integration test, which passes <paramref name="openWindow"/>
+/// as false to get one.
 /// </para>
 /// </summary>
 public sealed class MailApiFactory : NepalHubApiFactory
 {
-    public static MailApiFactory Create()
+    public static MailApiFactory Create(bool openWindow = true)
     {
         var mail = new Dictionary<string, string?>
         {
             ["Email__Provider"] = EmailSettings.ProviderFile,
             ["Email__WebBaseUrl"] = "https://nepalhub.test",
+            ["Email__SendCooldownSeconds"] = openWindow ? "0" : "60",
         };
 
         try

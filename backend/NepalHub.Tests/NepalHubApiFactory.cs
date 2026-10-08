@@ -28,6 +28,9 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _bookingRateLimitPermitLimit;
     private readonly int _paymentRateLimitPermitLimit;
     private readonly int _businessRateLimitPermitLimit;
+    private readonly int _passwordResetRateLimitPermitLimit;
+    private readonly int _resendVerificationRateLimitPermitLimit;
+    private readonly int _changePasswordRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -44,7 +47,10 @@ private readonly int _authRateLimitPermitLimit;
         int claimRateLimitPermitLimit = 10_000,
         int bookingRateLimitPermitLimit = 10_000,
         int paymentRateLimitPermitLimit = 10_000,
-        int businessRateLimitPermitLimit = 10_000)
+        int businessRateLimitPermitLimit = 10_000,
+        int passwordResetRateLimitPermitLimit = 10_000,
+        int resendVerificationRateLimitPermitLimit = 10_000,
+        int changePasswordRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
@@ -56,6 +62,9 @@ private readonly int _authRateLimitPermitLimit;
         _bookingRateLimitPermitLimit = bookingRateLimitPermitLimit;
         _paymentRateLimitPermitLimit = paymentRateLimitPermitLimit;
         _businessRateLimitPermitLimit = businessRateLimitPermitLimit;
+        _passwordResetRateLimitPermitLimit = passwordResetRateLimitPermitLimit;
+        _resendVerificationRateLimitPermitLimit = resendVerificationRateLimitPermitLimit;
+        _changePasswordRateLimitPermitLimit = changePasswordRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
@@ -66,7 +75,10 @@ private readonly int _authRateLimitPermitLimit;
                 _claimRateLimitPermitLimit,
                 _bookingRateLimitPermitLimit,
                 _paymentRateLimitPermitLimit,
-                _businessRateLimitPermitLimit)
+                _businessRateLimitPermitLimit,
+                _passwordResetRateLimitPermitLimit,
+                _resendVerificationRateLimitPermitLimit,
+                _changePasswordRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 
@@ -256,12 +268,57 @@ public sealed class BusinessLimitedApiFactory : NepalHubApiFactory
     public const int PermitLimit = 3;
 
     public BusinessLimitedApiFactory()
-        : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit)
+        : base(10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, 10_000, PermitLimit, 10_000, 10_000, 10_000)
     {
         // Every quota is read from the environment while the host starts, and every fixture
         // overwrites that variable with its own values. Starting the host here pins the
         // lowered quota to this host, rather than leaving it to whichever fixture happens to
         // be constructed next.
+        _ = Services;
+    }
+}
+
+/// <summary>
+/// A host whose recovery endpoints refuse almost immediately, so the per-IP quota can be
+/// asserted without a test asking for a hundred links a person would never ask for.
+/// </summary>
+public sealed class PasswordResetLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public PasswordResetLimitedApiFactory()
+        : base(10_000, passwordResetRateLimitPermitLimit: PermitLimit)
+    {
+        // Pinned at construction, for the same reason as the registration quota: the value
+        // lives in the environment, and every fixture overwrites it.
+        _ = Services;
+    }
+}
+
+/// <summary>A host whose resend endpoint refuses almost immediately, for the same reason.</summary>
+public sealed class ResendVerificationLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public ResendVerificationLimitedApiFactory()
+        : base(10_000, resendVerificationRateLimitPermitLimit: PermitLimit)
+    {
+        _ = Services;
+    }
+}
+
+/// <summary>
+/// A host whose change-password endpoint refuses almost immediately, for the same reason:
+/// the quota is what stops a loop grinding a current password through an endpoint that
+/// does not lock out, and a test must not have to grind to see it.
+/// </summary>
+public sealed class ChangePasswordLimitedApiFactory : NepalHubApiFactory
+{
+    public const int PermitLimit = 3;
+
+    public ChangePasswordLimitedApiFactory()
+        : base(10_000, changePasswordRateLimitPermitLimit: PermitLimit)
+    {
         _ = Services;
     }
 }

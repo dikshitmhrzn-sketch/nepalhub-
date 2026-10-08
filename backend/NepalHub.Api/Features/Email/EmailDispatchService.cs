@@ -20,6 +20,7 @@ public sealed class EmailDispatchService(
     UserManager<ApplicationUser> userManager,
     EmailSettings settings,
     EmailLinkBuilder linkBuilder,
+    EmailSendCooldown cooldown,
     IEmailSender sender,
     ILogger<EmailDispatchService> logger)
 {
@@ -69,6 +70,20 @@ public sealed class EmailDispatchService(
                 "Cannot send the {Purpose} email for user {UserId}: the account has no address.",
                 purpose,
                 user.Id);
+            return;
+        }
+
+        // The quiet window, checked before anything is built: the rate limiter counts
+        // calls per IP, this counts sends per address, and together a loop cannot use
+        // one quota to keep one mailbox busy with the other. It is entered before the
+        // send rather than after, so a provider that is failing is not a loophole —
+        // the window guards how hard this host leans on the transport either way.
+        if (!cooldown.TryEnter(email))
+        {
+            logger.LogInformation(
+                "Another {Purpose} email to {Email} was suppressed inside the quiet window.",
+                purpose,
+                email);
             return;
         }
 

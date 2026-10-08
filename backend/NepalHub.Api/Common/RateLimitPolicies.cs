@@ -21,4 +21,10 @@ public static class RateLimitPolicies
     public const string Search = "search";
 
     public const string Payment = "payment";
+
+    public const string PasswordReset = "password-reset";
+
+    public const string ResendVerification = "resend-verification";
+
+    public const string ChangePassword = "change-password";
 }

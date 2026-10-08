@@ -220,6 +220,7 @@ public sealed class AuthController(
 
     [HttpPost("resend-verification")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.ResendVerification)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<object>>> ResendVerification(
         ResendVerificationRequest request,
@@ -241,6 +242,7 @@ public sealed class AuthController(
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<object>>> ForgotPassword(
         ForgotPasswordRequest request,
@@ -264,6 +266,7 @@ public sealed class AuthController(
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.PasswordReset)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiResponse<object>>> ResetPassword(ResetPasswordRequest request)

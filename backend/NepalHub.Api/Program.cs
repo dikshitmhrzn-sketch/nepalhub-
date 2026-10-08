@@ -142,6 +142,36 @@ var paymentRateLimitWindow = builder.Configuration.GetValue("Payment:RateLimit:W
     ? TimeSpan.FromSeconds(paymentWindowSeconds)
     : TimeSpan.FromHours(1);
 
+// Asking for a link that hands over an account — the reset half of recovery and the
+// confirmation half of registration — is bounded like filing a report per IP: a person
+// asks a handful of times in an hour, while a loop asking hundreds is either harvesting
+// addresses or grinding tokens. Both endpoints answer the same either way, so the quota
+// is the only thing a flood ever learns.
+var passwordResetRateLimitPermitLimit = builder.Configuration.GetValue("PasswordReset:RateLimit:PermitLimit", 10);
+var passwordResetRateLimitWindow = builder.Configuration.GetValue("PasswordReset:RateLimit:WindowSeconds", 3600)
+    is { } passwordResetWindowSeconds
+    ? TimeSpan.FromSeconds(passwordResetWindowSeconds)
+    : TimeSpan.FromHours(1);
+
+// Resending a confirmation link is bounded on the same reasoning and the same hour: the
+// legitimate caller lost one email, while a loop is using the endpoint to make this host
+// write to somebody else's inbox at volume.
+var resendVerificationRateLimitPermitLimit = builder.Configuration.GetValue("ResendVerification:RateLimit:PermitLimit", 10);
+var resendVerificationRateLimitWindow = builder.Configuration.GetValue("ResendVerification:RateLimit:WindowSeconds", 3600)
+    is { } resendVerificationWindowSeconds
+    ? TimeSpan.FromSeconds(resendVerificationWindowSeconds)
+    : TimeSpan.FromHours(1);
+
+// Changing a password requires the current one, so the quota exists for the caller who is
+// grinding at it rather than the one changing it: a handful of attempts in an hour is a
+// person who keeps fat-fingering, and the loop worth stopping is trying to guess the
+// current password through an endpoint that does not lock out.
+var changePasswordRateLimitPermitLimit = builder.Configuration.GetValue("ChangePassword:RateLimit:PermitLimit", 10);
+var changePasswordRateLimitWindow = builder.Configuration.GetValue("ChangePassword:RateLimit:WindowSeconds", 3600)
+    is { } changePasswordWindowSeconds
+    ? TimeSpan.FromSeconds(changePasswordWindowSeconds)
+    : TimeSpan.FromHours(1);
+
 // Bound once here and injected into the service as well, so the numbers the API advertises
 // and the numbers it awards cannot drift apart.
 var quizSettings = builder.Configuration.GetSection(QuizSettings.SectionName).Get<QuizSettings>() ?? new QuizSettings();
@@ -405,6 +435,39 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = paymentRateLimitPermitLimit,
             Window = paymentRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    // Both halves of recovery — asking for the link and spending it — draw on one quota,
+    // so a flood cannot switch between the two endpoints and get double the attempts at
+    // somebody else's account.
+    options.AddPolicy(RateLimitPolicies.PasswordReset, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = passwordResetRateLimitPermitLimit,
+            Window = passwordResetRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    options.AddPolicy(RateLimitPolicies.ResendVerification, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = resendVerificationRateLimitPermitLimit,
+            Window = resendVerificationRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
+    options.AddPolicy(RateLimitPolicies.ChangePassword, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = changePasswordRateLimitPermitLimit,
+            Window = changePasswordRateLimitWindow,
             QueueLimit = 0,
             AutoReplenishment = true,
         }));

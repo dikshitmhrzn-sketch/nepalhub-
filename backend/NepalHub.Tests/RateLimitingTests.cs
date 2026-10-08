@@ -105,6 +105,97 @@ public sealed class BookingRateLimitingTests(BookingLimitedApiFactory factory)
 }
 
 /// <summary>
+/// Recovery is bounded per IP for the same hour as filing a report: both halves — asking for
+/// the link and spending it — draw on one quota, so a loop cannot switch endpoints for a
+/// second attempt. The answer before the quota runs out never says whether the account
+/// exists, and past it the answer is a refusal whatever the email.
+/// </summary>
+public sealed class PasswordResetRateLimitingTests(PasswordResetLimitedApiFactory factory)
+    : IClassFixture<PasswordResetLimitedApiFactory>
+{
+    [Fact]
+    public async Task Recovery_stops_at_the_quota()
+    {
+        var api = new AuthApiClient(factory.CreateClient());
+        var email = TestData.UniqueEmail("reset-limit");
+
+        for (var attempt = 0; attempt < PasswordResetLimitedApiFactory.PermitLimit; attempt++)
+        {
+            using var allowed = await api.PostAsync("/api/auth/forgot-password", new { email });
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        var limited = await api.PostForSnapshotAsync("/api/auth/forgot-password", new { email });
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+
+        // Spending a link is the same spend from the same address book, so the hour is
+        // shared: once asking is refused, spending is refused too.
+        using var spentLimited = await api.PostAsync(
+            "/api/auth/reset-password",
+            new { email, token = "not-a-token-at-all", password = "SomeNewPass1!" });
+        Assert.Equal(HttpStatusCode.TooManyRequests, spentLimited.StatusCode);
+        Assert.Contains("rate_limited", await spentLimited.Content.ReadAsStringAsync());
+    }
+}
+
+/// <summary>
+/// Resending a confirmation link shares the reset endpoint's hour and quota: the legitimate
+/// caller lost one email, while a loop is using the endpoint to make this host write to
+/// somebody else's inbox at volume.
+/// </summary>
+public sealed class ResendVerificationRateLimitingTests(ResendVerificationLimitedApiFactory factory)
+    : IClassFixture<ResendVerificationLimitedApiFactory>
+{
+    [Fact]
+    public async Task Resending_stops_at_the_quota()
+    {
+        var api = new AuthApiClient(factory.CreateClient());
+        var email = TestData.UniqueEmail("resend-limit");
+
+        for (var attempt = 0; attempt < ResendVerificationLimitedApiFactory.PermitLimit; attempt++)
+        {
+            using var allowed = await api.PostAsync("/api/auth/resend-verification", new { email });
+            Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+        }
+
+        var limited = await api.PostForSnapshotAsync("/api/auth/resend-verification", new { email });
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+    }
+}
+
+/// <summary>
+/// Changing a password requires the current one, so the quota is for the caller grinding at
+/// it: the wrong guesses count, and the loop worth stopping is refused whichever password
+/// it offers. A handful of attempts in an hour is a person who keeps fat-fingering.
+/// </summary>
+public sealed class ChangePasswordRateLimitingTests(ChangePasswordLimitedApiFactory factory)
+    : IClassFixture<ChangePasswordLimitedApiFactory>
+{
+    [Fact]
+    public async Task Changing_password_stops_at_the_quota()
+    {
+        var api = new AuthApiClient(
+            factory.CreateSignedInClientAsync(TestData.UniqueEmail("password-limit")));
+
+        for (var attempt = 0; attempt < ChangePasswordLimitedApiFactory.PermitLimit; attempt++)
+        {
+            using var refused = await api.PostAsync(
+                "/api/account/change-password",
+                new { currentPassword = "Wr0ngPassword!", newPassword = "BrandNewPass1!" });
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        }
+
+        var limited = await api.PostForSnapshotAsync(
+            "/api/account/change-password",
+            new { currentPassword = "Wr0ngPassword!", newPassword = "BrandNewPass1!" });
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+        Assert.Equal("rate_limited", limited.Error!.Code);
+    }
+}
+
+/// <summary>
 /// Registering a listing opens a row in the staff queue, so it is bounded per IP like filing
 /// a claim: a loop of registrations is exactly the flood the queue exists to not be handed,
 /// and asking for verification is the same spend a moment later.

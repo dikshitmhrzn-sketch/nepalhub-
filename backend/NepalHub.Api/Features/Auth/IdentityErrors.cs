@@ -18,6 +18,11 @@ internal static class IdentityErrors
         ["PasswordRequiresDigit"] = (FieldErrors.PasswordField, "password_too_weak"),
         ["PasswordRequiresLower"] = (FieldErrors.PasswordField, "password_too_weak"),
         ["PasswordRequiresUpper"] = (FieldErrors.PasswordField, "password_too_weak"),
+        // Change-password is the only endpoint that ever hears PasswordMismatch as an
+        // IdentityResult: sign-in answers its own generic line instead, and the reset half
+        // of recovery has no old password to mismatch, so this code can only mean the
+        // current password was guessed badly.
+        ["PasswordMismatch"] = (FieldErrors.PasswordField, "password_incorrect"),
         ["PhoneNumberAlreadyExists"] = (FieldErrors.PhoneNumberField, "phone_taken"),
     };
 
@@ -56,6 +61,7 @@ internal static class IdentityErrors
         "password_too_short" => "Password must be at least 8 characters.",
         "password_too_long" => "Password must be at most 100 characters.",
         "password_too_weak" => "Password must contain upper case, lower case, a digit and a symbol.",
+        "password_incorrect" => "Your current password is incorrect.",
         "phone_taken" => "This phone number is already registered.",
         _ => fallback,
     };
