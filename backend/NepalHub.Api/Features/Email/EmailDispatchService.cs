@@ -72,10 +72,13 @@ public sealed class EmailDispatchService(
             return;
         }
 
-        var draft = await draftFactory(user);
-
         try
         {
+            // Inside the guard as well: building the link needs the configured origin, and
+            // an endpoint whose mail section is half-configured must still answer — a host
+            // that cannot even form a link is a host that simply does not send.
+            var draft = await draftFactory(user);
+
             await sender.SendAsync(
                 new EmailMessage(email, draft.Subject, draft.HtmlBody, draft.TextBody, purpose),
                 cancellationToken);

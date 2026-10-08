@@ -24,7 +24,7 @@ public class EmailVerificationTests
     [Fact]
     public async Task Registering_with_mail_configured_creates_the_account_unconfirmed_and_sends_the_link()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         var api = new AuthApiClient(host.CreateClient());
         var email = TestData.UniqueEmail();
 
@@ -49,14 +49,14 @@ public class EmailVerificationTests
     [Fact]
     public async Task The_link_in_the_mail_confirms_the_account_and_repeating_it_still_answers_well()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         var api = new AuthApiClient(host.CreateClient());
         var email = TestData.UniqueEmail();
 
         using var registered = await api.RegisterAsync(email, NepalHubApiFactory.ValidPassword, "Sita Sharma");
         Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
 
-        var link = ReadVerificationLink(Assert.Single(host.Recorder.Messages));
+        var link = EmailLinks.Read(Assert.Single(host.Recorder.Messages));
 
         using var confirmed = await api.PostAsync("/api/auth/verify-email", new { link.Email, link.Token });
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
@@ -73,7 +73,7 @@ public class EmailVerificationTests
     [Fact]
     public async Task Sign_in_refuses_an_unconfirmed_account_only_when_the_password_matches()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         var api = new AuthApiClient(host.CreateClient());
         var email = TestData.UniqueEmail();
 
@@ -95,7 +95,7 @@ public class EmailVerificationTests
         Assert.Contains("invalid_credentials", wrongPasswordBody);
         Assert.DoesNotContain("email_not_confirmed", wrongPasswordBody);
 
-        var link = ReadVerificationLink(Assert.Single(host.Recorder.Messages));
+        var link = EmailLinks.Read(Assert.Single(host.Recorder.Messages));
         using var confirmed = await api.PostAsync("/api/auth/verify-email", new { link.Email, link.Token });
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
 
@@ -106,7 +106,7 @@ public class EmailVerificationTests
     [Fact]
     public async Task Resend_answers_identically_whether_or_not_the_address_is_known()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         var api = new AuthApiClient(host.CreateClient());
         var email = TestData.UniqueEmail();
 
@@ -126,7 +126,7 @@ public class EmailVerificationTests
         Assert.Equal(knownBody, await unknown.Content.ReadAsStringAsync());
         Assert.Equal(2, host.Recorder.Messages.Count);
 
-        var link = ReadVerificationLink(host.Recorder.Messages[0]);
+        var link = EmailLinks.Read(host.Recorder.Messages[0]);
         using var confirmed = await api.PostAsync("/api/auth/verify-email", new { link.Email, link.Token });
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
 
@@ -139,7 +139,7 @@ public class EmailVerificationTests
     [Fact]
     public async Task A_bad_token_and_an_unknown_address_get_the_same_answer()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         var api = new AuthApiClient(host.CreateClient());
 
         using var badToken = await api.PostAsync(
@@ -159,7 +159,7 @@ public class EmailVerificationTests
     [Fact]
     public async Task A_sender_that_cannot_send_never_fails_the_registration()
     {
-        using var host = CreateMailHost();
+        using var host = MailApiFactory.Create();
         host.Recorder.Failure = new InvalidOperationException("the relay is down");
         var api = new AuthApiClient(host.CreateClient());
         var email = TestData.UniqueEmail();
@@ -188,14 +188,22 @@ public class EmailVerificationTests
         Assert.Equal(TimeSpan.FromDays(1), confirmation.Lifespan);
         Assert.Equal(TimeSpan.FromMinutes(60), reset.Lifespan);
     }
+}
 
-    /// <summary>
-    /// Starts a host with the development provider configured — which is what makes
-    /// verification binding rather than optional — while the environment is set, because
-    /// the application binds its mail section during startup, and clears it the moment the
-    /// host is up. The suite runs serialized, so no other host is built in that window.
-    /// </summary>
-    private static MailApiFactory CreateMailHost()
+/// <summary>
+/// A host with the development provider configured — which is what makes verification
+/// binding rather than optional — and a sender that records instead of sending.
+/// <para>
+/// The mail section is bound while the application starts, before any in-memory
+/// configuration source a fixture could add would apply, so the provider travels as
+/// environment variables for the length of the startup and is cleared the moment the host
+/// is up — the same reason every other startup-time override in this suite travels that
+/// way. The suite runs serialized, so no other host is built inside that window.
+/// </para>
+/// </summary>
+public sealed class MailApiFactory : NepalHubApiFactory
+{
+    public static MailApiFactory Create()
     {
         var mail = new Dictionary<string, string?>
         {
@@ -221,8 +229,34 @@ public class EmailVerificationTests
         }
     }
 
-    /// <summary>Pulls the one URL out of a message's text half, as a mail reader would offer it.</summary>
-    private static (string Email, string Token) ReadVerificationLink(EmailMessage message)
+    public MailApiFactory()
+    {
+        Recorder = new RecordingEmailSender();
+
+        // The host must start while the environment still names the provider, or its
+        // mail section would bind the defaults — the same reason the quota fixtures
+        // start themselves inside the window they pin their settings in.
+        _ = Services;
+    }
+
+    public RecordingEmailSender Recorder { get; }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Recorder);
+        });
+    }
+}
+
+/// <summary>Pulls the one URL out of a message's text half, as a mail reader would offer it.</summary>
+public static class EmailLinks
+{
+    public static (string Email, string Token) Read(EmailMessage message)
     {
         var link = message.TextBody
             .Split('\n')
@@ -237,67 +271,40 @@ public class EmailVerificationTests
 
         return (values["email"], values["token"]);
     }
+}
 
-    /// <summary>A host whose sender records every message instead of handing it to a transport.</summary>
-    private sealed class MailApiFactory : NepalHubApiFactory
+/// <summary>The quiet stand-in for a transport: every message kept, failures on demand.</summary>
+public sealed class RecordingEmailSender : IEmailSender
+{
+    private readonly List<EmailMessage> _messages = [];
+
+    public Exception? Failure { get; set; }
+
+    public IReadOnlyList<EmailMessage> Messages
     {
-        public MailApiFactory()
+        get
         {
-            Recorder = new RecordingEmailSender();
-
-            // The host must start while the environment still names the provider, or its
-            // mail section would bind the defaults — the same reason the quota fixtures
-            // start themselves inside the window they pin their settings in.
-            _ = Services;
-        }
-
-        public RecordingEmailSender Recorder { get; }
-
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            base.ConfigureWebHost(builder);
-
-            builder.ConfigureServices(services =>
+            lock (_messages)
             {
-                services.RemoveAll<IEmailSender>();
-                services.AddSingleton<IEmailSender>(Recorder);
-            });
+                return [.. _messages];
+            }
         }
     }
 
-    /// <summary>The quiet stand-in for a transport: every message kept, failures on demand.</summary>
-    private sealed class RecordingEmailSender : IEmailSender
+    public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
     {
-        private readonly List<EmailMessage> _messages = [];
-
-        public Exception? Failure { get; set; }
-
-        public IReadOnlyList<EmailMessage> Messages
+        // Recorded first, so a test can see what would have gone out even when the
+        // point of the test is that the failure must not surface.
+        lock (_messages)
         {
-            get
-            {
-                lock (_messages)
-                {
-                    return [.. _messages];
-                }
-            }
+            _messages.Add(message);
         }
 
-        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
+        if (Failure is not null)
         {
-            // Recorded first, so a test can see what would have gone out even when the
-            // point of the test is that the failure must not surface.
-            lock (_messages)
-            {
-                _messages.Add(message);
-            }
-
-            if (Failure is not null)
-            {
-                throw Failure;
-            }
-
-            return Task.CompletedTask;
+            throw Failure;
         }
+
+        return Task.CompletedTask;
     }
 }

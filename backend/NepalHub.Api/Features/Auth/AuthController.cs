@@ -239,6 +239,68 @@ public sealed class AuthController(
         return Ok(ApiResponse<object>.Ok(new { sent = true }));
     }
 
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<object>>> ForgotPassword(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await userManager.FindByEmailAsync(email);
+
+        // Unlike resend, this looks for the account whether or not it has confirmed:
+        // the address proves the same thing either way, and refusing the only recovery
+        // route to someone who never opened their first link would trap them.
+        if (user is not null)
+        {
+            await emailDispatch.SendPasswordResetAsync(user, cancellationToken);
+        }
+
+        // Identical for a known address, an unknown one and a sender that just failed —
+        // this endpoint answers "check your email", never "there is no email to check".
+        return Ok(ApiResponse<object>.Ok(new { sent = true }));
+    }
+
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<object>>> ResetPassword(ResetPasswordRequest request)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+        var user = await userManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            return BadRequestTokenInvalid();
+        }
+
+        var result = await userManager.ResetPasswordAsync(user, request.Token, request.Password);
+        if (result.Succeeded)
+        {
+            // Identity changed the security stamp on the way through, which is what makes
+            // the link single-use and ends every other session this account holds: the
+            // password changed, so nothing that was signed in before may stay signed in.
+            logger.LogInformation("Password reset for user {UserId}.", user.Id);
+            return Ok(ApiResponse<object>.Ok(new { reset = true }));
+        }
+
+        // Identity checks the token before it judges the new password, so an invalid or
+        // expired link can only ever come back as one thing — and a link the password
+        // policy rejected is still good, leaving the person free to try a better one.
+        if (result.Errors.Any(error => error.Code == "InvalidToken"))
+        {
+            return BadRequestTokenInvalid();
+        }
+
+        var errors = IdentityErrors.Translate(result.Errors);
+        return BadRequest(ApiResponse<object>.Fail(new ApiError("validation_failed", "Choose a new password.", errors)));
+    }
+
+    private BadRequestObjectResult BadRequestTokenInvalid() =>
+        BadRequest(ApiResponse<object>.Fail(
+            new ApiError("token_invalid", "This link is invalid or has expired. Request a new one.")));
+
     [HttpGet("session")]
     [AllowAnonymous]
     [ProducesResponseType<ApiResponse<SessionResponse>>(StatusCodes.Status200OK)]

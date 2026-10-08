@@ -66,6 +66,34 @@ public sealed class ResendVerificationRequest
     public string Email { get; init; } = string.Empty;
 }
 
+public sealed class ForgotPasswordRequest
+{
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [StringLength(254)]
+    public string Email { get; init; } = string.Empty;
+}
+
+public sealed class ResetPasswordRequest
+{
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [StringLength(254)]
+    public string Email { get; init; } = string.Empty;
+
+    // Same shape and the same bound as the verification token: an opaque Identity payload
+    // carried beside the address, with the bound serving only to cap the body.
+    [Required(ErrorMessage = "Token is required.")]
+    [StringLength(2000)]
+    public string Token { get; init; } = string.Empty;
+
+    // The length cap mirrors registration; the real policy is Identity's own, which
+    // answers with the same password_* field errors either endpoint would give.
+    [Required(ErrorMessage = "Password is required.")]
+    [StringLength(100, ErrorMessage = "Password must be at most 100 characters.")]
+    public string Password { get; init; } = string.Empty;
+}
+
 public sealed record SessionUserResponse(
     Guid Id,
     string Email,
