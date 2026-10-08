@@ -27,6 +27,7 @@ non-secret defaults, and no secret is ever committed.
 | `ForwardedHeaders__KnownProxies__0` | an extra proxy IP to believe beyond the loopback default - only needed when there is more than one hop in front |
 | `ASPNETCORE_HTTPS_PORTS` | `443` when the app itself should redirect plain http to https |
 | `Payments__Provider`, `Payments__ProductCode`, `Payments__SecretKey`, `Payments__ReturnBaseUrl`, `Payments__Environment`, `Payments__ReconcileIntervalSeconds` | eSewa; the payments section below covers when and how |
+| `Email__Provider`, `Email__RequireVerified`, `Email__From`, `Email__WebBaseUrl`, `Email__Smtp__*` | outbound mail; the email section below covers when and how |
 
 ## Build and publish
 
@@ -138,6 +139,35 @@ Two probes, for two jobs:
 | `GET /api/health` | the app itself | JSON with `status` and `database` detail |
 
 Point liveness checks at `/health`. If logs go to a file rather than journald, rotate them.
+
+## Email
+
+Mail ships **off**: `appsettings.json` carries `Email:Provider = none`, which logs and drops every
+message, and accounts start confirmed — enforcement is the conjunction of a configured provider and
+`Email:RequireVerified`, so with no provider the second half never bites and a fresh clone behaves
+exactly as it did before this module existed. Turning mail on is the variables below; the section is
+validated at boot, so a half-configured relay stops the host with one sentence instead of starting
+to quietly lose messages (or, worse, letting `file` write mail to disk in Production, where nobody
+would ever read it — that combination is refused).
+
+| Variable | What it does |
+| --- | --- |
+| `Email__Provider` | `none` (default: log and drop), `file` (development only - writes an `.html`/`.txt` pair per message under `Email__File__Directory`, defaults to the temp folder), `smtp` (MailKit) |
+| `Email__RequireVerified` | `true` (the default) with a provider makes registration wait for the link and login answer `403 email_not_confirmed`; `false` still sends the mail but lets an unconfirmed address sign in |
+| `Email__From` | the envelope address the mail arrives from - required with `smtp`, a mailbox on your own sending domain, not a secret |
+| `Email__FromName` | the name beside the address (default `Nepal Hub`) |
+| `Email__WebBaseUrl` | the absolute origin the site is served from (`https://nepalhub.example.com`); every link in every message is built from it and a configured provider refuses to boot without it |
+| `Email__ConfirmTokenLifetimeMinutes` | how long a confirmation link works (default `1440`, one day) |
+| `Email__ResetTokenLifetimeMinutes` | how long a reset link works (default `60`) - deliberately shorter than confirmation, because the reset link is the one that hands over the account |
+| `Email__SendCooldownSeconds` | quiet window per address between two sends (default `60`, `0` off); a repeat inside the window is logged and dropped rather than delivered |
+| `Email__Smtp__Host`, `Email__Smtp__Port` | the relay (`smtp.provider.example`, `587` by default) |
+| `Email__Smtp__Encryption` | `auto` (default: upgrades when the server offers it), `starttls` (insists), `ssl` (TLS from the first byte, port 465), `none` (a local relay on a trusted machine) |
+| `Email__Smtp__UserName`, `Email__Smtp__Password` | the relay account - both or neither; the password is secret, environment only |
+
+The links land on SPA routes (`/verify-email`, `/reset-password`), so `Email__WebBaseUrl` must be
+the origin the frontend is served from — behind the proxy above, the `https://` host, not the
+loopback bind. With `Email__Provider` left at `none`, `Email__RequireVerified` is inert: nothing is
+enforced and accounts start confirmed, exactly as before.
 
 ## Payments
 

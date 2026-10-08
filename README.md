@@ -32,7 +32,7 @@ admin-only account, audit-log, plan-request and payments pages |
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 641 integration tests against the real `nepalhub_test` database, plus 61 frontend tests |
+| Tests | 702 integration tests against the real `nepalhub_test` database, plus 80 frontend tests and 101 Flutter tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
@@ -41,6 +41,7 @@ admin-only account, audit-log, plan-request and payments pages |
 | Plans and featured listings | Free and Featured plans (30 days each), seeded as rows staff can edit; an owner requests a plan and an admin approves at `/admin/subscription-requests` (or grants directly); live featured listings get a labelled strip atop the directory, capped at six and alphabetical |
 | Event bookings | Free bookings of 1–4 places against an atomic capacity counter, paid ones through eSewa when `ticket_price` is set; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` and a `Ticket price` field |
 | Payments | eSewa ePay v2 behind `IPaymentGateway`, off until `Payments:Provider` is set; one open checkout per listing or seat, settlement only from the signed return plus a server-to-server status check, refunds discovered through the admin status check, and history at `/account/payments` / `/admin/payments` |
+| Email and account recovery | `IEmailSender` with null, file and MailKit SMTP senders behind `Email:Provider` (ships `none` — nothing is mailed and accounts start confirmed); with a provider set, registration waits on a confirmation link, login answers `403 email_not_confirmed`, and a one-time hour-long link resets a password; resend and forgot always answer the same, sends are quiet-windowed per address, and a signed-in member can change their password from the account page |
 
 ---
 
@@ -105,6 +106,7 @@ nepalhub/
 └── docs/
     ├── architecture.md
     ├── database.md
+    ├── deployment.md
     ├── phase-6-businesses-plan.md
     └── roadmap.md
 ```
@@ -248,10 +250,15 @@ Cookie-based, issued by ASP.NET Core Identity. There is no JWT and no token in `
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
 | `GET /api/auth/csrf` | anonymous | Issues the antiforgery token |
-| `POST /api/auth/register` | anonymous | Creates an account, assigns `user`, signs in |
-| `POST /api/auth/login` | anonymous | Signs in; 5 failures lock the account for 15 minutes |
+| `POST /api/auth/register` | anonymous | Creates an account, assigns `user`; signs in at once with the provider off, otherwise answers `isEmailConfirmed: false` and mails the link |
+| `POST /api/auth/login` | anonymous | Signs in; 5 failures lock the account for 15 minutes; `403 email_not_confirmed` only after the password checked out |
 | `POST /api/auth/logout` | anonymous | Clears the cookie |
 | `GET /api/auth/session` | anonymous | Current session, or `authenticated: false` |
+| `POST /api/auth/verify-email` | anonymous | Spends the confirmation link: `{verified}`, idempotent; spent/expired/wrong-purpose is `400 token_invalid` |
+| `POST /api/auth/resend-verification` | anonymous | Mails a fresh confirmation link: `{sent}`, always the same answer whether or not the address exists |
+| `POST /api/auth/forgot-password` | anonymous | Asks for a reset link: `{sent}`, never says whether the address has an account |
+| `POST /api/auth/reset-password` | anonymous | Spends the one-time link: `{reset}`; every other session dies with the security stamp |
+| `POST /api/account/change-password` | required | `{changed}`; current password required, the caller's own cookie is re-issued so this device stays signed in, and a "password changed" notice is mailed |
 | `GET /api/account/me` | required | The signed-in user |
 | `GET /api/admin/ping` | `admin` role | Proves the role policy works |
 | `GET /api/reference/provinces` | anonymous | 7 provinces |
@@ -262,11 +269,15 @@ the frontend fetches and caches it automatically. The token is bound to the curr
 is dropped after sign-in and sign-out.
 
 Auth endpoints are rate limited to 20 requests per minute per IP
-(`Auth:RateLimit:PermitLimit`), and every other endpoint requires a signed-in user unless it opts
-out with `[AllowAnonymous]`.
+(`Auth:RateLimit:PermitLimit`), the three recovery verbs (resend, forgot, reset) plus
+change-password each carry their own 10-per-hour per IP policy, and every other endpoint requires a
+signed-in user unless it opts out with `[AllowAnonymous]`.
 
-> Accounts are created already confirmed, because no email provider is connected yet. Wiring a real
-> mailer belongs to the notifications work, not to this phase.
+> Accounts are created already confirmed **by default**: `Email:Provider` ships `none`, which logs
+> and drops every message, so nothing is mailed and sign-in never asks about confirmation. Set a
+> provider (MailKit SMTP) and keep `Email:RequireVerified` — the conjunction is what enforces — to
+> make registration wait for the link and login answer `403 email_not_confirmed` until the address
+> is proven. The variables live in `docs/deployment.md`.
 
 ---
 

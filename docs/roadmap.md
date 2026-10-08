@@ -30,9 +30,9 @@ it is verified end to end against a real MySQL database — no mocked persistenc
 - [x] Frontend route protection and a CSRF-aware `apiClient`
 - [x] 22 integration tests against the real `nepalhub_test` database
 
-Deliberately deferred to a later phase: email verification and a `refresh` endpoint. There is no mail
-provider yet, so accounts are created already confirmed, and the cookie is a session that the browser
-keeps until it expires — there is no access token to refresh.
+Deliberately deferred to a later phase: a `refresh` endpoint — the cookie is a session that the
+browser keeps until it expires, so there is no access token to refresh. Email verification was
+deferred here too and arrived with Phase 10, behind a configured provider.
 
 ## Phase 2 — First real module (tools and calculators) ✅ complete
 
@@ -612,6 +612,55 @@ sweep, Android release signing, and a content pass over the seeded material.
 - [x] Gates: `dotnet build` 0/0 and **667/667** backend tests (26 added this phase), frontend
       typecheck, build and **61/61** tests, `flutter analyze` clean and **96/96** Flutter tests,
       both Android release-signing paths built and verified by certificate
+
+## Phase 10 — Email and account recovery ✅ complete
+
+The mail a product actually sends: confirm an address before it can sign in while a real provider
+is connected, spend a one-time link to get back into an account, and change a password from inside
+one. No schema change — every token rides on ASP.NET Core Identity's data-protector purpose strings,
+which is why Phase 1's note that accounts start confirmed still describes the default install: with
+no provider configured nothing is enforced and nothing is mailed.
+
+- [x] `IEmailSender` with `NullEmailSender` (the default — logs and drops) and `FileEmailSender`
+      (writes an `.html`/`.txt` pair per message for development); `SmtpEmailSender` on MailKit
+      behind `Email:Provider=smtp`; `EmailDispatchService` renders the shared `EmailTemplates`
+      through `EmailLinkBuilder` and gates each send on an address-level
+      `Email:SendCooldownSeconds` quiet window (default 60, `0` off)
+- [x] Verification enforcement is a conjunction, not a flag: a provider other than `none` **and**
+      `Email:RequireVerified` makes `EmailSettings.EnforcesVerification` true. Registration then
+      answers the normal `SessionUserResponse` with `isEmailConfirmed: false` and signs nobody in,
+      login answers `403 email_not_confirmed` only after the password checked out, and the default
+      provider `none` leaves every fresh install behaving exactly as before
+- [x] `POST /api/auth/verify-email` (`{verified}`, idempotent — a duplicated link is the same
+      answer) and `POST /api/auth/resend-verification` (`{sent}`, always the same answer whether or
+      not the address exists), both anonymous; a spent, expired or wrong-purpose token is
+      `400 token_invalid`
+- [x] `POST /api/auth/forgot-password` (`{sent}`, never says whether the address has an account)
+      and `POST /api/auth/reset-password` (`{reset}`): a one-time, one-hour, one-purpose token;
+      success invalidates every other session through the security stamp while the caller's own
+      device is already anonymous
+- [x] `POST /api/account/change-password` (`{changed}`): the current password is required
+      (`password_incorrect` on a mismatch), the new one goes through Identity's policy as field
+      errors, the change mails a "password changed" notice that fails into a log line rather
+      than the response, and the endpoint re-issues the caller's own cookie so the device that
+      changed the password stays signed in while every other session dies with the stamp
+- [x] Three dedicated rate-limit policies — `resend-verification`, `password-reset`,
+      `change-password`, each 10/hour/IP — read from configuration like the existing ones
+- [x] Frontend: forgot-password, check-email (shared by both roads), verify-email and
+      reset-password pages with the four routes; registration branches on `isEmailConfirmed`,
+      sign-in offers "Email me the confirmation link again" on `email_not_confirmed`, and the
+      account page carries the change-password panel beside an unconfirmed-address notice
+- [x] Flutter: the same four screens — the link lands in the query string and is read from the
+      url, because verifying Android App Links is deliberately deferred and a pasted link must
+      work — plus the registration branch, the login resend path, the change-password card, and
+      `ApiException.emailNotConfirmed` / `tokenInvalid` with their getters
+- [x] Gates: `dotnet build` 0/0 and **702/702** backend tests (35 added this phase), frontend
+      typecheck and **80/80** tests, `flutter analyze` clean and **101/101** Flutter tests
+
+Deliberately deferred: Android App Links (paste-the-link works on every device today), SMTP on by
+default (the null sender is the default so no install starts by mailing strangers), a resend history
+or per-address send log (the cooldown lives in memory; a restart starts the window over), and
+resend/verification for business-contact emails — only accounts send mail right now.
 
 ## Standing rules
 

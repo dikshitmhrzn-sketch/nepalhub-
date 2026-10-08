@@ -11,6 +11,13 @@ result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculat
 not a proposal. Everything from "Planned modules" onwards is still design
 only.
 
+Phase 10 (email and account recovery) deliberately added **no table and no migration**. A
+confirmation or reset link is an ASP.NET Core Identity data-protector token carrying its own
+purpose and expiry, so the only columns involved are the ones Identity already owns
+(`users.email_confirmed` behind `EmailConfirmed`); the per-address send quiet window lives in
+memory, which is the whole one-host-one-process deployment model; and mail itself is a log line,
+a file pair or a remote relay rather than rows. Sixteen migrations remain the whole schema.
+
 ## Local instance
 
 | Item | Value |
@@ -68,7 +75,7 @@ framework rather than by string comparisons in application code.
 | `id` | `char(36)` PK | GUID |
 | `email` | `varchar(254)` | unique, stored lower-cased |
 | `email_normalized` | `varchar(254)` | Identity's lookup column |
-| `email_confirmed` | `tinyint(1)` | `1` from registration; no mail provider yet |
+| `email_confirmed` | `tinyint(1)` | `1` from registration while no mail provider is configured; otherwise `0` until the confirmation link spends itself (Phase 10) |
 | `password_hash` | `varchar(255)` | ASP.NET Core Identity format |
 | `security_stamp` | `varchar(128)` | invalidates sessions on password change |
 | `concurrency_stamp` | `varchar(128)` | optimistic concurrency |
@@ -938,6 +945,9 @@ never recomputes the level.
 - `saved_items` — `user_id`, `item_type` (job/event/deal/business), `item_id`, `created_at`
   (unique per user+type+item)
 - `notifications` — `user_id`, `type`, `title`, `body`, `is_read`, `created_at`
+- `email_sends` — one row per message delivered, failed or suppressed (to, purpose, sent_at,
+  status), if a queryable outbox is ever wanted: Phase 10 keeps only the in-memory quiet window
+  and stores nothing about mail, so today "was this address mailed?" is a log question
 
 `reports` and `admin_audit_logs` were listed here once as prerequisites for moderation; they are live
 as Module 10 now, above.

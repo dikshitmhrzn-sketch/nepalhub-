@@ -32,7 +32,28 @@ NepalHub.Api/
 ├── Data/               AppDbContext, design-time factory, entity configurations, seeding,
 │                       migrations, DatabaseHealthCheck (the real check behind /health)
 └── Features/<Module>/  vertical slices, one folder per product module
-    ├── Auth/
+    ├── Auth/            the anonymous session verbs and the identity's error surface
+    │   ├── AuthController.cs           register, login, logout, session, and the four
+    │   │                               recovery verbs (verify, resend, forgot, reset)
+    │   ├── AuthContracts.cs            request/response records, SessionUserResponse
+    │   ├── AuthConstants.cs            cookie and scheme names
+    │   ├── IdentityErrors.cs           Identity's codes mapped to this API's field errors
+    │   └── SessionUserMapper.cs        the one user shape every verb answers with
+    ├── Account/         the signed-in member's own things
+    │   ├── AccountController.cs        GET /me and POST /change-password, which re-issues
+    │   │                               the caller's own cookie after the change
+    │   └── AccountContracts.cs         the change-password request
+    ├── Email/           10: where mail is composed, gated and handed to a sender
+    │   ├── IEmailSender.cs             the seam: one message, one send
+    │   ├── NullEmailSender.cs          the default — logs and drops
+    │   ├── FileEmailSender.cs          development: an .html/.txt pair per message
+    │   ├── SmtpEmailSender.cs          MailKit, behind Email:Provider=smtp
+    │   ├── EmailDispatchService.cs     draft, quiet-window gate, send
+    │   ├── EmailSendCooldown.cs        the per-address window, in memory
+    │   ├── EmailTemplates.cs           the shared HTML and text bodies
+    │   ├── EmailLinkBuilder.cs         verify and reset links built from Email:WebBaseUrl
+    │   ├── EmailTokenProviders.cs      Identity data-protector purposes, one per link kind
+    │   └── EmailSettings.cs            the section, plus Validate() the host runs at boot
     ├── Health/
     ├── Quiz/             the daily quiz and progression
     │   ├── QuizController.cs           public daily, submit, result, stats
@@ -456,7 +477,7 @@ strips diacritics and lowercases. MySQL matches on `utf8mb4_0900_ai_ci`, so a re
 is meant to find `cafe`; an `Ordinal` comparison would score that row as a non-match and push it off
 the page.
 
-## 6. Authentication and security (implemented for Phase 1)
+## 6. Authentication and security (implemented for Phase 1, extended by Phase 10)
 
 - **Passwords:** ASP.NET Core Identity — PBKDF2 hashing, lockout, security-stamp invalidation. No
   hand-rolled crypto.
@@ -493,13 +514,30 @@ the page.
   return URL, and `GET /payments/config` is anonymous because it only decides whether a button is
   shown. Registering a listing gets 10/hour (`Business:RateLimit:PermitLimit`) for the same reason
   a claim does: it mints rows a stranger can then ask staff to review, and the submit verb behind it
-  shares the budget rather than opening a second door. Read-only endpoints are not
-  limited. Public write endpoints (quiz answers) reuse the same mechanism.
+  shares the budget rather than opening a second door. The three recovery verbs — resend,
+  forgot and reset — plus change-password get 10/hour each (`ResendVerification:RateLimit`,
+  `PasswordReset:RateLimit`, `ChangePassword:RateLimit`) because each one either mints a link
+  that hands over an account or mails a stranger on request, and a person mistyping their
+  password a hundred times is abuse whether or not they are signed in. Read-only endpoints are
+  not limited. Public write endpoints (quiz answers) reuse the same mechanism.
 - **Errors:** Identity failures are translated into stable field codes (`email_taken`,
   `password_too_short`, `password_too_weak`) so the UI can put the message next to the right input.
-  A wrong password and an unknown account return the same `401 invalid_credentials`.
-- **Email:** accounts are created already confirmed because no mail provider is connected yet.
-  Verification and password-reset emails arrive with the notifications work.
+  A wrong password and an unknown account return the same `401 invalid_credentials`; the current
+  password inside a change is `400 password_incorrect` on the `currentPassword` field; an
+  unconfirmed address with a right password is `403 email_not_confirmed`; and a spent, expired or
+  wrong-purpose one-time link is `400 token_invalid` — one refusal for every reason the server
+  keeps to itself.
+- **Email:** `IEmailSender` with three implementations — `NullEmailSender` (the default: logs and
+  drops), `FileEmailSender` (a pair of files per message, refused in Production) and
+  `SmtpEmailSender` (MailKit) — composed by `EmailDispatchService`, which renders the shared
+  templates, builds links from the configured `Email:WebBaseUrl` and gates every send on a
+  per-address quiet window so a loop cannot flood a mailbox. Verification and reset are
+  Identity data-protector tokens with separate purposes, so a confirmation link can never spend
+  itself as a reset link. Enforcement is the conjunction `HasProvider && RequireVerified`: with
+  the default provider `none` nothing is enforced and accounts start confirmed, and a configured
+  provider makes registration answer without signing in and login answer `403 email_not_confirmed`
+  only after the password checked out — a stranger probing the login form learns only what they
+  already knew.
 - **Admin actions** that change other users' data are written to an audit log: moderation, user
   administration, claim approvals and subscription grants/cancels append through `IAuditLog.Record`
   into `admin_audit_logs` inside the same `SaveChanges` as the change itself, with JSON
