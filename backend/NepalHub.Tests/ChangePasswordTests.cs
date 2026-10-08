@@ -43,6 +43,13 @@ public sealed class ChangePasswordTests
             new { currentPassword = NepalHubApiFactory.ValidPassword, newPassword });
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
 
+        // The device that made the change keeps its session — the stamp rotation takes
+        // the other sessions, not this one — and it is checked before any later sign-in
+        // could hand the client a fresh cookie of its own.
+        using var session = await api.GetRawAsync("/api/auth/session");
+        var sessionBody = await session.Content.ReadAsStringAsync();
+        Assert.Contains("\"authenticated\":true", sessionBody);
+
         // Identity rotated the security stamp on the way through, so the old password
         // stops working wherever it was known, and the notice is the courtesy that says
         // somebody moved the door.

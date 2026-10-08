@@ -73,6 +73,13 @@ public sealed class AccountController(
         await emailDispatch.SendPasswordChangedNoticeAsync(user, cancellationToken);
         logger.LogInformation("Password changed for user {UserId}.", user.Id);
 
+        // The stamp rotation would take this device's session with the others at the next
+        // stamp validation, so the cookie is re-issued against the new stamp the same way
+        // registration issues its first: the person who just proved the current password
+        // stays exactly where they were, and everywhere else meets a stamp that no longer
+        // matches theirs.
+        await signInManager.SignInAsync(user, isPersistent: true, AuthConstants.Scheme);
+
         return Ok(ApiResponse<object>.Ok(new { changed = true }));
     }
 }
