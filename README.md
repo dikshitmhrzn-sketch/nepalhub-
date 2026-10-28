@@ -22,7 +22,7 @@ and eSewa checkout for paid plans and priced events.
 return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim/verification pages plus
 admin-only account, audit-log, plan-request and payments pages |
 | ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, plans and subscriptions, event bookings, and eSewa payments |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 33 application tables plus the EF migration-history table, sixteen migrations applied |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 34 application tables plus the EF migration-history table, seventeen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
@@ -235,6 +235,10 @@ The fourteenth, `20261005104931_AddEventBookings`, creates `event_bookings` and 
 The fifteenth, `20261006035723_AddPayments`, creates `payment_transactions` and gives `events` its
 `ticket_price`.
 The sixteenth, `20261006093754_AddBusinessVerifications`, creates `business_verification_requests`.
+The seventeenth, `20261028130825_AddDataProtectionKeys`, creates `data_protection_keys`, the table
+the data-protection key ring is kept in when `DataProtection:Provider` is `database` - the
+container-hosting case, where no folder survives between starts; `DataProtection:KeyPath` still
+wins when it is set.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's

@@ -571,11 +571,18 @@ builder.Services.AddHostedService<PaymentReconciliationWorker>();
 // (or clone, or CI workspace) rotates the key ring and every verification link and session
 // cookie issued before the change stops verifying. DataProtection:KeyPath points the ring
 // itself at a folder that survives a redeploy — or is shared across instances — instead of
-// living beside the binaries.
+// living beside the binaries. A host whose filesystem is wiped on every start (a container
+// platform with no volume) sets DataProtection:Provider=database instead, and the same
+// ring is kept in the DataProtectionKeys table through the AppDbContext.
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("NepalHub");
 if (builder.Configuration["DataProtection:KeyPath"] is { Length: > 0 } keyPath)
 {
     dataProtection.PersistKeysToFileSystem(Directory.CreateDirectory(keyPath));
+}
+else if (databaseConfigured
+    && string.Equals(builder.Configuration["DataProtection:Provider"], "database", StringComparison.OrdinalIgnoreCase))
+{
+    dataProtection.PersistKeysToDbContext<AppDbContext>();
 }
 
 // Which sender answers is configuration, not code, mirroring the payment gateway: a
@@ -655,7 +662,12 @@ else
 // One host behind one reverse proxy, so the default believed-proxy rule (loopback) is already
 // the right one: only a proxy this app trusts may rewrite X-Forwarded-For and X-Forwarded-Proto,
 // and forged headers arriving from the open internet are dropped rather than believed. Any further
-// hop can be named in ForwardedHeaders:KnownProxies. This runs before everything the forwarded
+// hop can be named in ForwardedHeaders:KnownProxies. A platform whose edge rewrites the forwarded
+// header wholesale - Vercel replaces X-Forwarded-For outright, so a client cannot inject its own -
+// reaches the app from a pool of router addresses too dynamic to name one by one, and is opted
+// into with ForwardedHeaders:TrustAnyProxy: clearing the known-proxy list means believing
+// whatever address is in front, which is safe only where that platform is the sole route in.
+// This runs before everything the forwarded
 // values decide: the rate limiter buckets by client address, HSTS applies only once the scheme is
 // https, and both auth cookies keep SecurePolicy.SameAsRequest, which under the forwarded scheme
 // means "Secure in production, not Secure on localhost" without a second code path.
@@ -669,6 +681,12 @@ foreach (var proxy in builder.Configuration.GetSection("ForwardedHeaders:KnownPr
     {
         forwardedHeaders.KnownProxies.Add(knownProxy);
     }
+}
+
+if (builder.Configuration.GetValue<bool>("ForwardedHeaders:TrustAnyProxy"))
+{
+    forwardedHeaders.KnownNetworks.Clear();
+    forwardedHeaders.KnownProxies.Clear();
 }
 
 app.UseForwardedHeaders(forwardedHeaders);

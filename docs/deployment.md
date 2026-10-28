@@ -25,6 +25,9 @@ non-secret defaults, and no secret is ever committed.
 | `Database__AutoMigrate` | `true` by default: pending migrations are applied on startup, before seeding. Set `false` to apply them yourself (see below) |
 | `Cors__AllowedOrigins` | empty means same-origin only, which is the normal case behind one host |
 | `ForwardedHeaders__KnownProxies__0` | an extra proxy IP to believe beyond the loopback default - only needed when there is more than one hop in front |
+| `ForwardedHeaders__TrustAnyProxy` | `true` believes whatever address is in front, for a platform whose edge rewrites `X-Forwarded-For` wholesale but arrives from router addresses too dynamic to name; only safe where that platform is the sole route in |
+| `DataProtection__KeyPath` | a folder for the data-protection key ring that survives redeploys - preferred whenever the host has a real disk |
+| `DataProtection__Provider` | `database` keeps the same ring in the `data_protection_keys` table instead, for hosts whose filesystem is wiped on every start; a set `KeyPath` still wins |
 | `ASPNETCORE_HTTPS_PORTS` | `443` when the app itself should redirect plain http to https |
 | `Payments__Provider`, `Payments__ProductCode`, `Payments__SecretKey`, `Payments__ReturnBaseUrl`, `Payments__Environment`, `Payments__ReconcileIntervalSeconds` | eSewa; the payments section below covers when and how |
 | `Email__Provider`, `Email__RequireVerified`, `Email__From`, `Email__WebBaseUrl`, `Email__Smtp__*` | outbound mail; the email section below covers when and how |
@@ -266,3 +269,71 @@ curl -fsS http://127.0.0.1:5080/api/health
 against a scratch database the app user owns: create one, restore the latest dump into it,
 compare the table count against the real database, drop it again. The suite's own database
 (`nepalhub_test`) is a convenient target - it is recreated by the next test run either way.
+
+## Free hosting: Vercel (container) with Aiven MySQL
+
+For a personal, non-commercial deployment the whole app - API and the SPA it serves - fits on
+Vercel's free Hobby plan as one container, with the database on Aiven's free MySQL plan. The
+container runtime keeps the single-origin shape this runbook describes above: `Dockerfile.vercel`
+at the repository root builds the Vite frontend, publishes the API with `dist/` dropped into
+`wwwroot`, and runs nothing but Kestrel on port 8080 (`ASPNETCORE_HTTP_PORTS`, which the .NET 8
+base image already sets); `vercel.json` declares that image as the one service every path
+rewrites to. The Vercel project's `PORT` must be `8080` to match.
+
+Three things differ from a VM deploy, and each is covered:
+
+- the filesystem is wiped on every start, so the data-protection key ring cannot live in a
+  folder: `DataProtection__Provider=database` keeps it in the `data_protection_keys` table the
+  `AddDataProtectionKeys` migration creates, through the same `AppDbContext`. Without this every
+  cold start would log every visitor out and invalidate any confirmation or reset link in flight.
+- the database sits on Aiven, reached over the public internet with TLS (`SslMode=Required` in
+  the connection string). It is the only state the site has; there are no uploads.
+- migrations and seeding still run at startup, in the API process, exactly as above.
+
+### Aiven
+
+Create a free MySQL service, run `CREATE DATABASE nepalhub;` in its console, and note the host,
+port, `avnadmin` password and the server version it reports (the free tier is a single node of
+about 1 GB RAM and storage; it powers itself off after a long period of inactivity and emails
+about it - one click in the console brings it back).
+
+### Vercel
+
+Import the repository with the repository root as the project root (where `vercel.json` sits)
+and set:
+
+| Variable | Value |
+| --- | --- |
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `PORT` | `8080` |
+| `ConnectionStrings__Default` | the Aiven connection string, including `SslMode=Required` |
+| `Database__ServerVersion` | Aiven's actual version (for example `8.0.36-mysql`), not the local default |
+| `DataProtection__Provider` | `database` |
+| `Seeding__DemoContent` | `true` to seed the demo businesses, jobs, offers and events; leave it out for an empty catalogue with only the reference data |
+| `ForwardedHeaders__TrustAnyProxy` | `true` - Vercel's edge replaces `X-Forwarded-For` outright, so a visitor cannot inject their own, but it arrives from a pool of router addresses too dynamic for `KnownProxies`; with the flag the app believes the platform, and rate limits and `Secure` cookies work per real visitor |
+
+Deploy with `vercel deploy --prod` or a push to the connected branch. The first boot applies
+every migration to the empty database and seeds the reference data, so `GET /api/health` must
+answer `database: connected` and `/` must serve the SPA.
+
+### The proxy, on Vercel
+
+Forwarded headers are believed only from loopback or a named proxy by default, and on Vercel the
+direct peer is Vercel's edge - a pool of router addresses, not one host to name. That is what
+`ForwardedHeaders__TrustAnyProxy` is for: Vercel overwrites `X-Forwarded-For` wholesale (a client
+cannot smuggle its own address through), so believing the address the platform hands over is
+believing the visitor. Without the flag every visitor shares the proxy's address as far as the
+rate limiter is concerned and both auth cookies lose their `Secure` flag. The flag is for this
+hosting shape alone; a VM behind your own nginx keeps the loopback default and never sets it.
+
+### What the free tier does and does not do
+
+- the Hobby plan is personal and non-commercial, with monthly caps (invocations, active CPU,
+  memory-hours, transfer); passing one pauses that feature until the window resets
+- the container scales to zero between bursts, so the first request after an idle period pays a
+  few seconds of cold start - the keys in MySQL are what keep that from logging everyone out
+- `PaymentReconciliationWorker` only runs while an instance is warm; with `Payments:Provider`
+  still `none` there is nothing for it to reconcile, and turning eSewa on later means moving the
+  sweep to Vercel Cron
+- the 4.5 MB request-body limit of Vercel Functions is above anything this API accepts today,
+  because nothing is uploaded

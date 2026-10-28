@@ -1,0 +1,29 @@
+# Nepal Hub on Vercel's container runtime.
+#
+# One image carries both halves, because the API serves the built SPA itself: the frontend
+# stage runs the Vite build, the backend stage publishes the API with dist/ dropped into
+# wwwroot, and the runtime stage runs nothing but Kestrel. Vercel routes public traffic to
+# ASPNETCORE_HTTP_PORTS (8080 since .NET 8 images set it by default) — no code binds a port.
+
+FROM node:22-bookworm AS frontend
+WORKDIR /src/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY backend/NepalHub.Api/NepalHub.Api.csproj backend/NepalHub.Api/
+RUN dotnet restore backend/NepalHub.Api/NepalHub.Api.csproj
+COPY backend/NepalHub.Api/ backend/NepalHub.Api/
+COPY --from=frontend /src/frontend/dist backend/NepalHub.Api/wwwroot/
+RUN dotnet publish backend/NepalHub.Api/NepalHub.Api.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app/publish ./
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_EnableDiagnostics=0
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "NepalHub.Api.dll"]
