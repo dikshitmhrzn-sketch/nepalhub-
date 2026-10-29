@@ -62,8 +62,27 @@ public sealed class HealthController(
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Database connectivity check failed.");
-            return ("error", Truncate(exception.Message, 300));
+            return ("error", $"{Truncate(exception.Message, 300)} {DescribeConnectionStringShape()}");
         }
+    }
+
+    // Structure only — never a character of the value itself — so an unauthenticated probe
+    // can say what class of string was stored (a mysql:// URL, a bare host, a key=value
+    // pair) without disclosing credentials.
+    private string DescribeConnectionStringShape()
+    {
+        var value = configuration.GetConnectionString("Default")?.Trim();
+        if (string.IsNullOrEmpty(value))
+        {
+            return "(ConnectionStrings:Default is empty.)";
+        }
+
+        var shape = value.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase)
+            ? "mysql:// URL"
+            : "not a mysql:// URL";
+        return value.Contains('=')
+            ? $"({shape}, has '=' but the key could not be parsed.)"
+            : $"({shape}, no '=' — not a key=value connection string.)";
     }
 
     private static string Truncate(string value, int maxLength) =>
