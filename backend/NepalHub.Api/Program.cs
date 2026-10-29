@@ -724,8 +724,13 @@ if (spaFiles is not null)
         .AllowAnonymous();
 }
 
-if (databaseConfigured)
+async Task ApplySchemaAndSeedAsync()
 {
+    if (!databaseConfigured)
+    {
+        return;
+    }
+
     await using var scope = app.Services.CreateAsyncScope();
 
     // Pending migrations are applied here, before the first seeder reads the schema, because a
@@ -826,6 +831,37 @@ if (databaseConfigured)
             nepalToday,
             CancellationToken.None);
     }
+}
+
+if (app.Environment.IsEnvironment("Testing"))
+{
+    // The test suite rebuilds the database once per process and relies on the host's startup
+    // to migrate and seed it before the first request, so the work stays synchronous here.
+    await ApplySchemaAndSeedAsync();
+}
+else
+{
+    // Anywhere but the test host, Kestrel answers first. A container platform's health probe
+    // waits only a few seconds for the port to open, and a first-boot migration against a
+    // remote free-tier database can take longer than that - which used to surface as an
+    // opaque FUNCTION_INVOCATION_FAILED before a single request was served. The schema work
+    // now runs in the background: /api/health reports the database as unreachable until it
+    // finishes and connected once it has, and a failure is logged rather than killing the
+    // process, so the next start retries and an operator can read what went wrong.
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await ApplySchemaAndSeedAsync();
+            app.Logger.LogInformation("Database schema and seed data are ready.");
+        }
+        catch (Exception exception)
+        {
+            app.Logger.LogError(
+                exception,
+                "Database migration or seeding failed. The site is up but database-backed endpoints will not work until the next start succeeds.");
+        }
+    }, CancellationToken.None);
 }
 
 app.Run();
