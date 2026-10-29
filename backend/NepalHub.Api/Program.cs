@@ -55,8 +55,30 @@ const string FrontendCorsPolicy = "frontend";
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 var connectionString = builder.Configuration.GetConnectionString("Default");
-var serverVersionText = builder.Configuration.GetValue("Database:ServerVersion", "8.4.0-mysql");
 var databaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
+
+// Database:ServerVersion is parsed once, here, where a bad value — an empty string saved by
+// mistake, a stray newline from a paste, a typo'd label — can be logged and corrected at
+// startup. Parsing it inside the options lambda below instead threw on the first request that
+// resolved a DbContext, outside every try/catch in the request path, and turned one wrong
+// environment variable into a 500 on every API endpoint while the static site kept loading.
+// An unparsable value falls back to 8.4.0-mysql, which speaks the same dialect as the 8.4.11
+// server, so the site stays up and the health endpoint reports what actually arrived.
+var configuredServerVersion = builder.Configuration.GetValue("Database:ServerVersion", "8.4.0-mysql")
+    ?? "8.4.0-mysql";
+ServerVersion serverVersion;
+string? serverVersionProblem = null;
+try
+{
+    serverVersion = ServerVersion.Parse(configuredServerVersion.Trim());
+}
+catch (Exception exception)
+{
+    serverVersionProblem =
+        $"Database:ServerVersion was \"{configuredServerVersion}\" which is not a valid server version "
+        + $"({exception.Message}); using \"8.4.0-mysql\" instead.";
+    serverVersion = ServerVersion.Parse("8.4.0-mysql");
+}
 
 // The schema is applied by the API itself, so a deploy is a restart rather than a manual
 // `dotnet ef database update` somebody has to remember. A host that wants the schema change
@@ -619,7 +641,7 @@ if (databaseConfigured)
     builder.Services.AddDbContext<AppDbContext>(options => options
         .UseMySql(
             connectionString,
-            ServerVersion.Parse(serverVersionText),
+            serverVersion,
             mySql => mySql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
         .UseSnakeCaseNamingConvention());
 }
@@ -647,6 +669,11 @@ if (!databaseConfigured)
     app.Logger.LogWarning(
         "No database connection string found. Set ConnectionStrings:Default via user-secrets or the "
         + "ConnectionStrings__Default environment variable. Database-backed endpoints are disabled.");
+}
+
+if (serverVersionProblem is not null)
+{
+    app.Logger.LogWarning("{Problem}", serverVersionProblem);
 }
 
 if (app.Environment.IsDevelopment())

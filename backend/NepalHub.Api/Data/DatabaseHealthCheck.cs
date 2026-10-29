@@ -16,14 +16,17 @@ public sealed class DatabaseHealthCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var dbContext = services.GetService<AppDbContext>();
-        if (dbContext is null)
-        {
-            return HealthCheckResult.Unhealthy("not configured");
-        }
-
+        // Inside the try with everything else: resolving the context builds it, and that can
+        // throw for the same configuration reasons a connection can — reported as the check's
+        // description rather than as an unhandled exception from the probe.
         try
         {
+            var dbContext = services.GetService<AppDbContext>();
+            if (dbContext is null)
+            {
+                return HealthCheckResult.Unhealthy("not configured");
+            }
+
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(2));
 
@@ -38,7 +41,7 @@ public sealed class DatabaseHealthCheck(
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Database health check failed.");
-            return HealthCheckResult.Unhealthy("unreachable", exception);
+            return HealthCheckResult.Unhealthy("error: " + exception.Message, exception);
         }
     }
 }

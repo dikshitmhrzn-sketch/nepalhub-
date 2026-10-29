@@ -10,41 +10,62 @@ namespace NepalHub.Api.Features.Health;
 [Route("api/health")]
 [Produces("application/json")]
 [AllowAnonymous]
-public sealed class HealthController(IServiceProvider services, ILogger<HealthController> logger)
+public sealed class HealthController(
+    IServiceProvider services,
+    IConfiguration configuration,
+    ILogger<HealthController> logger)
     : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<ApiResponse<HealthResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<HealthResponse>>> Get(CancellationToken cancellationToken)
     {
-        var response = new HealthResponse("healthy", await GetDatabaseStatusAsync(cancellationToken), DateTimeOffset.UtcNow);
+        var (database, detail) = await GetDatabaseStatusAsync(cancellationToken);
+        var response = new HealthResponse(
+            "healthy",
+            database,
+            DateTimeOffset.UtcNow,
+            configuration.GetValue<string>("Database:ServerVersion"),
+            detail);
         return Ok(ApiResponse<HealthResponse>.Ok(response));
     }
 
-    private async Task<string> GetDatabaseStatusAsync(CancellationToken cancellationToken)
+    private async Task<(string Status, string? Detail)> GetDatabaseStatusAsync(CancellationToken cancellationToken)
     {
-        var dbContext = services.GetService<AppDbContext>();
-        if (dbContext is null)
-        {
-            return "not-configured";
-        }
-
+        // Resolving the context is inside the try on purpose: building it evaluates the
+        // configured server version, and a value this deployment cannot parse used to throw
+        // out of here — past every handler — and turn the whole endpoint into a 500 instead
+        // of a health answer saying what was wrong.
         try
         {
+            var dbContext = services.GetService<AppDbContext>();
+            if (dbContext is null)
+            {
+                return ("not-configured", null);
+            }
+
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(2));
 
             var canConnect = await dbContext.Database.CanConnectAsync(timeout.Token);
-            return canConnect ? "connected" : "unreachable";
+            if (canConnect)
+            {
+                return ("connected", null);
+            }
+
+            return ("unreachable", "The database did not answer a connection attempt within 2 seconds.");
         }
         catch (OperationCanceledException)
         {
-            return "timeout";
+            return ("timeout", "The database connectivity check timed out.");
         }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Database connectivity check failed.");
-            return "unreachable";
+            return ("error", Truncate(exception.Message, 300));
         }
     }
+
+    private static string Truncate(string value, int maxLength) =>
+        value.Length <= maxLength ? value : value[..maxLength] + "…";
 }
