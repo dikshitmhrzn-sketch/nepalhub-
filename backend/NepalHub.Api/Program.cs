@@ -54,7 +54,8 @@ if (builder.Environment.IsProduction())
 const string FrontendCorsPolicy = "frontend";
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-var connectionString = builder.Configuration.GetConnectionString("Default");
+var connectionString = ConnectionStringNormalizer.Normalize(
+    builder.Configuration.GetConnectionString("Default"));
 var databaseConfigured = !string.IsNullOrWhiteSpace(connectionString);
 
 // Database:ServerVersion is parsed once, here, where a bad value — an empty string saved by

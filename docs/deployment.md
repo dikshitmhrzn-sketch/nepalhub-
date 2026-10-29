@@ -306,7 +306,7 @@ and set:
 | --- | --- |
 | `ASPNETCORE_ENVIRONMENT` | `Production` |
 | `PORT` | `8080` |
-| `ConnectionStrings__Default` | the Aiven connection string, including `SslMode=Required` |
+| `ConnectionStrings__Default` | the Aiven connection string — either the `Server=...;Port=...;...` form or Aiven's `mysql://user:pass@host:port/db` URL; both are accepted, `SslMode=Required` is assumed for the URL form |
 | `Database__ServerVersion` | Aiven's actual version (for example `8.0.36-mysql`), not the local default |
 | `DataProtection__Provider` | `database` |
 | `Seeding__DemoContent` | `true` to seed the demo businesses, jobs, offers and events; leave it out for an empty catalogue with only the reference data |
