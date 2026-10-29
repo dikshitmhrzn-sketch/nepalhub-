@@ -3,7 +3,9 @@
 # One image carries both halves, because the API serves the built SPA itself: the frontend
 # stage runs the Vite build, the backend stage publishes the API with dist/ dropped into
 # wwwroot, and the runtime stage runs nothing but Kestrel. Vercel routes public traffic to
-# ASPNETCORE_HTTP_PORTS (8080 since .NET 8 images set it by default) — no code binds a port.
+# the port named by the PORT environment variable (default 80), so the runtime stage must
+# bind there — an EXPOSE or ASPNETCORE_HTTP_PORTS baked into the image does not change
+# where Vercel dials, and a mismatch shows up as an empty 500 on every path.
 
 FROM node:22-bookworm AS frontend
 WORKDIR /src/frontend
@@ -23,7 +25,9 @@ RUN dotnet publish backend/NepalHub.Api/NepalHub.Api.csproj -c Release -o /app/p
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish ./
-ENV ASPNETCORE_HTTP_PORTS=8080 \
-    DOTNET_EnableDiagnostics=0
-EXPOSE 8080
-ENTRYPOINT ["dotnet", "NepalHub.Api.dll"]
+ENV DOTNET_EnableDiagnostics=0
+# Shell-form entrypoint so PORT is expanded at start time: Vercel sets PORT to the port it
+# routes to (80 unless the project overrides it), and Kestrel must listen exactly there.
+# The ${PORT:-80} fallback keeps a bare `docker run` working on the default container port.
+ENTRYPOINT ["sh", "-c", "ASPNETCORE_HTTP_PORTS=${PORT:-80} exec dotnet NepalHub.Api.dll"]
+EXPOSE 80
