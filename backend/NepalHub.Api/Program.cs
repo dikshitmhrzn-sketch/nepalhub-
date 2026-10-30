@@ -36,13 +36,29 @@ using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
 using NepalHub.Api.Features.Subscriptions;
 
-var builder = WebApplication.CreateBuilder(args);
+// The platform's environment variable is the single source the host reads to decide which
+// appsettings.{Name}.json to load, what /api/health reports, and whether IsProduction() is
+// true — and it reads it more than once, at builder creation and again when the container is
+// built. A leading or trailing space, easy to introduce when typing the value into a UI,
+// makes every IsProduction() check silently false while the dashboard still shows a
+// plausible value, which on this app meant a production host that seeded demo listings and
+// never removed them. Normalizing the variable itself, before the host first reads it, keeps
+// every one of those reads — configuration, environment object, dependency injection — in
+// agreement.
+foreach (var variableName in new[] { "DOTNET_ENVIRONMENT", "ASPNETCORE_ENVIRONMENT" })
+{
+    var configuredValue = Environment.GetEnvironmentVariable(variableName);
+    if (!string.IsNullOrWhiteSpace(configuredValue))
+    {
+        var trimmedValue = configuredValue.Trim();
+        if (!string.Equals(configuredValue, trimmedValue, StringComparison.Ordinal))
+        {
+            Environment.SetEnvironmentVariable(variableName, trimmedValue);
+        }
+    }
+}
 
-// A leading or trailing space in ASPNETCORE_ENVIRONMENT — easy to introduce when typing the
-// value into a platform's UI — makes every IsProduction() check silently false, which turns
-// a production host into one that seeds demo listings and never removes them. Trim once here
-// so one stray character cannot change how the whole application behaves.
-builder.Environment.EnvironmentName = builder.Environment.EnvironmentName.Trim();
+var builder = WebApplication.CreateBuilder(args);
 
 // Outside Development the logs are read by a shipper or a grep on the server rather than by a
 // person watching a terminal scroll, so each line is one JSON object: level, timestamp, scope
