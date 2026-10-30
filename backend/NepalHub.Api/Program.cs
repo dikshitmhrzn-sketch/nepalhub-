@@ -38,6 +38,12 @@ using NepalHub.Api.Features.Subscriptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// A leading or trailing space in ASPNETCORE_ENVIRONMENT — easy to introduce when typing the
+// value into a platform's UI — makes every IsProduction() check silently false, which turns
+// a production host into one that seeds demo listings and never removes them. Trim once here
+// so one stray character cannot change how the whole application behaves.
+builder.Environment.EnvironmentName = builder.Environment.EnvironmentName.Trim();
+
 // Outside Development the logs are read by a shipper or a grep on the server rather than by a
 // person watching a terminal scroll, so each line is one JSON object: level, timestamp, scope
 // (which carries the request id) and message as fields instead of colour and padding. Development
