@@ -811,8 +811,16 @@ async Task ApplySchemaAndSeedAsync()
     var seedDemoContent = SeedingPolicy.SeedsDemoContent(builder.Configuration, builder.Environment);
     if (!seedDemoContent)
     {
+        // Not only skipped but undone: a host that once ran with demo content and later turned
+        // it off must converge on an empty catalogue, or the sample rows outlive the flag that
+        // created them. Removal matches the seeders' deterministic ids, so real listings are
+        // never touched.
+        await DemoContentRemoval.RemoveAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            CancellationToken.None);
+
         app.Logger.LogInformation(
-            "Demo listings are not seeded on this host ({Environment}): businesses, jobs, deals and events keep whatever the database already holds.",
+            "Demo listings are not seeded on this host ({Environment}) and any already in the database have been removed.",
             app.Environment.EnvironmentName);
     }
 
