@@ -13,7 +13,6 @@ namespace NepalHub.Api.Features.Health;
 public sealed class HealthController(
     IServiceProvider services,
     IConfiguration configuration,
-    IHostEnvironment hostEnvironment,
     ILogger<HealthController> logger)
     : ControllerBase
 {
@@ -22,12 +21,15 @@ public sealed class HealthController(
     public async Task<ActionResult<ApiResponse<HealthResponse>>> Get(CancellationToken cancellationToken)
     {
         var (database, detail) = await GetDatabaseStatusAsync(cancellationToken);
+
+        // Status, database and a clock only. This endpoint answers before any authentication,
+        // so everything it says is said to the whole internet: the environment name and the
+        // database version stay out of it, and the configuration that holds them is read here
+        // only to describe - never to echo - a connection string that failed to parse.
         var response = new HealthResponse(
             "healthy",
             database,
             DateTimeOffset.UtcNow,
-            configuration.GetValue<string>("Database:ServerVersion"),
-            hostEnvironment.EnvironmentName,
             detail);
         return Ok(ApiResponse<HealthResponse>.Ok(response));
     }

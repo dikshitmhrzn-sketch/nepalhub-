@@ -101,6 +101,24 @@ public sealed class HealthEndpointTests(NepalHubApiFactory factory) : IClassFixt
         Assert.Equal("healthy", envelope!.Data!.Status);
         Assert.Equal("connected", envelope.Data.Database);
     }
+
+    /// <summary>
+    /// The probe answers before any authentication, so the raw JSON - not a parsed record
+    /// that would quietly swallow extra fields - must carry nothing that names the stack:
+    /// neither the database version nor the environment the host runs under.
+    /// </summary>
+    [Fact]
+    public async Task Health_does_not_disclose_the_stack_to_an_anonymous_probe()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/health");
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.DoesNotContain("serverVersion", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"environment\"", json, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 public sealed record HealthResponse(string Status, string Database, DateTimeOffset Timestamp);

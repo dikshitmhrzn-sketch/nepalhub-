@@ -741,6 +741,11 @@ if (builder.Configuration.GetValue<bool>("ForwardedHeaders:TrustAnyProxy"))
 
 app.UseForwardedHeaders(forwardedHeaders);
 app.UseHsts();
+
+// Before everything that can produce a body - static files, endpoints, the error handler's
+// re-execution - so an asset, an API answer and a failure all leave with the same rail on it.
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
 app.UseHttpsRedirection();
 
 if (spaFiles is not null)
