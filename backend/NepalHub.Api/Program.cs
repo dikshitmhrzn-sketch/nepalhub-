@@ -884,18 +884,39 @@ else
     // now runs in the background: /api/health reports the database as unreachable until it
     // finishes and connected once it has, and a failure is logged rather than killing the
     // process, so the next start retries and an operator can read what went wrong.
+    //
+    // Retries matter because a free-tier database powers down when idle and is slow to wake:
+    // one attempt that gives up forever means a single cold start leaves demo listings in the
+    // catalogue until someone remembers to redeploy. A handful of attempts spaced seconds
+    // apart rides out the wake-up window without anyone watching.
     _ = Task.Run(async () =>
     {
-        try
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            await ApplySchemaAndSeedAsync();
-            app.Logger.LogInformation("Database schema and seed data are ready.");
-        }
-        catch (Exception exception)
-        {
-            app.Logger.LogError(
-                exception,
-                "Database migration or seeding failed. The site is up but database-backed endpoints will not work until the next start succeeds.");
+            try
+            {
+                await ApplySchemaAndSeedAsync();
+                app.Logger.LogInformation("Database schema and seed data are ready.");
+                return;
+            }
+            catch (Exception exception) when (attempt < maxAttempts)
+            {
+                app.Logger.LogWarning(
+                    exception,
+                    "Database migration or seeding attempt {Attempt} of {MaxAttempts} failed; retrying in {DelaySeconds} seconds.",
+                    attempt,
+                    maxAttempts,
+                    15);
+                await Task.Delay(TimeSpan.FromSeconds(15));
+            }
+            catch (Exception exception)
+            {
+                app.Logger.LogError(
+                    exception,
+                    "Database migration or seeding failed after {MaxAttempts} attempts. The site is up but database-backed endpoints will not work until the next start succeeds.",
+                    maxAttempts);
+            }
         }
     }, CancellationToken.None);
 }

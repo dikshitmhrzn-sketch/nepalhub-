@@ -13,6 +13,7 @@ namespace NepalHub.Api.Features.Health;
 public sealed class HealthController(
     IServiceProvider services,
     IConfiguration configuration,
+    IHostEnvironment hostEnvironment,
     ILogger<HealthController> logger)
     : ControllerBase
 {
@@ -26,6 +27,7 @@ public sealed class HealthController(
             database,
             DateTimeOffset.UtcNow,
             configuration.GetValue<string>("Database:ServerVersion"),
+            hostEnvironment.EnvironmentName,
             detail);
         return Ok(ApiResponse<HealthResponse>.Ok(response));
     }

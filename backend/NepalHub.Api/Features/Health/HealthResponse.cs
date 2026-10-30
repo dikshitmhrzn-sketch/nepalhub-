@@ -5,4 +5,5 @@ public sealed record HealthResponse(
     string Database,
     DateTimeOffset Timestamp,
     string? ServerVersion = null,
+    string? Environment = null,
     string? Detail = null);
