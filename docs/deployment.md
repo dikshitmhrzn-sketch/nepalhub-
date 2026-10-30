@@ -31,6 +31,31 @@ non-secret defaults, and no secret is ever committed.
 | `ASPNETCORE_HTTPS_PORTS` | `443` when the app itself should redirect plain http to https |
 | `Payments__Provider`, `Payments__ProductCode`, `Payments__SecretKey`, `Payments__ReturnBaseUrl`, `Payments__Environment`, `Payments__ReconcileIntervalSeconds` | eSewa; the payments section below covers when and how |
 | `Email__Provider`, `Email__RequireVerified`, `Email__From`, `Email__WebBaseUrl`, `Email__Smtp__*` | outbound mail; the email section below covers when and how |
+| `BootstrapAdmin__Email` | one-time - remove after the first sign-in: the address of the first administrator, granted the `admin` role on the next boot. The first-administrator section below is the procedure |
+| `BootstrapAdmin__Password` | one-time, optional - remove together with the address: only alongside `BootstrapAdmin__Email`, and only when no account for the address exists yet, to create it directly instead of registering first |
+
+## The first administrator
+
+Every management screen - publishing a job, approving a listing, granting a role - sits behind an
+account that already holds the `admin` role, and a fresh database has none: the development
+seeder refuses to run outside Development, and the role-grant endpoint itself needs an
+administrator to call it. `BootstrapAdmin__Email` is the one deliberate way out:
+
+1. Register the account you will administer with, on the site itself, and sign in once so you
+   know the password works.
+2. Set `BootstrapAdmin__Email` to that address (no password variable needed) and deploy.
+3. The next boot grants the role. Sign out and sign back in - role claims are baked into the
+   cookie at sign-in - and the admin screens open.
+4. Remove `BootstrapAdmin__Email` and deploy again. While it stays set, every boot logs a
+   warning: a grant that silently re-applies forever is a standing administrator nobody
+   remembers creating.
+
+If no account exists for the address yet, the seeder only logs what to do next rather than
+guessing a password. To create the account directly instead of registering first, also set
+`BootstrapAdmin__Password` (one-time; remove both together). When both are set and the account
+already exists, the password must sign in to it first: registration needs no mail confirmation,
+so the password is what proves the account is yours rather than someone who claimed the address
+first.
 
 ## Build and publish
 
@@ -311,6 +336,8 @@ and set:
 | `DataProtection__Provider` | `database` |
 | `Seeding__DemoContent` | `true` to seed the demo businesses, jobs, offers and events; leave it out for an empty catalogue with only the reference data |
 | `ForwardedHeaders__TrustAnyProxy` | `true` - Vercel's edge replaces `X-Forwarded-For` outright, so a visitor cannot inject their own, but it arrives from a pool of router addresses too dynamic for `KnownProxies`; with the flag the app believes the platform, and rate limits and `Secure` cookies work per real visitor |
+| `BootstrapAdmin__Email` | one-time - the first-administrator procedure above: the address of the admin account, removed after the first sign-in |
+| `BootstrapAdmin__Password` | one-time, optional - only with the address above, only when the account does not exist yet |
 
 Deploy with `vercel deploy --prod` or a push to the connected branch. The first boot applies
 every migration to the empty database and seeds the reference data, so `GET /api/health` must

@@ -809,6 +809,17 @@ async Task ApplySchemaAndSeedAsync()
             CancellationToken.None);
     }
 
+    // The production counterpart, and deliberately NOT environment-gated: on a live host no
+    // admin exists to create one, so the whole point is to run there when - and only when -
+    // the operator has set BootstrapAdmin:Email. With the variable absent (every test run,
+    // every boot after the variable is removed) this returns on the first line, which is why
+    // it is safe to call unconditionally like the reference seeders around it.
+    await BootstrapAdminSeeder.SeedAsync(
+        scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+        app.Configuration,
+        app.Logger,
+        CancellationToken.None);
+
     await CalculatorSeeder.SeedAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
         CancellationToken.None);
