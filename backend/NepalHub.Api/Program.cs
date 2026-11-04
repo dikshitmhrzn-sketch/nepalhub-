@@ -34,6 +34,7 @@ using NepalHub.Api.Features.Payments;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
+using NepalHub.Api.Features.Submissions;
 using NepalHub.Api.Features.Subscriptions;
 
 // The platform's environment variable is the single source the host reads to decide which
@@ -164,6 +165,15 @@ var businessRateLimitPermitLimit = builder.Configuration.GetValue("Business:Rate
 var businessRateLimitWindow = builder.Configuration.GetValue("Business:RateLimit:WindowSeconds", 3600)
     is { } businessWindowSeconds
     ? TimeSpan.FromSeconds(businessWindowSeconds)
+    : TimeSpan.FromHours(1);
+
+// Sending content in for review is the claim's twin once more: each opens a row in a queue
+// staff settle, so the quota counts submissions per IP in an hour rather than people per
+// account, at the same rate registering a listing earns.
+var submissionRateLimitPermitLimit = builder.Configuration.GetValue("Submission:RateLimit:PermitLimit", 10);
+var submissionRateLimitWindow = builder.Configuration.GetValue("Submission:RateLimit:WindowSeconds", 3600)
+    is { } submissionWindowSeconds
+    ? TimeSpan.FromSeconds(submissionWindowSeconds)
     : TimeSpan.FromHours(1);
 
 // Booking takes a scarce seat, so it is bounded like a claim per IP rather than per account:
@@ -459,6 +469,19 @@ builder.Services.AddRateLimiter(options =>
             AutoReplenishment = true,
         }));
 
+    // Submitting content joins the same queue logic with the same per-IP hour: a submission
+    // writes a draft and opens a row staff settle, which is exactly what the claim and
+    // registration quotas already bound.
+    options.AddPolicy(RateLimitPolicies.Submission, context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = submissionRateLimitPermitLimit,
+            Window = submissionRateLimitWindow,
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+
     // Booking shares the claim's per-IP hour: both spend something scarce into a queue or a
     // counter, and both are worth the same protection against a loop.
     options.AddPolicy(RateLimitPolicies.Booking, context => RateLimitPartition.GetFixedWindowLimiter(
@@ -578,6 +601,10 @@ builder.Services.AddScoped<OwnershipService>();
 // approval that publishes it, sharing that same request-scoped context so the badge, the
 // publication, the review and its audit line commit together or not at all.
 builder.Services.AddScoped<BusinessVerificationService>();
+
+// Content's twin of the same pattern: the draft a member sends in, the queue staff settle
+// and the approval that flips it live, committing with their audit line or not at all.
+builder.Services.AddScoped<ContentSubmissionService>();
 
 // Plans, entitlement and the request queue, sharing that same request-scoped context for
 // the same reason: a grant and its audit line commit together or not at all.

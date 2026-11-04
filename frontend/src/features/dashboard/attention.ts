@@ -40,6 +40,7 @@ export const quickLinks: QuickLink[] = [
   { key: 'reports', label: 'Open the report queue', to: '/admin/reports' },
   { key: 'claims', label: 'Open the claims queue', to: '/admin/claims' },
   { key: 'verifications', label: 'Open the verification queue', to: '/admin/verifications' },
+  { key: 'submissions', label: 'Open the submission queue', to: '/admin/submissions' },
   { key: 'subscriptionRequests', label: 'Open plan requests', to: '/admin/subscription-requests' },
 ];
 
@@ -64,6 +65,7 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
     openReports,
     pendingClaims,
     pendingVerifications,
+    pendingSubmissions,
     subscriptionRequests,
   } = summary.needsAttention;
 
@@ -138,6 +140,12 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
       label: 'Listings waiting to be verified',
       count: pendingVerifications,
       to: quickLinkTargets.verifications,
+    },
+    {
+      key: 'pendingSubmissions',
+      label: 'Member submissions waiting',
+      count: pendingSubmissions,
+      to: quickLinkTargets.submissions,
     },
     {
       key: 'subscriptionRequests',

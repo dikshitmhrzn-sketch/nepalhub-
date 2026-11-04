@@ -553,6 +553,35 @@ of these decisions.
       priced path; the ticket price field in the staff event editor. Gates: `dotnet build` 0/0,
       **631/631** backend tests, frontend typecheck and build clean, **61/61** frontend tests
 
+### Phase 7g — Content submissions (live) ✅
+
+- [x] `content_submissions` (`20261104105304_AddContentSubmissions`): `kind` plus three nullable
+      content FKs — exactly one set, cascading from `jobs`, `events` or `deals` — the author, the
+      author's note, `status`, and the review fields. A submission is the draft, not a copy of it:
+      the save creates the real unpublished row and points at it, so the queue, the editor and the
+      public page read one body that cannot drift from itself
+- [x] Member endpoints `GET`/`POST /api/account/submissions/{jobs|events|deals}`,
+      `GET`/`PUT /api/account/submissions/{id}` (body and note replaced together), and
+      `POST /{id}/resubmit` (`Rejected → Pending`, `created_at` restamped because that is when it
+      re-entered the queue). Refusals are `submission_not_found`, `submission_closed` once approved
+      or live, `submission_not_rejected`, `slug_taken` and `validation_failed`;
+      `Submission:RateLimit` (10/hour per IP) mints no row a stranger can spam the queue with
+- [x] Staff queue `GET /api/admin/content-submissions` with `status` and `kind` windows, pending
+      work first; approve runs the same publish rules a staff publish runs and flips
+      `is_published` on the row the author has been correcting, writing `submission.approved`;
+      reject closes it with a note and leaves the draft unpublished so it can be corrected and sent
+      again. A blocker is `409 not_publishable` with the blockers named, and both decisions settle
+      from the submission's own status — a second click is `409 submission_closed`
+- [x] The dashboard counts the open ones: `needsAttention.pendingSubmissions`, and the queue joins
+      the quick links beside the claims and verification ones
+- [x] Frontend `/submit`: kind tabs over the staff editors with their new `draft` prop — the publish
+      checkbox is gone, the author's note travels beside the body, and the save runs through the
+      submission endpoints — with every request listed beneath (status, staff's note, edit, send
+      again, view once live) at `?edit={id}`. `/admin/submissions` keeps both windows in the URL,
+      each card lists what approval found missing, and Edit opens the ordinary staff editor for
+      `row.itemId` rather than a queue-shaped twin. Gates: **730/730** backend tests, typecheck
+      clean, **92/92** frontend tests
+
 ## Phase 8 — Mobile ✅ complete
 
 - [x] Flutter app against the same public API: an Android-first `mobile/` app with module list and

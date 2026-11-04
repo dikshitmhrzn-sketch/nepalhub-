@@ -41,6 +41,10 @@ public static class AuditActions
 
     public const string BusinessVerificationRejected = "business.verification_rejected";
 
+    public const string SubmissionApproved = "submission.approved";
+
+    public const string SubmissionRejected = "submission.rejected";
+
     public const string SubscriptionGranted = "subscription.granted";
 
     public const string SubscriptionExtended = "subscription.extended";

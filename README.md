@@ -18,26 +18,27 @@ and eSewa checkout for paid plans and priced events.
 
 | Area | State |
 | --- | --- |
-| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, a payment history at `/account/payments` and a provider
-return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim/verification pages plus
+| React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, a submission screen and history at `/submit`, a payment history at `/account/payments` and a provider
+return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim/verification/submission pages plus
 admin-only account, audit-log, plan-request and payments pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, plans and subscriptions, event bookings, and eSewa payments |
-| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 34 application tables plus the EF migration-history table, seventeen migrations applied |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, member content submissions for jobs, events and offers, plans and subscriptions, event bookings, and eSewa payments |
+| MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 35 application tables plus the EF migration-history table, eighteen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
 | Daily quiz | 31 seeded questions / 124 options; anonymous play, server-side grading, XP/level/streak; staff CRUD live |
 | Badges | 3 seeded definitions; awarded by finishing a quiz, listed on the account page with progress toward the locked ones; pays no XP |
-| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see, open reports, unreviewed claims, unverified listings and plan requests, and quick links to each management page |
+| Staff dashboard | Staff-only counts for every module, a "needs attention" list built from drafts, rows a reader can no longer see, open reports, unreviewed claims, unverified listings, member submissions waiting and plan requests, and quick links to each management page |
 | Student Hub | 24 seeded resources (10 notes, 7 question papers, 7 scholarships); public catalogue with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 702 integration tests against the real `nepalhub_test` database, plus 80 frontend tests and 101 Flutter tests |
+| Tests | 730 integration tests against the real `nepalhub_test` database, plus 92 frontend tests and 101 Flutter tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
 | Events | 15 seeded events across 8 categories; public calendar with search, location and category filters and `Soonest`/`Newest` ordering; times read as Nepal wall-clock; staff CRUD with publish blockers |
 | Ownership and claims | A signed-in person claims a staff-written listing, or registers one of their own as a draft nobody else can see; staff decide at `/admin/claims` (approval writes the owner, grants the `business` role and settles rival claims in one save) and at `/admin/verifications` (approval publishes the listing and gives it the verified badge, the same role grant, or refuses with the publish blockers); the owner edits identity while a draft, contact details and hours always, at `/my-business` |
+| Content submissions | A signed-in member writes a job, an event or an offer as a draft at `/submit` and follows every request they have made in the list below the form; staff decide at `/admin/submissions` — approving publishes the draft when it satisfies the publish rules, turning it down leaves it with the author to correct and send again, and Edit opens the same editor staff use for a row of their own |
 | Plans and featured listings | Free and Featured plans (30 days each), seeded as rows staff can edit; an owner requests a plan and an admin approves at `/admin/subscription-requests` (or grants directly); live featured listings get a labelled strip atop the directory, capped at six and alphabetical |
 | Event bookings | Free bookings of 1–4 places against an atomic capacity counter, paid ones through eSewa when `ticket_price` is set; book and release on the event detail page before the start time, staff read the attendee list, and event creation carries a `Capacity` and a `Ticket price` field |
 | Payments | eSewa ePay v2 behind `IPaymentGateway`, off until `Payments:Provider` is set; one open checkout per listing or seat, settlement only from the signed return plus a server-to-server status check, refunds discovered through the admin status check, and history at `/account/payments` / `/admin/payments` |
@@ -91,13 +92,14 @@ nepalhub/
 │       │   ├── quiz/          # result view, staff question editor
 │       │   ├── reports/       # member report button, staff queue card
 │       │   ├── students/      # resource card, filters, staff editor
+│       │   ├── submissions/   # submission queue card
 │       │   ├── subscriptions/ # plan request card
 │       │   ├── ui/            # Container, Button, StateMessage, Pagination
 │       │   └── verifications/ # verification queue card
 │       ├── config/            # env.ts (VITE_* only)
-│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, payments/, reports/, subscriptions/, useradmin/ ...
+│       ├── features/          # one folder per feature (api.ts + hooks), incl. audit/, badges/, dashboard/, leaderboard/, ownership/, payments/, reports/, submissions/, subscriptions/, useradmin/ ...
 │       ├── lib/               # apiClient.ts, apiErrors.ts
-│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, my-business, payment return/history, admin, staff dashboard)
+│       ├── pages/             # route-level components (tools, calculators, quiz, students, jobs, deals, events, leaderboard, my-business, submit, payment return/history, admin, staff dashboard)
 │       ├── styles/            # tokens.css (design tokens) + global.css
 │       ├── test/              # Vitest setup (Testing Library cleanup after each test)
 │       ├── App.tsx
@@ -239,6 +241,9 @@ The seventeenth, `20261028130825_AddDataProtectionKeys`, creates `data_protectio
 the data-protection key ring is kept in when `DataProtection:Provider` is `database` - the
 container-hosting case, where no folder survives between starts; `DataProtection:KeyPath` still
 wins when it is set.
+The eighteenth, `20261104105304_AddContentSubmissions`, creates `content_submissions` — the queue
+row a member opens against the draft they sent in, with cascade deletes from whichever of the three
+content tables it points at.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -666,7 +671,7 @@ module's staff list asked with no filters, so a card that says 16 jobs and the j
 
 **"Needs attention" carries only numbers somebody can act on**, in three groups: open decisions
 first — reports, since a complaint has a reader waiting on the other side of it, then ownership
-claims, listings waiting to be verified and plan requests — then rows nobody has published yet, and rows whose publish
+claims, listings waiting to be verified, member submissions waiting for a decision and plan requests — then rows nobody has published yet, and rows whose publish
 flag no longer describes what a reader sees - a job past its
 deadline, an offer past its last day, a resource past its expiry, an event that has finished - plus
 live listings that are no longer verified, because unverifying does not retract a listing. Rows with
@@ -681,11 +686,11 @@ is serving: if a rule changes in the scope, this number changes with it.
 The endpoint has no write verb, no caching and no new table. It is a handful of count queries, and
 a number that changes while a reader is looking at it is worse than one that is a few seconds old.
 The frontend is `/admin` behind `RequireStaff`: eight count cards, the attention rows grouped and
-linked, and quick links to the eleven management pages - the seven content modules, the report queue,
-the claims queue, the verification queue and the plan-request queue. Those links are the plain `/admin/*` routes
+linked, and quick links to the twelve management pages - the seven content modules, the report queue,
+the claims queue, the verification queue, the submission queue and the plan-request queue. Those links are the plain `/admin/*` routes
 because those pages keep their filters in component state rather than in the URL - a link carrying
 `?status=draft` would land on the unfiltered list and look precise while being nothing of the sort.
-The report queue, the account list, the audit log, the claims queue, the verification queue and the plan-request queue are
+The report queue, the account list, the audit log, the claims queue, the verification queue, the submission queue and the plan-request queue are
 the opposite: their filters live in the URL, so a filtered view is a link somebody can paste to a
 colleague.
 
@@ -806,6 +811,56 @@ take no audit rows — the trail is for staff decisions, not a reader taking a s
 are rate-limited per IP (20/hour). Event detail carries `capacity`, `registrationCount` and a
 `remainingSpots` that never goes negative, with a booking panel beside them; the staff attendee list
 is `GET /api/admin/events/{id}/bookings`.
+
+---
+
+## Content submissions
+
+What a signed-in person sends in for review: a job, an event or an offer written through the same
+editor staff use, held as a draft until somebody decides it is fit to show.
+
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/account/submissions` | required | Everything this account has sent, open work first |
+| `POST /api/account/submissions/{jobs\|events\|deals}` | required | Write the draft and open the request against it in one save; `409 slug_taken`; 10/hour per IP |
+| `GET /api/account/submissions/{id}` | required | One submission with the draft body beside it, exactly one of the three payloads set; 404 for another account's row |
+| `PUT /api/account/submissions/{id}` | required | Replaces body and note together; `409 submission_closed` once it is approved or live |
+| `POST /api/account/submissions/{id}/resubmit` | required | Sends a turned-down submission back into the queue; `409 submission_not_rejected` |
+| `GET /api/admin/content-submissions` | `staff-only` | The queue: pending first, `status` and `kind` filters |
+| `POST /api/admin/content-submissions/{id}/approve` | `staff-only` | Publishes the draft if the blockers pass and audits; `409 not_publishable` / `submission_closed` |
+| `POST /api/admin/content-submissions/{id}/reject` | `staff-only` | Closes it with an optional review note; the draft stays unpublished so the author can fix and resend it |
+
+**A submission is the draft, not a copy of it.** `POST` creates the real `jobs`, `events` or `deals`
+row — `is_published = false`, answering 404 on the public site exactly as any other draft does — plus
+one `content_submissions` row pointing at it through whichever of the three foreign keys matches its
+kind, the other two null. There is no second body to drift out of sync: the queue reads the row, the
+editor writes the row, and approval flips `is_published` on the same row the author has been
+correcting. The queue row cascades away with its content (`OnDelete` from all three), because a
+draft nobody can open has no request left to stand for.
+
+**The screen is `/submit`, behind `RequireAuth`.** Three kind tabs pick which of the staff editors
+opens — rendered with its `draft` prop, which is what takes the publish checkbox away, adds the
+author's note field and routes the save through the submission endpoints instead of the staff ones.
+Below it, every request this account has made: status badge, the note staff left when they decided
+it, `Edit` for anything not yet approved (which reopens the same editor at `?edit={id}`), `Send again`
+for a rejected one, and a `View` link once it is live. Editing a rejected draft corrects the body but
+leaves the decision standing — the row's own `Send again` is what puts it back in the queue, and the
+form says so rather than letting a save silently reopen a request.
+
+**The queue is `/admin/submissions`, staff-only, two windows over the same rows.** Status
+(`all`/`Open`/`Approved`/`Rejected`) and kind (`every kind`/`Jobs`/`Events`/`Offers`) both live in
+the URL, so a filtered view is a link — the same terms the claims and verification queues keep. Each
+card carries the author, their note, and the two decisions; approval that finds a publish blocker
+answers `409 not_publishable` with the blockers, which the card lists rather than leaving the row to
+be rediscovered, because the author cannot see them until somebody tells them. `Edit` on a card opens
+the ordinary staff editor for `row.itemId` — a queued draft is an unpublished row, so there is no
+second edit path and no queue-shaped twin of the form. Both decisions are settled from the submission
+row's own status, so a second click on an already-decided request is `409 submission_closed` and
+reloads the queue. Each decision writes one `submission.approved` / `submission.rejected` audit row,
+and the dashboard counts the open ones as `needsAttention.pendingSubmissions`, which is also a quick
+link to this queue.
+
+The frontend is `/submit` and `/admin/submissions`, both wired into the primary nav.
 
 ---
 
@@ -932,32 +987,87 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-641 tests pass, of which 60 cover Offers, 54 cover Events and 17 cover Payments:
+730 tests pass:
 
 | File | Tests |
 | --- | --- |
-| `AbuseProtectionTests.cs` | 2 |
+| `AdminPaymentTests.cs` | 1 |
+| `AdminSubscriptionTests.cs` | 3 |
 | `AuthenticationTests.cs` | 15 |
+| `BadgeAwardTests.cs` | 9 |
 | `BadgeRulesTests.cs` | 10 |
-| `BadgeTests.cs` | 12 |
-| `BookingTests.cs` | 5 |
+| `BadgeStreakTests.cs` | 3 |
+| `BootstrapAdminSeederTests.cs` | 5 |
+| `BookingAttendanceTests.cs` | 1 |
+| `BookingFlowTests.cs` | 4 |
+| `BookingRateLimitingTests.cs` | 1 |
+| `BusinessAdminTests.cs` | 43 |
+| `BusinessDirectoryTests.cs` | 22 |
+| `BusinessLocationFilterTests.cs` | 6 |
+| `BusinessOpenNowTests.cs` | 8 |
+| `BusinessOpeningHoursTests.cs` | 11 |
+| `BusinessPhoneTests.cs` | 15 |
+| `BusinessRateLimitingTests.cs` | 1 |
 | `BusinessRegistrationTests.cs` | 9 |
-| `BusinessTests.cs` | 105 |
-| `CalculatorTests.cs` | 45 |
-| `DealTests.cs` | 60 |
-| `EventTests.cs` | 54 |
-| `JobsTests.cs` | 86 |
-| `LeaderboardTests.cs` | 9 |
-| `ModerationTests.cs` | 10 |
-| `OwnershipTests.cs` | 8 |
-| `PaymentTests.cs` | 17 |
-| `QuizTests.cs` | 35 |
-| `RateLimitingTests.cs` | 5 |
-| `ReferenceDataTests.cs` | 5 |
-| `SearchTests.cs` | 31 |
+| `CalculatorAdminTests.cs` | 12 |
+| `CalculatorCalculationTests.cs` | 11 |
+| `CalculatorCatalogueTests.cs` | 21 |
+| `CalculatorRateLimitTests.cs` | 1 |
+| `ChangePasswordRateLimitingTests.cs` | 1 |
+| `ChangePasswordTests.cs` | 3 |
+| `ClaimDecisionTests.cs` | 4 |
+| `ClaimFilingTests.cs` | 4 |
+| `ClaimRateLimitingTests.cs` | 1 |
+| `ConnectionStringNormalizerTests.cs` | 11 |
+| `ContentSubmissionTests.cs` | 7 |
+| `DealExpiryTests.cs` | 3 |
+| `DealsTests.cs` | 57 |
+| `DemoContentRemovalTests.cs` | 2 |
+| `EmailSenderTests.cs` | 16 |
+| `EmailVerificationTests.cs` | 8 |
+| `EsewaSignatureTests.cs` | 5 |
+| `EventTimingTests.cs` | 4 |
+| `EventsTests.cs` | 50 |
+| `FeaturedStripTests.cs` | 1 |
+| `ForwardedHeadersTests.cs` | 2 |
+| `HealthEndpointTests.cs` | 2 |
+| `HealthProbeTests.cs` | 1 |
+| `JobAdminTests.cs` | 37 |
+| `JobBoardTests.cs` | 42 |
+| `JobExpiryTests.cs` | 3 |
+| `JobLocationFilterTests.cs` | 4 |
+| `LeaderboardTests.cs` | 6 |
+| `LeaderboardWindowTests.cs` | 3 |
+| `LogoutAbuseTests.cs` | 1 |
+| `OwnerSubscriptionTests.cs` | 7 |
+| `PaidSubscriptionTests.cs` | 5 |
+| `PaidTicketTests.cs` | 4 |
+| `PasswordRecoveryTests.cs` | 5 |
+| `PasswordResetRateLimitingTests.cs` | 1 |
+| `PaymentConfigurationTests.cs` | 1 |
+| `PaymentRateLimitTests.cs` | 1 |
+| `PaymentReconciliationTests.cs` | 3 |
+| `PlanCatalogueTests.cs` | 1 |
+| `QuizRateLimitingTests.cs` | 2 |
+| `QuizStreakTests.cs` | 3 |
+| `QuizTests.cs` | 30 |
+| `RateLimitingTests.cs` | 2 |
+| `ReferenceDataTests.cs` | 4 |
+| `ReportAbuseTests.cs` | 1 |
+| `ReportFilingTests.cs` | 6 |
+| `ReportQueueTests.cs` | 4 |
+| `RequestLoggingTests.cs` | 9 |
+| `ResendVerificationRateLimitingTests.cs` | 1 |
+| `SearchRateLimitingTests.cs` | 2 |
+| `SearchTests.cs` | 29 |
+| `SeedingPolicyTests.cs` | 6 |
+| `SecurityHeadersTests.cs` | 2 |
+| `SpaServingTests.cs` | 4 |
 | `StaffDashboardTests.cs` | 11 |
-| `StudentHubTests.cs` | 68 |
-| `SubscriptionTests.cs` | 12 |
+| `StartupMigrationTests.cs` | 1 |
+| `StudentResourceAdminTests.cs` | 31 |
+| `StudentResourceCatalogueTests.cs` | 34 |
+| `StudentResourceExpiryTests.cs` | 3 |
 | `TestDatabaseTests.cs` | 20 |
 | `UserAdminTests.cs` | 7 |
 
@@ -969,10 +1079,13 @@ cd frontend
 npm test
 ```
 
-61 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
+92 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
 period tabs and its loading and empty states, the report button's lifecycle - filing, the
 duplicate and vanished-target answers it shows as sentences, and cancelling without sending
-anything - plus the claim panel's four answers, the claim queue card, the featured strip's
+anything - plus the claim panel's four answers, the claim queue card, the submission queue card -
+the decision it sends, the blockers approval refuses with, and the hand-off to the staff editor -
+the submit screen - the sign-in wall, the three kinds it offers, the actions each standing allows
+and the edit link that reopens a saved draft - the featured strip's
 loading/empty/error silence, the booking panel from stepper to sold-out and release (including the
 priced path and why a checkout that cannot start says so), the payment return page's five answers,
 and `checkout.ts` - the signed form it builds and posts, and every sentence an error code can

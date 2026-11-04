@@ -16,6 +16,7 @@ import { PaymentsAdminPage } from '@/pages/admin/PaymentsAdminPage';
 import { QuizAdminPage } from '@/pages/admin/QuizAdminPage';
 import { ReportsAdminPage } from '@/pages/admin/ReportsAdminPage';
 import { ResourceAdminPage } from '@/pages/admin/ResourceAdminPage';
+import { SubmissionsAdminPage } from '@/pages/admin/SubmissionsAdminPage';
 import { SubscriptionRequestsAdminPage } from '@/pages/admin/SubscriptionRequestsAdminPage';
 import { UsersAdminPage } from '@/pages/admin/UsersAdminPage';
 import { VerificationsAdminPage } from '@/pages/admin/VerificationsAdminPage';
@@ -44,6 +45,7 @@ import { SearchPage } from '@/pages/SearchPage';
 import { StaffDashboardPage } from '@/pages/StaffDashboardPage';
 import { StudentResourcePage } from '@/pages/StudentResourcePage';
 import { StudentsPage } from '@/pages/StudentsPage';
+import { SubmitPage } from '@/pages/SubmitPage';
 import { ToolsPage } from '@/pages/ToolsPage';
 import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 
@@ -85,6 +87,8 @@ export const router = createBrowserRouter([
           { path: 'account/payments', element: <PaymentsPage /> },
           { path: 'my-business', element: <MyBusinessPage /> },
           { path: 'my-business/:slug', element: <MyBusinessPage /> },
+          /* A member's own drafts and the queue they join: write it here, follow it below. */
+          { path: 'submit', element: <SubmitPage /> },
           /*
             Where the provider sends a buyer back. Both land on the same page: a return
             that says "failed" is a claim by a url, and the page asks the provider either
@@ -108,6 +112,7 @@ export const router = createBrowserRouter([
           { path: 'admin/reports', element: <ReportsAdminPage /> },
           { path: 'admin/claims', element: <ClaimsAdminPage /> },
           { path: 'admin/verifications', element: <VerificationsAdminPage /> },
+          { path: 'admin/submissions', element: <SubmissionsAdminPage /> },
           {
             element: <RequireAdmin />,
             children: [

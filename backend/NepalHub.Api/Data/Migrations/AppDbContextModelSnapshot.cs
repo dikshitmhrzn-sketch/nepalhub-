@@ -949,6 +949,90 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("calculators", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("DealId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("job_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedByUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_content_submissions");
+
+                    b.HasIndex("DealId")
+                        .HasDatabaseName("ix_content_submissions_deal_id");
+
+                    b.HasIndex("EventId")
+                        .HasDatabaseName("ix_content_submissions_event_id");
+
+                    b.HasIndex("JobId")
+                        .HasDatabaseName("ix_content_submissions_job_id");
+
+                    b.HasIndex("ReviewedByUserId")
+                        .HasDatabaseName("ix_content_submissions_reviewed_by_user_id");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_content_submissions_status_created_at");
+
+                    b.HasIndex("SubmittedByUserId", "CreatedAt")
+                        .HasDatabaseName("ix_content_submissions_submitted_by_created_at");
+
+                    b.ToTable("content_submissions", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuiz", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3029,6 +3113,50 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("calculators_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentSubmission", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.Deal", "Deal")
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_submissions_fk_deal_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_submissions_fk_event_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Job", "Job")
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_submissions_fk_job_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("content_submissions_fk_reviewed_by_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "SubmittedBy")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("content_submissions_fk_submitted_by_user_id");
+
+                    b.Navigation("Deal");
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Job");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("SubmittedBy");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.DailyQuizQuestion", b =>

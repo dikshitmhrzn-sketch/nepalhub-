@@ -35,6 +35,7 @@ const summary: DashboardSummary = {
     openReports: 0,
     pendingClaims: 0,
     pendingVerifications: 0,
+    pendingSubmissions: 0,
     subscriptionRequests: 0,
   },
 };

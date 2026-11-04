@@ -143,6 +143,12 @@ NepalHub.Api/
     │   ├── EventBookingsAdminController.cs     staff-only attendance list
     │   ├── BookingService.cs                   the atomic latch against registration_count
     │   └── BookingContracts.cs                 booking read model
+    ├── Submissions/     what a member sends in: a draft, and the request to publish it
+    │   ├── AccountSubmissionsController.cs     write, read, correct and resend, authenticated
+    │   ├── ContentSubmissionsAdminController.cs  the staff queue, approve and reject
+    │   ├── ContentSubmissionService.cs         one body behind the request, resubmit,
+    │   │                                       approve = the publish rules then publish
+    │   └── SubmissionContracts.cs              queue filters, author and staff read models
     ├── Payments/        7f: where money is asked for, never stored
     │   ├── PaymentsController.cs               config, checkout, verify, one reference's state
     │   ├── AccountPaymentsController.cs        the payer's own history
@@ -492,7 +498,7 @@ the page.
 - **Authorisation:** role-based policies (`user`, `business`, `moderator`, `admin`) enforced by
   `[Authorize(Policy = ...)]` with `admin-only` and `staff-only` policies, plus resource-level
   ownership checks in services. Business accounts can only edit their own listings. The queues are
-  split by consequence: the claims and verification queues are `staff-only` (they move ownership and
+  split by consequence: the claims, verification and content-submission queues are `staff-only` (they move ownership and
   publication, facts staff already curate), while subscription requests and direct grant/cancel are
   `admin-only` (they are the site's money-equivalent), and event attendance is `staff-only`.
 - **Default deny:** a fallback authorisation policy means every endpoint requires a signed-in user
@@ -514,7 +520,9 @@ the page.
   return URL, and `GET /payments/config` is anonymous because it only decides whether a button is
   shown. Registering a listing gets 10/hour (`Business:RateLimit:PermitLimit`) for the same reason
   a claim does: it mints rows a stranger can then ask staff to review, and the submit verb behind it
-  shares the budget rather than opening a second door. The three recovery verbs — resend,
+  shares the budget rather than opening a second door. Sending in a job, an event or an offer gets
+  10/hour (`Submission:RateLimit:PermitLimit`) for the same reason again: every save mints a draft
+  and a queue row somebody on staff then has to read. The three recovery verbs — resend,
   forgot and reset — plus change-password get 10/hour each (`ResendVerification:RateLimit`,
   `PasswordReset:RateLimit`, `ChangePassword:RateLimit`) because each one either mints a link
   that hands over an account or mails a stranger on request, and a person mistyping their

@@ -7,7 +7,10 @@ import { slugifyTitle } from '@/features/events/format';
 import type { EventAdmin, EventCategory, SaveEventRequest } from '@/features/events/types';
 import { categoryLabels, emptyEventRequest, eventCategories } from '@/features/events/types';
 import { useEventBusinessOptions, useStaffEvent } from '@/features/events/useStaffEvents';
-import type { ReferenceData } from '@/features/reference/useReferenceData';
+import { findProvinceCode, type ReferenceData } from '@/features/reference/useReferenceData';
+import { submitEventSubmission, updateSubmission } from '@/features/submissions/api';
+import { useDirectoryBusinessOptions } from '@/features/submissions/useDirectoryBusinessOptions';
+import { useSubmissionDraft } from '@/features/submissions/useSubmissionDraft';
 import { getErrorMessage, getFieldErrors } from '@/lib/apiErrors';
 
 import styles from './EventEditor.module.css';
@@ -16,7 +19,19 @@ interface EventEditorProps {
   id: string | null;
   reference: ReferenceData;
   onCancel: () => void;
-  onSaved: (saved: { id: string; title: string; isPublished: boolean }) => void;
+  onSaved: (saved: {
+    id: string;
+    title: string;
+    isPublished: boolean;
+    submissionId?: string;
+  }) => void;
+  /**
+   * Present means this is a member's submission draft rather than a staff row: the form
+   * loads through the submission detail endpoint, saves through the submission endpoints,
+   * shows the author's note beside the body, and never offers the publish checkbox —
+   * going live is what the queue decides. A null `submissionId` composes a brand-new one.
+   */
+  draft?: { submissionId: string | null };
 }
 
 /**
@@ -61,24 +76,56 @@ function toRequest(detail: EventAdmin): SaveEventRequest {
  *
  * The slug is editable while the event is a draft and frozen once it is live, matching every other
  * editor in the app.
+ *
+ * The same fields write a member's submission: with the `draft` prop the save runs through the
+ * queue instead of the staff board, the author's note travels beside the body, and the publish
+ * checkbox is gone — publishing is the decision this form exists to ask for.
  */
-export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorProps) {
-  const detail = useStaffEvent(id);
+export function EventEditor({ id, reference, onCancel, onSaved, draft }: EventEditorProps) {
+  const isDraft = draft !== undefined;
+  const draftId = draft?.submissionId ?? null;
+
+  const detail = useStaffEvent(isDraft ? null : id);
   const loaded = detail.status === 'success' ? detail.data : null;
   const loadedId = loaded?.id ?? null;
+
+  const draftDetail = useSubmissionDraft(isDraft ? draftId : null);
+  const draftLoaded = draftDetail.status === 'success' ? draftDetail.data : null;
+  const draftLoadedId = draftLoaded?.submission.id ?? null;
 
   const [form, setForm] = useState<SaveEventRequest>(emptyEventRequest);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [note, setNote] = useState('');
   const [businessSearch, setBusinessSearch] = useState('');
-  const businessOptions = useEventBusinessOptions(businessSearch);
+  const staffBusinessOptions = useEventBusinessOptions(businessSearch, !isDraft);
+  const directoryBusinessOptions = useDirectoryBusinessOptions(businessSearch, isDraft);
+  const businessOptions = isDraft ? directoryBusinessOptions : staffBusinessOptions;
 
   // The province is not posted, because the API reads it through the district. It is kept only to
   // decide which district list the select offers, and is recovered from the saved row.
   const [provinceCode, setProvinceCode] = useState('');
 
   useEffect(() => {
+    if (isDraft) {
+      // A submission's body arrives already in the request shape — it went out as one —
+      // so the only projection is the publish flag, which this form may never express.
+      const content = draftLoaded?.event ?? null;
+
+      if (content) {
+        setForm({ ...content, isPublished: false });
+        setNote(draftLoaded?.submission.note ?? '');
+        setProvinceCode(findProvinceCode(reference, content.districtCode));
+      } else if (!draftId) {
+        setForm(emptyEventRequest());
+        setNote('');
+        setProvinceCode('');
+      }
+
+      return;
+    }
+
     if (loaded) {
       setForm(toRequest(loaded));
       setProvinceCode(loaded.provinceCode ?? '');
@@ -86,7 +133,7 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
       setForm(emptyEventRequest());
       setProvinceCode('');
     }
-  }, [loadedId, id]);
+  }, [loadedId, draftLoadedId, isDraft, draftId, id]);
 
   const districts = provinceCode
     ? (reference.districtsByProvince[provinceCode] ?? [])
@@ -126,11 +173,28 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
         Number.isFinite(form.ticketPrice) && form.ticketPrice > 0
           ? Math.floor(form.ticketPrice)
           : 0,
+      isPublished: isDraft ? false : form.isPublished,
     };
 
     try {
-      const saved = id ? await updateEvent(id, body) : await createEvent(body);
-      onSaved({ id: saved.id, title: saved.title, isPublished: saved.isPublished });
+      if (isDraft) {
+        const saved = draftId
+          ? await updateSubmission(draftId, {
+              kind: 'Event',
+              event: body,
+              note: note.trim() || null,
+            })
+          : await submitEventSubmission({ content: body, note: note.trim() || null });
+        onSaved({
+          id: saved.itemId,
+          title: saved.title,
+          isPublished: saved.isPublished,
+          submissionId: saved.id,
+        });
+      } else {
+        const saved = id ? await updateEvent(id, body) : await createEvent(body);
+        onSaved({ id: saved.id, title: saved.title, isPublished: saved.isPublished });
+      }
     } catch (error) {
       setFieldErrors(getFieldErrors(error));
       setFormError(getErrorMessage(error, 'The event could not be saved.'));
@@ -139,11 +203,11 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
     }
   }
 
-  if (id && detail.status === 'loading') {
+  if (!isDraft && id && detail.status === 'loading') {
     return <StateMessage tone="loading" title="Loading the event…" />;
   }
 
-  if (id && detail.status === 'error') {
+  if (!isDraft && id && detail.status === 'error') {
     return (
       <StateMessage
         tone="error"
@@ -158,12 +222,39 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
     );
   }
 
+  if (isDraft && draftId && draftDetail.status === 'loading') {
+    return <StateMessage tone="loading" title="Loading your draft…" />;
+  }
+
+  if (isDraft && draftId && draftDetail.status === 'error') {
+    return (
+      <StateMessage
+        tone="error"
+        title="Could not load that submission"
+        description={getErrorMessage(draftDetail.error, 'It may have been deleted.')}
+        action={
+          <Button variant="secondary" size="small" onClick={onCancel}>
+            Back to the list
+          </Button>
+        }
+      />
+    );
+  }
+
   const isPublished = loaded?.isPublished ?? false;
   const blockers = loaded?.publishBlockers ?? [];
 
   return (
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
-      <h2 className={styles.title}>{id ? 'Edit event' : 'New event'}</h2>
+      <h2 className={styles.title}>
+        {isDraft
+          ? draftId
+            ? 'Edit your draft'
+            : 'Send an event for review'
+          : id
+            ? 'Edit event'
+            : 'New event'}
+      </h2>
 
       {formError ? (
         <p className={styles.alert} role="alert">
@@ -600,31 +691,70 @@ export function EventEditor({ id, reference, onCancel, onSaved }: EventEditorPro
         </div>
       </fieldset>
 
-      <fieldset className={styles.section}>
-        <legend className={styles.sectionLegend}>Status</legend>
+      {!isDraft ? (
+        <fieldset className={styles.section}>
+          <legend className={styles.sectionLegend}>Status</legend>
 
-        <div className={styles.checkboxField}>
-          <input
-            id="event-published"
-            name="isPublished"
-            type="checkbox"
-            checked={form.isPublished}
-            aria-describedby="event-published-hint"
-            onChange={(changeEvent) => patch({ isPublished: changeEvent.target.checked })}
-          />
-          <label className={styles.label} htmlFor="event-published">
-            Published
-          </label>
-        </div>
-        <span className={styles.help} id="event-published-hint">
-          A draft is invisible to the public. The list above is what the last saved copy was still
-          missing.
-        </span>
-      </fieldset>
+          <div className={styles.checkboxField}>
+            <input
+              id="event-published"
+              name="isPublished"
+              type="checkbox"
+              checked={form.isPublished}
+              aria-describedby="event-published-hint"
+              onChange={(changeEvent) => patch({ isPublished: changeEvent.target.checked })}
+            />
+            <label className={styles.label} htmlFor="event-published">
+              Published
+            </label>
+          </div>
+          <span className={styles.help} id="event-published-hint">
+            A draft is invisible to the public. The list above is what the last saved copy was still
+            missing.
+          </span>
+        </fieldset>
+      ) : (
+        <fieldset className={styles.section}>
+          <legend className={styles.sectionLegend}>Note to staff</legend>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="event-submission-note">
+              Anything they should know (optional)
+            </label>
+            <input
+              className={styles.input}
+              id="event-submission-note"
+              name="note"
+              type="text"
+              maxLength={500}
+              value={note}
+              aria-invalid={fieldErrors.note ? true : undefined}
+              aria-describedby="event-submission-note-hint"
+              placeholder="Where it was announced, who is running it."
+              onChange={(changeEvent) => setNote(changeEvent.target.value)}
+            />
+            <span className={styles.help} id="event-submission-note-hint">
+              Up to 500 characters, read beside this draft in the staff queue. The event stays
+              invisible to the public until staff approve it.
+            </span>
+            {fieldErrors.note ? (
+              <span className={styles.fieldError}>{fieldErrors.note}</span>
+            ) : null}
+          </div>
+        </fieldset>
+      )}
 
       <div className={styles.actions}>
         <Button type="submit" disabled={isSaving}>
-          {isSaving ? 'Saving…' : id ? 'Save changes' : 'Create event'}
+          {isSaving
+            ? 'Saving…'
+            : isDraft
+              ? draftId
+                ? 'Save changes'
+                : 'Send for review'
+              : id
+                ? 'Save changes'
+                : 'Create event'}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
           Cancel

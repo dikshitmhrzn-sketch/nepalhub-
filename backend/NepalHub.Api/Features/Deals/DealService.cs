@@ -650,6 +650,15 @@ public sealed class DealService(
         return errors;
     }
 
+    /// <summary>
+    /// The publish rules against a stored row rather than a request, for the approval path
+    /// that has only the entity in hand. It re-projects through <see cref="ToSaveRequest"/>
+    /// so the rules stay in one place and an approval can never publish an offer the staff
+    /// editor would have refused.
+    /// </summary>
+    internal IReadOnlyList<FieldError> CollectPublishBlockersFor(Deal deal) =>
+        CollectPublishBlockers(ToSaveRequest(deal));
+
     private async Task<IReadOnlyList<FieldError>> ValidateAsync(
         SaveDealRequest request,
         bool isGoingLive,
@@ -807,8 +816,9 @@ public sealed class DealService(
     /// <summary>
     /// Re-projects a stored row back into the request shape so the publish rules can be evaluated
     /// against it. Without this, the editor's blocker list would need a second copy of every rule, and
-    /// the two copies would eventually disagree.
-    private static SaveDealRequest ToSaveRequest(Deal deal) => new()
+    /// the two copies would eventually disagree. Internal so the submission queue can read a draft
+    /// back to its author through the very same projection.
+    internal static SaveDealRequest ToSaveRequest(Deal deal) => new()
     {
         Slug = deal.Slug,
         Title = deal.Title,

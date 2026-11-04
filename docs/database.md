@@ -1,13 +1,14 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and fifteen modules are live.** The schema below is the as-built
+**Status: MySQL 8.4.9 is installed and sixteen modules are live.** The schema below is the as-built
 result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
 `20260930122740_AddQuiz`, `20260930154447_AddStudentResources`, `20261001041409_AddJobs`,
 `20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`,
 `20261002162619_AddBadges`, `20261005042009_AddModeration`, `20261005042034_AddQuizAttemptCompletedAtIndex`,
 `20261005103010_AddBusinessOwnership`, `20261005104909_AddBusinessSubscriptions`,
-`20261005104931_AddEventBookings`, `20261006035723_AddPayments` and
-`20261006093754_AddBusinessVerifications`,
+`20261005104931_AddEventBookings`, `20261006035723_AddPayments`,
+`20261006093754_AddBusinessVerifications`, `20261028130825_AddDataProtectionKeys` and
+`20261104105304_AddContentSubmissions`,
 not a proposal. Everything from "Planned modules" onwards is still design
 only.
 
@@ -16,7 +17,8 @@ confirmation or reset link is an ASP.NET Core Identity data-protector token carr
 purpose and expiry, so the only columns involved are the ones Identity already owns
 (`users.email_confirmed` behind `EmailConfirmed`); the per-address send quiet window lives in
 memory, which is the whole one-host-one-process deployment model; and mail itself is a log line,
-a file pair or a remote relay rather than rows. Sixteen migrations remain the whole schema.
+a file pair or a remote relay rather than rows. Eighteen migrations remain the whole schema — the
+seventeenth adds `data_protection_keys` for the key ring, the eighteenth `content_submissions`.
 
 ## Local instance
 
@@ -877,11 +879,59 @@ Rejection closes the request and leaves the draft exactly where it was. Both dec
 from this row's own `status`, so a second click on an already-decided request is
 `verification_closed` rather than a second decision.
 
+## Module 16 — Content submissions (live)
+
+Added by `20261104105304_AddContentSubmissions`. One table: the request a member opened against the
+draft they wrote, and what staff decided about it. Submitting copies nothing — the save creates the
+real `jobs`, `events` or `deals` row unpublished *and* this row pointing at it, so the queue, the
+member's editor and the public page all read one body that cannot drift from itself.
+
+### `content_submissions`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `kind` | `varchar(10)` | `SubmissionKind` by name: `Job`, `Event` or `Deal`. Which of the three foreign keys below carries the draft, and which body the editor loads |
+| `job_id` | `char(36)` nullable → `jobs` | FK `ON DELETE CASCADE`, `content_submissions_fk_job_id`. Set only when `kind = Job` |
+| `event_id` | `char(36)` nullable → `events` | FK `ON DELETE CASCADE`. Set only when `kind = Event` |
+| `deal_id` | `char(36)` nullable → `deals` | FK `ON DELETE CASCADE`. Set only when `kind = Deal` |
+| `submitted_by_user_id` | `char(36)` → `users` | FK `ON DELETE CASCADE`. The author, recorded even if they lose the account later |
+| `note` | `varchar(500)` nullable | The author's own words beside the draft, optional, capped like a claim's evidence |
+| `status` | `varchar(20)` | `SubmissionStatus` by name: `Pending` (default), `Approved`, `Rejected` |
+| `created_at` | `datetime(6)` | default `CURRENT_TIMESTAMP(6)`. Restamped when a rejected draft is sent again, because that is when it re-entered the queue |
+| `reviewed_by_user_id` | `char(36)` nullable → `users` | FK `ON DELETE SET NULL`. Deleting a staff account must not re-open the question of who decided |
+| `reviewed_at` | `datetime(6)` nullable | The instant staff decided, in UTC like every other written timestamp |
+| `review_note` | `varchar(500)` nullable | What staff recorded when deciding. Lives on the request row, not in the audit `after` |
+
+**Exactly one of the three content FKs is set**, matching `kind`; the other two are null, which is
+what the detail response mirrors (`job`, `event` and `deal` payloads with only the matching one
+carrying a body). All three cascade, so deleting a draft takes its request with it — there is
+nothing left for a decision to be about. Authorship cascades for the same reason; the reviewer is
+set to null rather than dropped.
+
+Indexes: `ix_content_submissions_status_created_at` (the staff queue: pending first, newest first,
+which is exactly what `/api/admin/content-submissions` asks for), `ix_content_submissions_submitted_by_created_at`
+(the author's own history under `/api/account/submissions`, open work sorted in the service), one
+index per content FK for the cascade joins and one on `reviewed_by_user_id`.
+
+Approval is the only thing that publishes: it runs the same `CollectPublishBlockersFor` a staff
+publish runs and flips `is_published` on the draft this row points at — or refuses with
+`not_publishable` and the blockers named, which is why a row can be `Pending` for a draft that would
+fail if it were published today. Rejection leaves the draft unpublished, and the author may edit the
+body and resubmit (`Rejected → Pending` in one save); an approved row is closed to further edits with
+`submission_closed`, because its address may already be public. Both decisions settle from this
+row's own `status`, so a second click on an already-decided request is `submission_closed` rather
+than a second decision, and each writes one `submission.approved` / `submission.rejected` audit row.
+
+Creating a submission is rate-limited through the `RateLimitPolicies.Submission` policy
+(`Submission:RateLimit`, 10 per hour per IP by default) because it mints rows a stranger can then
+ask staff to review, the same argument as business registration.
+
 ## Planned modules
 
 Everything below this line is still absent from the database. Each will be added as its own
-migration when its module is built. (Ownership, plans, subscriptions, bookings, payments and
-verification were listed here once — they are live as Modules 11–15 above.)
+migration when its module is built. (Ownership, plans, subscriptions, bookings, payments,
+verification and content submissions were listed here once — they are live as Modules 11–16 above.)
 
 ### Businesses, monetisation and claims
 

@@ -31,6 +31,7 @@ private readonly int _authRateLimitPermitLimit;
     private readonly int _passwordResetRateLimitPermitLimit;
     private readonly int _resendVerificationRateLimitPermitLimit;
     private readonly int _changePasswordRateLimitPermitLimit;
+    private readonly int _submissionRateLimitPermitLimit;
 
     public NepalHubApiFactory()
         : this(10_000)
@@ -50,7 +51,8 @@ private readonly int _authRateLimitPermitLimit;
         int businessRateLimitPermitLimit = 10_000,
         int passwordResetRateLimitPermitLimit = 10_000,
         int resendVerificationRateLimitPermitLimit = 10_000,
-        int changePasswordRateLimitPermitLimit = 10_000)
+        int changePasswordRateLimitPermitLimit = 10_000,
+        int submissionRateLimitPermitLimit = 10_000)
     {
         _authRateLimitPermitLimit = authRateLimitPermitLimit;
         _calculateRateLimitPermitLimit = calculateRateLimitPermitLimit;
@@ -65,6 +67,7 @@ private readonly int _authRateLimitPermitLimit;
         _passwordResetRateLimitPermitLimit = passwordResetRateLimitPermitLimit;
         _resendVerificationRateLimitPermitLimit = resendVerificationRateLimitPermitLimit;
         _changePasswordRateLimitPermitLimit = changePasswordRateLimitPermitLimit;
+        _submissionRateLimitPermitLimit = submissionRateLimitPermitLimit;
         TestDatabase.PrepareAsync(
                 _authRateLimitPermitLimit,
                 _calculateRateLimitPermitLimit,
@@ -78,7 +81,8 @@ private readonly int _authRateLimitPermitLimit;
                 _businessRateLimitPermitLimit,
                 _passwordResetRateLimitPermitLimit,
                 _resendVerificationRateLimitPermitLimit,
-                _changePasswordRateLimitPermitLimit)
+                _changePasswordRateLimitPermitLimit,
+                _submissionRateLimitPermitLimit)
             .GetAwaiter().GetResult();
     }
 

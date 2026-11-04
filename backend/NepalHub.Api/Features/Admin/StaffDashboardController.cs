@@ -150,15 +150,20 @@ public sealed class StaffDashboardController(
             // The queues 7e and 6c added, all counted the same way: pending rows only, from
             // the same tables their own queue pages read. Claims are moderation work any
             // staff member can close; verification requests are the same kind of decision
-            // for a listing an owner registered themselves; subscription requests are the
-            // money-shaped decisions reserved for administrators, and the screens behind
-            // them gate on their own roles — this number is a hint to look, never the thing
-            // that decides who may.
+            // for a listing an owner registered themselves; content submissions are that
+            // decision again for a draft a member wrote themselves; subscription requests
+            // are the money-shaped decisions reserved for administrators, and the screens
+            // behind them gate on their own roles — this number is a hint to look, never
+            // the thing that decides who may.
             PendingClaims: await dbContext.BusinessClaims
                 .CountAsync(claim => claim.Status == BusinessClaimStatus.Pending, cancellationToken),
             PendingVerifications: await dbContext.BusinessVerificationRequests
                 .CountAsync(
                     request => request.Status == BusinessVerificationStatus.Pending,
+                    cancellationToken),
+            PendingSubmissions: await dbContext.ContentSubmissions
+                .CountAsync(
+                    submission => submission.Status == SubmissionStatus.Pending,
                     cancellationToken),
             SubscriptionRequests: await dbContext.SubscriptionRequests
                 .CountAsync(
@@ -207,6 +212,7 @@ public sealed record DashboardAttention(
     int OpenReports,
     int PendingClaims,
     int PendingVerifications,
+    int PendingSubmissions,
     int SubscriptionRequests);
 
 public sealed record DashboardSummary(

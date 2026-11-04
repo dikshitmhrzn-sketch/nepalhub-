@@ -378,10 +378,22 @@ composite index. This plan proposes **against** that, for the reason already wri
 table deliberately has no pin for the same reason. Distance-sorted search, if it is ever wanted, is a
 separate migration plus a geocoding decision for Nepal rather than a column to add now.
 
-Note also that `Roles.Business` (`"business"`) is already seeded and is still referenced by nothing
-in the codebase. This slice does not use it. Leaving it unused is correct given staff-managed
-listings, and it remains ready for the owner portal.
+Note also that `Roles.Business` (`"business"`) was seeded and referenced by nothing when this plan
+was written. It has since found its two users: a claim approval and a verification approval both
+grant it (Modules 11 and 15), which is exactly the owner portal this slice deferred.
 
 Finally: there is no email verification anywhere in this product, so a staff-entered business email
 is unverified by definition. That is equally true of the phone number, which is why `is_verified`
 means "a person checked this" and not "the business proved it".
+
+---
+
+## Postscript — the same queue shape, later
+
+The verification queue this plan defined — one request row against a draft, approve = run the
+publish rules and publish, reject = leave the draft standing with a note — became the template for
+`content_submissions`, live as Module 16 in `docs/database.md`. Members now send jobs, events and
+offers in through `/submit` and staff decide at `/admin/submissions` on the same three moves, with
+`Edit` opening the ordinary staff editor rather than a second form. Nothing in this plan changed
+for it: the directory is still staff-curated, only the author of a draft can now be somebody
+outside the team.

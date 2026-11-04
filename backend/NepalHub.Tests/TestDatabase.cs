@@ -89,7 +89,8 @@ internal static class TestDatabase
         int businessRateLimitPermitLimit = 10_000,
         int passwordResetRateLimitPermitLimit = 10_000,
         int resendVerificationRateLimitPermitLimit = 10_000,
-        int changePasswordRateLimitPermitLimit = 10_000)
+        int changePasswordRateLimitPermitLimit = 10_000,
+        int submissionRateLimitPermitLimit = 10_000)
     {
         Environment.SetEnvironmentVariable("ConnectionStrings__Default", ConnectionString);
         Environment.SetEnvironmentVariable(
@@ -131,6 +132,9 @@ internal static class TestDatabase
         Environment.SetEnvironmentVariable(
             "ChangePassword__RateLimit__PermitLimit",
             changePasswordRateLimitPermitLimit.ToString());
+        Environment.SetEnvironmentVariable(
+            "Submission__RateLimit__PermitLimit",
+            submissionRateLimitPermitLimit.ToString());
 
         // The stale-payment sweep is a timer nobody needs ticking inside a test run; the
         // tests drive the sweep method itself, so a background pass can never settle a row

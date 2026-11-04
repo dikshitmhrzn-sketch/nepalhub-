@@ -601,6 +601,15 @@ public sealed class JobService(
         return errors;
     }
 
+    /// <summary>
+    /// The publish rules against a stored row rather than a request, for the approval path
+    /// that has only the entity in hand. It re-projects through <see cref="ToSaveRequest"/>
+    /// so the rules stay in one place and an approval can never publish a posting the staff
+    /// editor would have refused.
+    /// </summary>
+    internal IReadOnlyList<FieldError> CollectPublishBlockersFor(Job job) =>
+        CollectPublishBlockers(ToSaveRequest(job), dates.Today);
+
     private async Task<IReadOnlyList<FieldError>> ValidateAsync(
         SaveJobRequest request,
         DateOnly today,
@@ -674,9 +683,10 @@ public sealed class JobService(
     /// <summary>
     /// Re-projects a stored row back into the request shape so the publish rules can be evaluated
     /// against it. Without this, the editor's blocker list would need a second copy of every rule,
-    /// and the two copies would eventually disagree.
+    /// and the two copies would eventually disagree. Internal so the submission queue can read a
+    /// draft back to its author through the very same projection.
     /// </summary>
-    private static SaveJobRequest ToSaveRequest(Job job) => new()
+    internal static SaveJobRequest ToSaveRequest(Job job) => new()
     {
         Slug = job.Slug,
         Title = job.Title,

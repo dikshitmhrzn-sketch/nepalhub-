@@ -43,6 +43,8 @@ export interface DashboardAttention {
   pendingClaims: number;
   /** Verification requests nobody has decided — the verification queue's pending total. */
   pendingVerifications: number;
+  /** Member-written drafts nobody has approved or turned down — the submission queue's pending total. */
+  pendingSubmissions: number;
   /** Plan requests nobody has decided — the subscription queue's pending total. */
   subscriptionRequests: number;
 }

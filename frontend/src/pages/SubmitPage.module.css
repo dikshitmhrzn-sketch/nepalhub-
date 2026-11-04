@@ -1,0 +1,218 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-5);
+  padding-top: var(--nh-space-6);
+  padding-bottom: var(--nh-space-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--nh-font-size-2xl);
+  line-height: var(--nh-line-height-tight);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--nh-text-muted);
+}
+
+.actionLink {
+  align-self: flex-start;
+  color: var(--nh-accent);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  text-decoration: none;
+}
+
+.actionLink:hover {
+  text-decoration: underline;
+}
+
+.notice {
+  margin: 0;
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--nh-font-size-lg);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+}
+
+.tab {
+  padding: var(--nh-space-2) var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--nh-border-strong);
+  color: var(--nh-text);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--nh-accent);
+  outline-offset: 2px;
+}
+
+.tabActive {
+  border-color: var(--nh-text);
+  background-color: var(--nh-text);
+  color: var(--nh-text-inverse);
+}
+
+.tabHint {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.reviewNote {
+  margin: 0;
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-danger);
+  font-size: var(--nh-font-size-sm);
+}
+
+.reviewHint {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) dashed var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nh-space-3);
+  padding: var(--nh-space-4);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  background-color: var(--nh-surface);
+}
+
+.rowMain {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+}
+
+.rowName {
+  margin: 0;
+}
+
+.rowLink {
+  color: var(--nh-text);
+  font-weight: var(--nh-font-weight-medium);
+  text-decoration: none;
+}
+
+.rowLink:hover {
+  text-decoration: underline;
+}
+
+.rowMeta {
+  margin: 0;
+  color: var(--nh-text-muted);
+  font-size: var(--nh-font-size-sm);
+}
+
+.error {
+  margin: 0;
+  color: var(--nh-danger, #b42318);
+  font-size: var(--nh-font-size-sm);
+}
+
+.badge {
+  padding: var(--nh-space-1) var(--nh-space-2);
+  border-radius: var(--nh-radius-md);
+  font-size: var(--nh-font-size-xs);
+  font-weight: var(--nh-font-weight-medium);
+}
+
+.badgeOpen {
+  background-color: var(--nh-accent-soft);
+  color: var(--nh-accent);
+}
+
+.badgeApproved {
+  background-color: var(--nh-success-soft);
+  color: var(--nh-success-text);
+}
+
+.badgeRejected {
+  background-color: var(--nh-danger-soft);
+  color: var(--nh-danger);
+}
+
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nh-space-2);
+}
+
+.rowAction {
+  padding: var(--nh-space-2) var(--nh-space-3);
+  border: var(--nh-border-width) solid var(--nh-border);
+  border-radius: var(--nh-radius-md);
+  color: var(--nh-text);
+  font-size: var(--nh-font-size-sm);
+  font-weight: var(--nh-font-weight-medium);
+  text-decoration: none;
+}
+
+.rowAction:hover {
+  border-color: var(--nh-accent);
+  color: var(--nh-accent);
+}

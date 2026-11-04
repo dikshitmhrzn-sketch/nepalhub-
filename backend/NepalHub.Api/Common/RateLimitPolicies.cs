@@ -16,6 +16,8 @@ public static class RateLimitPolicies
 
     public const string Business = "business";
 
+    public const string Submission = "submission";
+
     public const string Booking = "booking";
 
     public const string Search = "search";

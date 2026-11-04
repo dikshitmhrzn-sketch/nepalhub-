@@ -42,6 +42,7 @@ function summaryWith(attention: Partial<DashboardAttention>): DashboardSummary {
       openReports: attention.openReports ?? 0,
       pendingClaims: attention.pendingClaims ?? 0,
       pendingVerifications: attention.pendingVerifications ?? 0,
+      pendingSubmissions: attention.pendingSubmissions ?? 0,
       subscriptionRequests: attention.subscriptionRequests ?? 0,
     },
   };
@@ -112,6 +113,7 @@ describe('attentionSections', () => {
       '/admin/reports',
       '/admin/claims',
       '/admin/verifications',
+      '/admin/submissions',
       '/admin/subscription-requests',
     ]);
   });
@@ -164,5 +166,18 @@ describe('attentionSections', () => {
     for (const row of sections.flatMap((section) => section.rows)) {
       expect(targets.has(row.to)).toBe(true);
     }
+  });
+
+  it('offers the submission queue beside the other decision queues', () => {
+    const sections = attentionSections(summaryWith({ pendingSubmissions: 3 }));
+
+    expect(sections[0]!.rows).toEqual([
+      {
+        key: 'pendingSubmissions',
+        label: 'Member submissions waiting',
+        count: 3,
+        to: '/admin/submissions',
+      },
+    ]);
   });
 });

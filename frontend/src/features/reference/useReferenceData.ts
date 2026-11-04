@@ -10,6 +10,24 @@ export interface ReferenceData {
   districtsByProvince: Record<string, District[]>;
 }
 
+/**
+ * The province a district sits in, read through the loaded reference data. Blank when the
+ * district is unset or unknown, which is the state the form reads as "no province chosen
+ * yet" — an editor that prefills from a saved draft needs this because the API stores the
+ * district alone and derives the province on the way out.
+ */
+export function findProvinceCode(reference: ReferenceData, districtCode: string | null): string {
+  if (!districtCode) {
+    return '';
+  }
+
+  return (
+    Object.entries(reference.districtsByProvince).find(([, districts]) =>
+      districts.some((district) => district.code === districtCode),
+    )?.[0] ?? ''
+  );
+}
+
 export type ReferenceState =
   | { status: 'loading'; data: ReferenceData | null; error: null }
   | { status: 'success'; data: ReferenceData; error: null }

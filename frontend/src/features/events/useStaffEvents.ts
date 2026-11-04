@@ -135,8 +135,11 @@ export type BusinessOptionsState =
  * the API returns at most 100 published businesses. Filtering a capped list in the browser would
  * silently hide a business that is past the cap, so the narrowing has to happen on the server where
  * the cap is applied.
+ *
+ * `enabled` is false while the editor writes a member's submission instead of a staff row:
+ * a disabled hook issues no request rather than one this endpoint would answer 403 to.
  */
-export function useEventBusinessOptions(search: string): BusinessOptionsState {
+export function useEventBusinessOptions(search: string, enabled = true): BusinessOptionsState {
   const [state, setState] = useState<BusinessOptionsState>({
     status: 'loading',
     data: [],
@@ -146,6 +149,12 @@ export function useEventBusinessOptions(search: string): BusinessOptionsState {
 
   const load = useCallback(() => {
     activeRequest.current?.abort();
+
+    if (!enabled) {
+      setState({ status: 'success', data: [], error: null });
+
+      return;
+    }
 
     const controller = new AbortController();
     activeRequest.current = controller;
@@ -170,7 +179,7 @@ export function useEventBusinessOptions(search: string): BusinessOptionsState {
         setState({ status: 'error', data: [], error: toApiError(error) });
       }
     })();
-  }, [search]);
+  }, [enabled, search]);
 
   useEffect(() => {
     load();
