@@ -399,7 +399,7 @@ afterwards — computed against UTC+05:45, so it disappears at the same moment f
 keep seeing it, because a row that quietly vanished is a row nobody can unpublish.
 
 **Publishing is stricter than saving.** A draft may be half-written: no summary, no body, no
-deadline. Publishing requires a summary of at least 20 characters, a body of at least 80, and
+deadline. Publishing requires a summary of at least 10 characters, a body of at least 10, and
 whatever the chosen type needs. The staff list reports the missing pieces as `publishBlockers`
 rather than making staff publish and read the error.
 
@@ -447,7 +447,7 @@ district that would then show up in every district filter for its province.
 
 **Publishing is stricter than saving, and the slug is frozen once it is public.** A draft may be
 half-written and keeps an editable slug, because a staff member who mistyped it has not yet sent
-anyone to the wrong address. Publishing requires a title, an employer, a description of at least 80
+anyone to the wrong address. Publishing requires a title, an employer, a description of at least 10
 characters, an application link and a deadline that has not passed; the staff list reports the missing
 pieces as `publishBlockers` rather than making staff publish and read the error. Once published the
 slug is the address people share, so it can no longer be changed and the row is retracted rather than

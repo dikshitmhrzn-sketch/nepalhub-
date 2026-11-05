@@ -80,7 +80,7 @@ public sealed class JobService(
     /// was never finished, and a board of stubs is worse than a smaller board: an applicant who
     /// clicks through and finds three lines has been sent to their time's cost, not ours.
     /// </summary>
-    private const int MinPublishableDescription = 80;
+    private const int MinPublishableDescription = 10;
 
     /// <summary>
     /// How far ahead a deadline counts as closing soon. Three days is the window in which an

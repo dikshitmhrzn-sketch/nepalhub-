@@ -229,7 +229,7 @@ export function ResourceEditor({ id, onCancel, onSaved }: ResourceEditorProps) {
           onChange={(event) => patch({ summary: event.target.value })}
         />
         <span className={styles.help} id="resource-summary-hint">
-          One line for the catalogue card. At least 20 characters to publish.
+          One line for the catalogue card. At least 10 characters to publish.
         </span>
         {fieldErrors.summary ? <span className={styles.fieldError}>{fieldErrors.summary}</span> : null}
       </div>
@@ -249,7 +249,7 @@ export function ResourceEditor({ id, onCancel, onSaved }: ResourceEditorProps) {
           onChange={(event) => patch({ body: event.target.value })}
         />
         <span className={styles.help} id="resource-body-hint">
-          Shown as plain text, with paragraph breaks kept. At least 80 characters to publish.
+          Shown as plain text, with paragraph breaks kept. At least 10 characters to publish.
         </span>
         {fieldErrors.body ? <span className={styles.fieldError}>{fieldErrors.body}</span> : null}
       </div>

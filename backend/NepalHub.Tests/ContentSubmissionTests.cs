@@ -328,9 +328,9 @@ public sealed class ContentSubmissionTests(SubmissionApiFactory factory)
             factory.CreateSignedInClientAsync(TestData.UniqueEmail("sub-blocked")));
 
         // A draft may be as thin as its author likes: the publish rules are what staff
-        // hold the line at, and eighty characters of description is one of them.
+        // hold the line at, and ten characters of description is one of them.
         var created = await SubmissionApi.SubmitJobAsync(
-            api, slug, description: "Too short.");
+            api, slug, description: "Too short");
 
         using var staff = await factory.CreateStaffClientAsync(Roles.Admin);
         var refused = await new AuthApiClient(staff).PostForSnapshotAsync(

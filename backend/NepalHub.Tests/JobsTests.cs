@@ -640,7 +640,7 @@ public sealed class JobAdminTests(NepalHubApiFactory factory) : IClassFixture<Ne
         var record = JobApi.ReadCreated(created);
         Assert.False(record.IsPublished);
         Assert.NotEmpty(record.PublishBlockers);
-        Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("80 characters"));
+        Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("10 characters"));
     }
 
     [Fact]
@@ -1005,7 +1005,7 @@ public sealed class JobAdminTests(NepalHubApiFactory factory) : IClassFixture<Ne
 
         var draft = JobApi.ReadCreated(created);
         Assert.NotEmpty(draft.PublishBlockers);
-        Assert.Contains(draft.PublishBlockers, blocker => blocker.Contains("at least 80 characters"));
+        Assert.Contains(draft.PublishBlockers, blocker => blocker.Contains("at least 10 characters"));
 
         var filled = await api.PutForSnapshotAsync(
             $"{AdminPath}/{draft.Id}",
@@ -1167,12 +1167,12 @@ public sealed class JobAdminTests(NepalHubApiFactory factory) : IClassFixture<Ne
 internal static class JobApi
 {
     /// <summary>
-    /// Comfortably longer than the eighty character minimum that publishing requires, so the
+    /// Comfortably longer than the ten character minimum that publishing requires, so the
     /// publish rule is satisfied by the fixture itself rather than by each test padding itself out
     /// with filler sentences about nothing in particular.
     /// </summary>
     public const string LongDescription =
-        "This description is comfortably longer than the eighty character minimum that publishing "
+        "This description is comfortably longer than the ten character minimum that publishing "
         + "requires, so the publish rule is satisfied by the fixture itself rather than by each test "
         + "padding itself out with filler sentences about nothing in particular.";
 

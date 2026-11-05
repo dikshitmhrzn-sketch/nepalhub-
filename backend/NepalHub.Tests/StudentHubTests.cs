@@ -754,7 +754,7 @@ public sealed class StudentResourceAdminTests(NepalHubApiFactory factory) : ICla
         // staff to do rather than on a field name.
         Assert.NotEmpty(draft.PublishBlockers);
         Assert.Contains(draft.PublishBlockers, blocker => blocker.Contains("summary"));
-        Assert.Contains(draft.PublishBlockers, blocker => blocker.Contains("at least 80 characters"));
+        Assert.Contains(draft.PublishBlockers, blocker => blocker.Contains("at least 10 characters"));
 
         var filled = await api.PutForSnapshotAsync(
             $"{AdminPath}/{draft.Id}",
@@ -891,7 +891,7 @@ public sealed class StudentResourceAdminTests(NepalHubApiFactory factory) : ICla
     }
 
     private const string LongBody =
-        "This is a body that is comfortably longer than the eighty character minimum that a "
+        "This is a body that is comfortably longer than the ten character minimum that a "
         + "published resource has to clear, so the publish rule is satisfied by this test "
         + "without the test having to pad itself with filler sentences about nothing in particular.";
 
@@ -982,7 +982,7 @@ public sealed class StudentResourceExpiryTests : IAsyncLifetime
     private readonly FixedClockApiFactory _factory = FixedClockApiFactory.NearNow();
 
     private const string ScholarshipBody =
-        "This body is comfortably longer than the eighty character minimum that publishing "
+        "This body is comfortably longer than the ten character minimum that publishing "
         + "requires, so the publish rule is satisfied by the fixture itself rather than by each "
         + "test padding itself out with filler sentences about nothing in particular.";
 

@@ -75,9 +75,9 @@ public sealed class StudentResourceService(
     /// A body shorter than this on a published resource is almost always a placeholder that was
     /// never finished, and a catalogue of stubs is worse than a smaller catalogue.
     /// </summary>
-    private const int MinPublishableSummary = 20;
+    private const int MinPublishableSummary = 10;
 
-    private const int MinPublishableBody = 80;
+    private const int MinPublishableBody = 10;
 
     private const int MinAcademicYear = 2000;
     private const int MaxAcademicYear = 2100;
