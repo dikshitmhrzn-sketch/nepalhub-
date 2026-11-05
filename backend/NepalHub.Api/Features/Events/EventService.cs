@@ -86,7 +86,7 @@ public sealed class EventService(
     /// finished. A calendar of stubs is worse than a smaller one: a reader who plans a trip around a
     /// three-line listing has committed real effort to something nobody described.
     /// </summary>
-    private const int MinPublishableDescription = 60;
+    private const int MinPublishableDescription = 10;
 
     /// <summary>
     /// The longest single event this module will let staff publish, in hours. A week is not an event,

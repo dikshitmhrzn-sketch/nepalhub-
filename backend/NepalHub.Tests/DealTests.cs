@@ -699,7 +699,7 @@ public sealed class DealsTests(NepalHubApiFactory factory) : IClassFixture<Nepal
             DealApi.NewSlug(),
             "Stub Terms",
             published: true,
-            description: "Twenty percent off."));
+            description: "Too short"));
 
         Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
 
@@ -1082,11 +1082,11 @@ public sealed class DealExpiryTests : IAsyncLifetime
 internal static class DealApi
 {
     /// <summary>
-    /// Comfortably longer than the sixty character minimum that publishing requires, so the publish rule
+    /// Comfortably longer than the ten character minimum that publishing requires, so the publish rule
     /// is satisfied by the fixture itself rather than by each test padding itself out.
     /// </summary>
     public const string LongDescription =
-        "These terms are comfortably longer than the sixty character minimum that publishing requires, "
+        "These terms are comfortably longer than the ten character minimum that publishing requires, "
         + "so the publish rule is satisfied by the fixture itself rather than by every test padding its "
         + "own body out with filler sentences about nothing in particular at all.";
 

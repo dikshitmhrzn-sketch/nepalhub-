@@ -89,7 +89,7 @@ public sealed class DealService(
     /// travel because the conditions were never written has been let down by the page, and the business
     /// has not been.
     /// </summary>
-    private const int MinPublishableDescription = 60;
+    private const int MinPublishableDescription = 10;
 
     /// <summary>
     /// The longest offer this module will let staff publish. A year is not a real discount; anything
