@@ -80,7 +80,7 @@ public sealed class BusinessService(
     /// never finished. A directory of stubs is worse than a smaller directory: someone who walks
     /// across town to an address they cannot identify has spent their time, not ours.
     /// </summary>
-    private const int MinPublishableDescription = 60;
+    private const int MinPublishableDescription = 10;
 
     private const int MaxOpeningHourRows = 7;
 

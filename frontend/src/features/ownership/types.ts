@@ -60,6 +60,7 @@ export interface VerificationView {
 
 /** One row of the staff queue: the listing, who registered it, and where it stands. */
 export interface AdminVerificationRow extends VerificationView {
+  description: string;
   ownerName: string;
   ownerEmail: string | null;
 }

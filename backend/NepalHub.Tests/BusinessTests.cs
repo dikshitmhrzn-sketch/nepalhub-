@@ -550,7 +550,7 @@ public sealed class BusinessAdminTests(NepalHubApiFactory factory) : IClassFixtu
         var record = BusinessApi.ReadCreated(created);
         Assert.False(record.IsPublished);
         Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("phone number"));
-        Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("60 characters"));
+        Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("10 characters"));
         Assert.Contains(record.PublishBlockers, blocker => blocker.Contains("Verify this listing"));
     }
 
@@ -1774,11 +1774,11 @@ public sealed class BusinessLocationFilterTests(NepalHubApiFactory factory) : IC
 internal static class BusinessApi
 {
     /// <summary>
-    /// Comfortably longer than the sixty character minimum that publishing requires, so the publish
+    /// Comfortably longer than the ten character minimum that publishing requires, so the publish
     /// rule is satisfied by the fixture itself rather than by each test padding itself out.
     /// </summary>
     public const string LongDescription =
-        "This description is comfortably longer than the sixty character minimum that publishing "
+        "This description is comfortably longer than the ten character minimum that publishing "
         + "requires, so the publish rule is satisfied by the fixture itself rather than by each test "
         + "padding itself out with filler sentences about nothing in particular.";
 

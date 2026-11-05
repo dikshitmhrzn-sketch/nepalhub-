@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { reviewVerification } from '@/features/ownership/api';
 import { verificationStatusLabels, type AdminVerificationRow } from '@/features/ownership/types';
 import { ApiError } from '@/lib/apiClient';
-import { getErrorMessage } from '@/lib/apiErrors';
+import { getErrorMessage, type FieldError } from '@/lib/apiErrors';
 
 import styles from './VerificationQueueCard.module.css';
 
@@ -22,17 +22,22 @@ interface VerificationQueueCardProps {
  * submitted answers 409 — so the reason lands on this card rather than the row silently
  * staying open with nobody told why. A request another moderator decided in the meantime
  * answers 409 too, which reloads the queue rather than pretending the second click landed.
+ *
+ * The owner's description rides on the row because the public address 404s while the
+ * listing is still a draft: without it the moderator would approve words they cannot read.
  */
 export function VerificationQueueCard({ row, onChanged }: VerificationQueueCardProps) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<'approve' | 'reject' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [blockers, setBlockers] = useState<string[]>([]);
 
   const isOpen = row.status === 'Pending';
 
   async function review(decision: 'approve' | 'reject') {
     setBusy(decision);
     setError(null);
+    setBlockers([]);
 
     try {
       await reviewVerification(row.id, decision, note.trim() || null);
@@ -43,9 +48,14 @@ export function VerificationQueueCard({ row, onChanged }: VerificationQueueCardP
       if (reviewError instanceof ApiError && reviewError.code === 'not_publishable') {
         setError(
           'This listing does not satisfy the publish rules yet — it needs a phone number and ' +
-            'a description of at least sixty characters. The owner can add them from their ' +
+            'a description of at least ten characters. The owner can add them from their ' +
             'listing editor, and you can ask them to through the note field.',
         );
+
+        const details = Array.isArray(reviewError.details)
+          ? (reviewError.details as FieldError[])
+          : [];
+        setBlockers(details.map((detail) => detail.message).filter(Boolean));
       } else if (reviewError instanceof ApiError && reviewError.code === 'verification_closed') {
         setError('Another moderator has already decided this request.');
         onChanged();
@@ -78,6 +88,8 @@ export function VerificationQueueCard({ row, onChanged }: VerificationQueueCardP
         </Link>
       </p>
 
+      {row.description ? <p className={styles.description}>{row.description}</p> : null}
+
       {row.note ? <p className={styles.note}>&ldquo;{row.note}&rdquo;</p> : null}
 
       {!isOpen ? (
@@ -92,6 +104,14 @@ export function VerificationQueueCard({ row, onChanged }: VerificationQueueCardP
         <p className={styles.error} role="alert">
           {error}
         </p>
+      ) : null}
+
+      {blockers.length > 0 ? (
+        <ul className={styles.blockers}>
+          {blockers.map((blocker) => (
+            <li key={blocker}>{blocker}</li>
+          ))}
+        </ul>
       ) : null}
 
       {isOpen ? (

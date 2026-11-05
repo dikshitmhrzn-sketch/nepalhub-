@@ -169,7 +169,7 @@ register as a business.
 - [x] Public list with search, category, province, district and verification filters, `Name`/`Newest`
       ordering and paging; detail page by slug; staff list including drafts
 - [x] Staff create, edit, publish/retract, verify/unverify, delete drafts only
-- [x] Publishing requires a phone number, a description of at least 80 characters and verification;
+- [x] Publishing requires a phone number, a description of at least 10 characters and verification;
       the staff editor is given the same list as `publishBlockers`, so what the form says and what the
       server enforces cannot drift apart
 - [x] Website is shape-checked as an absolute `https` URL and never fetched; phone is normalised to

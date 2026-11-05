@@ -501,7 +501,7 @@ bar that empties at 02:00 is an ordinary Nepal schedule.
 
 **Publishing is stricter than saving, and the slug is frozen once it is public.** A draft may be
 half-written and keeps an editable slug. Publishing requires a phone number, a description of at
-least 80 characters and verification; the staff editor is handed the same list as `publishBlockers`,
+least 10 characters and verification; the staff editor is handed the same list as `publishBlockers`,
 so what the form says and what the server enforces cannot drift apart. A live listing is retracted
 rather than deleted.
 

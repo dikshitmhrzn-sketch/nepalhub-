@@ -56,12 +56,17 @@ public sealed record VerificationResponse(
     DateTime? ReviewedAt,
     string? ReviewNote);
 
-/// <summary>One row of the staff queue: the listing, who registered it, and where it stands.</summary>
+/// <summary>
+/// One row of the staff queue: the listing, who registered it, and where it stands. The
+/// description rides along because the public address 404s while the listing is still a
+/// draft, so this is the only place a moderator can read what the owner submitted.
+/// </summary>
 public sealed record AdminVerificationSummaryResponse(
     Guid Id,
     Guid BusinessId,
     string Slug,
     string BusinessName,
+    string Description,
     string OwnerName,
     string? OwnerEmail,
     BusinessVerificationStatus Status,

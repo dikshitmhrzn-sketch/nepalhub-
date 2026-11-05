@@ -60,6 +60,7 @@ internal static class RegistrationViews
         Guid BusinessId,
         string Slug,
         string BusinessName,
+        string Description,
         string OwnerName,
         string? OwnerEmail,
         BusinessVerificationStatus Status,
@@ -286,6 +287,14 @@ public sealed class BusinessRegistrationTests(RegistrationApiFactory factory)
         Assert.Equal(email, row.OwnerEmail);
         Assert.Equal(BusinessVerificationStatus.Pending, row.Status);
 
+        // The description rides on the queue row: the public address 404s while the listing
+        // is still a draft, so this is the only place a moderator can read what was submitted.
+        using var ownerScope = factory.Services.CreateScope();
+        var ownerDb = ownerScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var registered = await ownerDb.Businesses.AsNoTracking()
+            .SingleAsync(item => item.Slug == slug);
+        Assert.Equal(registered.Description, row.Description);
+
         // A typo in the filter is refused rather than quietly returning the whole table.
         using var nonsense = await moderator.GetAsync($"{RegistrationApi.QueuePath}?status=Bananas");
         Assert.Equal(HttpStatusCode.BadRequest, nonsense.StatusCode);
@@ -353,9 +362,10 @@ public sealed class BusinessRegistrationTests(RegistrationApiFactory factory)
             factory.CreateSignedInClientAsync(TestData.UniqueEmail("reg-blocked")));
 
         // A draft may be as thin as its owner likes: the publish rules are what staff hold
-        // the line at, and a phone number and a real description are two of them.
+        // the line at, and a phone number and a real description are two of them. Nine
+        // characters is one short of the ten the description rule requires.
         await RegistrationApi.RegisterAsync(
-            api, slug, description: "Too short.", phone: null);
+            api, slug, description: "Too short", phone: null);
         var request = await RegistrationApi.SubmitAsync(api, slug);
 
         using var staff = await factory.CreateStaffClientAsync(Roles.Admin);

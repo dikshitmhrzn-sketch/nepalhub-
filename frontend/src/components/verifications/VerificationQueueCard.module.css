@@ -55,6 +55,12 @@ a.targetLink:hover {
   text-decoration: underline;
 }
 
+.description {
+  margin: 0;
+  color: var(--nh-text);
+  white-space: pre-wrap;
+}
+
 .note {
   margin: 0;
   color: var(--nh-text);
@@ -69,6 +75,16 @@ a.targetLink:hover {
 .error {
   margin: 0;
   color: var(--nh-danger, #b42318);
+  font-size: var(--nh-font-size-sm);
+}
+
+.blockers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nh-space-1);
+  margin: 0;
+  padding-left: var(--nh-space-4);
+  color: var(--nh-text);
   font-size: var(--nh-font-size-sm);
 }
 
