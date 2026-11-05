@@ -45,6 +45,18 @@ public static class AuditActions
 
     public const string SubmissionRejected = "submission.rejected";
 
+    /// <summary>
+    /// A member claimed a published job, offer or event. The actor is the claimant: no staff
+    /// decision was made, and the entry ties the hidden row back to who asked for it.
+    /// </summary>
+    public const string ContentClaimed = "content.claimed";
+
+    /// <summary>The poster accepted a content claim; the row stays hidden.</summary>
+    public const string ContentClaimAccepted = "content.claim_accepted";
+
+    /// <summary>The poster released a content claim; the row is public again.</summary>
+    public const string ContentClaimReleased = "content.claim_released";
+
     public const string SubscriptionGranted = "subscription.granted";
 
     public const string SubscriptionExtended = "subscription.extended";

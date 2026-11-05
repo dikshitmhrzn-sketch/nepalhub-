@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ContentClaimPanel } from '@/components/claims/ContentClaimPanel';
 import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
@@ -156,6 +157,7 @@ export function DealPage() {
           Nepal Hub stores these details only and never contacts the business on your behalf. Read the
           terms before you go, and check the end date above — offers are removed when they finish.
         </p>
+        <ContentClaimPanel kind="Deal" slug={detail.slug} />
         <ReportButton targetType="Deal" targetId={detail.id} />
       </article>
     </Container>

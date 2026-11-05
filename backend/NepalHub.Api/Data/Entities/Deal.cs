@@ -109,6 +109,13 @@ public sealed class Deal
     /// </summary>
     public bool IsPublished { get; set; }
 
+    /// <summary>
+    /// True while an active content claim holds this offer off the public pages. Set the
+    /// moment a claim is filed, cleared when the poster releases it; the claim rows in
+    /// <c>content_claims</c> are the history, this flag is what every public query filters on.
+    /// </summary>
+    public bool IsClaimed { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

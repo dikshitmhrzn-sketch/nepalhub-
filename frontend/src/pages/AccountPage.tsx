@@ -7,13 +7,16 @@ import { StateMessage } from '@/components/ui/StateMessage';
 import { useAuth } from '@/features/auth/AuthContext';
 import { changePassword } from '@/features/auth/api';
 import { useBadges } from '@/features/badges/useBadges';
+import { useContentClaims } from '@/features/claims/useContentClaims';
 import { getErrorMessage, getFieldErrors } from '@/lib/apiErrors';
 
+import { AccountClaims } from './AccountClaims';
 import styles from './AccountPage.module.css';
 
 export function AccountPage() {
   const { user, isAdmin, signOut } = useAuth();
   const badges = useBadges();
+  const claims = useContentClaims();
 
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -270,6 +273,27 @@ export function AccountPage() {
           </ul>
         ) : null}
       </section>
+
+      {claims.status === 'loading' ? (
+        <StateMessage tone="loading" title="Loading your claims…" />
+      ) : null}
+
+      {claims.status === 'error' ? (
+        <StateMessage
+          tone="error"
+          title="Could not load your claims"
+          description={getErrorMessage(claims.error, 'Please try again in a moment.')}
+          action={
+            <Button variant="secondary" size="small" onClick={claims.reload}>
+              Try again
+            </Button>
+          }
+        />
+      ) : null}
+
+      {claims.status === 'success' ? (
+        <AccountClaims overview={claims.data} onChanged={claims.reload} />
+      ) : null}
     </Container>
   );
 }

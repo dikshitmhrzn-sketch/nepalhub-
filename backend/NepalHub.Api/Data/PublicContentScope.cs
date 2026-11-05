@@ -35,11 +35,14 @@ public static class PublicContentScope
     /// <summary>
     /// A deadline that falls today is still open: the day is not over, and an applicant applying on
     /// the deadline date is not too late. Only a strictly earlier date has closed the posting.
+    /// A claimed posting is hidden from the public for the same reason a draft is: the poster
+    /// has not released it back into circulation.
     /// </summary>
     public static IQueryable<Job> Jobs(IQueryable<Job> source, DateOnly today) =>
         source
             .AsNoTracking()
             .Where(job => job.IsPublished)
+            .Where(job => !job.IsClaimed)
             .Where(job => job.ApplicationDeadline >= today);
 
     /// <summary>
@@ -55,11 +58,12 @@ public static class PublicContentScope
     /// <summary>
     /// The end comparison is inclusive because an offer is live through its last day: someone reading
     /// at six in the evening on the final date is exactly the reader this page exists for.
+    /// A claimed offer is hidden until the poster releases it.
     /// </summary>
     public static IQueryable<Deal> Deals(IQueryable<Deal> source, DateOnly today) =>
         source
             .AsNoTracking()
-            .Where(deal => deal.IsPublished && deal.EndsOn >= today);
+            .Where(deal => deal.IsPublished && !deal.IsClaimed && deal.EndsOn >= today);
 
     /// <summary>
     /// Published and not finished, to the minute, on the Nepal clock. The end comparison is inclusive
@@ -69,11 +73,13 @@ public static class PublicContentScope
     /// There is deliberately no start comparison. An event that begins at seven this evening is still
     /// the thing a reader needs to see at four this afternoon, and filtering on the start would put it
     /// past the reader's reach for most of the day it matters.
+    ///
+    /// A claimed event is hidden until the poster releases it.
     /// </summary>
     public static IQueryable<Event> Events(IQueryable<Event> source, DateTime now) =>
         source
             .AsNoTracking()
-            .Where(calendarEvent => calendarEvent.IsPublished && calendarEvent.EndsAt >= now);
+            .Where(calendarEvent => calendarEvent.IsPublished && !calendarEvent.IsClaimed && calendarEvent.EndsAt >= now);
 
     /// <summary>
     /// Published calculators, which is the whole rule: a calculator has no expiry, so the second

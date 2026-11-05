@@ -43,6 +43,10 @@ public sealed class EventConfiguration : IEntityTypeConfiguration<Event>
             .HasDefaultValue(0)
             .IsRequired();
 
+        builder.Property(calendarEvent => calendarEvent.IsClaimed)
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.Property(calendarEvent => calendarEvent.Category)
             .HasConversion<int>()
             .IsRequired();

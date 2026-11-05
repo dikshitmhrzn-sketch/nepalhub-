@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ContentClaimPanel } from '@/components/claims/ContentClaimPanel';
 import { ReportButton } from '@/components/reports/ReportButton';
 import { BookingPanel } from '@/components/bookings/BookingPanel';
 import { Button } from '@/components/ui/Button';
@@ -185,6 +186,7 @@ export function EventPage() {
           Times are Nepal Standard Time. Nepal Hub stores these details only and never fetches the
           organiser&rsquo;s page, so please check the times with them before travelling.
         </p>
+        <ContentClaimPanel kind="Event" slug={detail.slug} />
         <ReportButton targetType="Event" targetId={detail.id} />
       </article>
     </Container>

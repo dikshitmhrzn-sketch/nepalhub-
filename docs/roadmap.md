@@ -579,8 +579,29 @@ of these decisions.
       submission endpoints — with every request listed beneath (status, staff's note, edit, send
       again, view once live) at `?edit={id}`. `/admin/submissions` keeps both windows in the URL,
       each card lists what approval found missing, and Edit opens the ordinary staff editor for
-      `row.itemId` rather than a queue-shaped twin. Gates: **730/730** backend tests, typecheck
-      clean, **92/92** frontend tests
+      `row.itemId` rather than a queue-shaped twin. Gates: **739/739** backend tests, typecheck
+      clean, **97/97** frontend tests
+
+## Content claims (instant, no staff queue) ✅ complete
+
+- [x] `content_claims` (`20261105152010_AddContentClaims`): `kind` plus three nullable content FKs
+      matching `SubmissionKind`, `claimant_user_id`, optional `note`, `status`
+      (`Pending`/`Accepted`/`Released`), review fields — and `is_claimed` on `jobs`, `events` and
+      `deals`, which is what `PublicContentScope` filters on for every list, detail and global-search
+      read
+- [x] `POST /api/jobs|deals|events/{slug}/claim` (rate-limited on `RateLimitPolicies.Claim`):
+      instant — no staff decide. Filing sets `is_claimed` and opens one active claim in the same
+      `SaveChanges` with `content.claimed`. Refusals are `content_not_found`, `no_poster`,
+      `already_claimed` (this person again) and `already_taken` (somebody else); a released claim
+      does not block a fresh attempt
+- [x] Account boxes `GET /api/account/content-claims` (both lists), `GET /api/account/my-claims`,
+      `GET /api/account/posted-claims`, and poster-only
+      `POST /api/account/posted-claims/{id}/accept|release` — accept keeps the post hidden, release
+      clears `is_claimed` and writes `content.claim_accepted` / `content.claim_released`. A stranger
+      or a second decision answers the same 404 / 409 as one that never existed or was already settled
+- [x] Frontend: shared `ContentClaimPanel` on Job, Deal and Event pages; Account page carries
+      **My claims** and **Claims on my posts** with Accept / Release on pending rows. Gates:
+      **739/739** backend tests, typecheck clean, **97/97** frontend tests
 
 ## Phase 8 — Mobile ✅ complete
 

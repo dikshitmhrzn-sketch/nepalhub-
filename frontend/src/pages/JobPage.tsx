@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router';
 
+import { ContentClaimPanel } from '@/components/claims/ContentClaimPanel';
 import { ReportButton } from '@/components/reports/ReportButton';
 import { Button } from '@/components/ui/Button';
 import { Container } from '@/components/ui/Container';
@@ -149,6 +150,7 @@ export function JobPage() {
             Nepal Hub stores the address only and never fetches it.
           </span>
         </p>
+        <ContentClaimPanel kind="Job" slug={detail.slug} />
         <ReportButton targetType="Job" targetId={detail.id} />
       </article>
     </Container>

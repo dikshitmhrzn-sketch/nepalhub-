@@ -1,14 +1,14 @@
 # Database
 
-**Status: MySQL 8.4.9 is installed and sixteen modules are live.** The schema below is the as-built
+**Status: MySQL 8.4.9 is installed and seventeen modules are live.** The schema below is the as-built
 result of migrations `20260930092534_InitialCreate`, `20260930105251_AddCalculators`,
 `20260930122740_AddQuiz`, `20260930154447_AddStudentResources`, `20261001041409_AddJobs`,
 `20261001101158_AddBusinesses`, `20261001142733_AddDealsAndEvents`, `20261001155854_AddDealsAndEventsIndexes`,
 `20261002162619_AddBadges`, `20261005042009_AddModeration`, `20261005042034_AddQuizAttemptCompletedAtIndex`,
 `20261005103010_AddBusinessOwnership`, `20261005104909_AddBusinessSubscriptions`,
 `20261005104931_AddEventBookings`, `20261006035723_AddPayments`,
-`20261006093754_AddBusinessVerifications`, `20261028130825_AddDataProtectionKeys` and
-`20261104105304_AddContentSubmissions`,
+`20261006093754_AddBusinessVerifications`, `20261028130825_AddDataProtectionKeys`,
+`20261104105304_AddContentSubmissions` and `20261105152010_AddContentClaims`,
 not a proposal. Everything from "Planned modules" onwards is still design
 only.
 
@@ -17,8 +17,9 @@ confirmation or reset link is an ASP.NET Core Identity data-protector token carr
 purpose and expiry, so the only columns involved are the ones Identity already owns
 (`users.email_confirmed` behind `EmailConfirmed`); the per-address send quiet window lives in
 memory, which is the whole one-host-one-process deployment model; and mail itself is a log line,
-a file pair or a remote relay rather than rows. Eighteen migrations remain the whole schema — the
-seventeenth adds `data_protection_keys` for the key ring, the eighteenth `content_submissions`.
+a file pair or a remote relay rather than rows. Nineteen migrations remain the whole schema — the
+seventeenth adds `data_protection_keys` for the key ring, the eighteenth `content_submissions`, and
+the nineteenth `content_claims` plus the `is_claimed` flags.
 
 ## Local instance
 
@@ -927,11 +928,55 @@ Creating a submission is rate-limited through the `RateLimitPolicies.Submission`
 (`Submission:RateLimit`, 10 per hour per IP by default) because it mints rows a stranger can then
 ask staff to review, the same argument as business registration.
 
+## Module 17 — Content claims (live)
+
+Added by `20261105152010_AddContentClaims`. One table plus three denormalised flags: a signed-in
+member claims a published job, offer or event, the post leaves every public page at once, and the
+person who created it (`created_by_user_id`) accepts — the row stays hidden — or releases it back
+into circulation. No staff decide, which is what separates this from `business_claims`.
+
+### `content_claims`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | `char(36)` PK | |
+| `kind` | `varchar(20)` | `SubmissionKind` by name: `Job`, `Event` or `Deal`. Which of the three foreign keys below carries the post |
+| `job_id` | `char(36)` nullable → `jobs` | FK `ON DELETE CASCADE`, `content_claims_fk_job_id`. Set only when `kind = Job` |
+| `event_id` | `char(36)` nullable → `events` | FK `ON DELETE CASCADE`. Set only when `kind = Event` |
+| `deal_id` | `char(36)` nullable → `deals` | FK `ON DELETE CASCADE`. Set only when `kind = Deal` |
+| `claimant_user_id` | `char(36)` → `users` | FK `ON DELETE CASCADE`. The person claiming, recorded even if they lose the account later |
+| `note` | `varchar(500)` nullable | The claimant's own words, optional |
+| `status` | `varchar(20)` | `ContentClaimStatus` by name: `Pending` (default), `Accepted`, `Released` |
+| `created_at` | `datetime(6)` | default `CURRENT_TIMESTAMP(6)` |
+| `reviewed_at` | `datetime(6)` nullable | The instant the poster accepted or released, in UTC |
+| `review_note` | `varchar(500)` nullable | What the poster recorded when deciding |
+
+**Exactly one of the three content FKs is set**, matching `kind`. All three cascade, so deleting
+a post takes its claims with it. Authorship cascades for the same reason.
+
+**No unique index on (content, claimant).** A released claimant must be able to try again, and a
+database that refused the second row would give no reason at all. The one-active-claim rule is
+checked in the service, where the refusal is named `already_taken` (somebody else) alongside
+`already_claimed` (this person again) and `no_poster` (nobody to hand the claim to).
+
+Indexes: `ix_content_claims_status_created_at` (the poster's box: pending first, newest first),
+one composite per content FK for the active-claim lookup, and one on `claimant_user_id`.
+
+### `jobs.is_claimed`, `events.is_claimed`, `deals.is_claimed`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `is_claimed` | `bool` default 0 | True while an active claim holds the row off the public pages. Set the moment a claim is filed, cleared only on release. `PublicContentScope` filters on it for every list, detail and global-search read, so one column is the whole hide rule |
+
+Filing is rate-limited through the same `RateLimitPolicies.Claim` policy as a business claim
+(`Claim:RateLimit`, 10 per hour per IP by default), because the write hides a public row.
+
 ## Planned modules
 
 Everything below this line is still absent from the database. Each will be added as its own
 migration when its module is built. (Ownership, plans, subscriptions, bookings, payments,
-verification and content submissions were listed here once — they are live as Modules 11–16 above.)
+verification, content submissions and content claims were listed here once — they are live as
+Modules 11–17 above.)
 
 ### Businesses, monetisation and claims
 

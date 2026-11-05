@@ -56,6 +56,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<ContentSubmission> ContentSubmissions => Set<ContentSubmission>();
 
+    public DbSet<ContentClaim> ContentClaims => Set<ContentClaim>();
+
     public DbSet<Plan> Plans => Set<Plan>();
 
     public DbSet<BusinessSubscription> BusinessSubscriptions => Set<BusinessSubscription>();

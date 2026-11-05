@@ -149,6 +149,11 @@ NepalHub.Api/
     │   ├── ContentSubmissionService.cs         one body behind the request, resubmit,
     │   │                                       approve = the publish rules then publish
     │   └── SubmissionContracts.cs              queue filters, author and staff read models
+    ├── Claims/          instant claims on published jobs, offers and events
+    │   ├── ContentClaimController.cs            POST jobs|deals|events/{slug}/claim, rate-limited
+    │   ├── AccountContentClaimsController.cs    both account boxes; poster accept and release
+    │   ├── ContentClaimService.cs               one active claim, hide via IsClaimed, decisions
+    │   └── ContentClaimContracts.cs             claimant and poster read models
     ├── Payments/        7f: where money is asked for, never stored
     │   ├── PaymentsController.cs               config, checkout, verify, one reference's state
     │   ├── AccountPaymentsController.cs        the payer's own history

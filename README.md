@@ -21,7 +21,7 @@ and eSewa checkout for paid plans and priced events.
 | React + TypeScript + Vite frontend | Builds clean; home, tools hub, calculator, daily quiz, Student Hub catalogue and detail, job board and job detail, business directory (with the featured strip) and business detail (with the claim panel), offers and offer detail, events calendar and event detail (with the booking panel), sign-in, registration, account (with badges), a leaderboard, a staff dashboard, a my-businesses list and owner editor, a submission screen and history at `/submit`, a payment history at `/account/payments` and a provider
 return page, and staff calculator/quiz/resource/job/business/deal/event/report/claim/verification/submission pages plus
 admin-only account, audit-log, plan-request and payments pages |
-| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, member content submissions for jobs, events and offers, plans and subscriptions, event bookings, and eSewa payments |
+| ASP.NET Core 8 Web API | Identity cookie auth, CSRF, rate limiting, calculators catalogue, server-side calculation, daily quiz, XP, badges, the Student Hub, the job board, the business directory, offers, the events calendar, the staff dashboard, the leaderboard, member reports, the audit trail, ownership claims, business registration and verification, member content submissions for jobs, events and offers, instant content claims on published jobs, offers and events, plans and subscriptions, event bookings, and eSewa payments |
 | MySQL 8.4 + EF Core | Installed and running on `127.0.0.1:3307`; 35 application tables plus the EF migration-history table, eighteen migrations applied |
 | Reference data | 7 provinces / 77 districts seeded |
 | Calculators | 3 seeded (loan EMI, compound interest, percentage); staff CRUD live |
@@ -32,7 +32,7 @@ admin-only account, audit-log, plan-request and payments pages |
 | Leaderboard | `GET /api/leaderboard` over the XP the quiz records: `all`, `today` or the Saturday-to-Friday Nepal week, computed at read time, no table of its own; in the primary nav |
 | Moderation | Signed-in members report any of the five listing types; staff work the queue at `/admin/reports` and resolve or dismiss with an audit row written in the same save |
 | Accounts and audit log | Admin-only account list with activate/deactivate and role grant/revoke, plus the append-only trail at `/admin/audit-log` |
-| Tests | 730 integration tests against the real `nepalhub_test` database, plus 92 frontend tests and 101 Flutter tests |
+| Tests | 739 integration tests against the real `nepalhub_test` database, plus 97 frontend tests and 101 Flutter tests |
 | Jobs | 16 seeded postings; public board with search, filters and ordering; staff CRUD with draft and expiry handling |
 | Businesses | 25 seeded listings across 12 categories and 7 provinces; public directory with search, filters, ordering and opening hours; staff CRUD with publish and verify |
 | Offers | 15 seeded offers, day-granular and inclusive of the last day; public page with search, location filters and `EndingSoon`/`Newest` ordering; staff CRUD with publish blockers |
@@ -244,6 +244,9 @@ wins when it is set.
 The eighteenth, `20261104105304_AddContentSubmissions`, creates `content_submissions` — the queue
 row a member opens against the draft they sent in, with cascade deletes from whichever of the three
 content tables it points at.
+The nineteenth, `20261105152010_AddContentClaims`, creates `content_claims` and gives `jobs`,
+`events` and `deals` their `is_claimed` flag — the instant claim a signed-in member files on a
+published post, which hides it from every public read until the poster accepts or releases.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -987,7 +990,7 @@ the schema, the collation, the Identity stores and the seed data are all exercis
 migrates `nepalhub_test` and never touches `nepalhub`. Set `ConnectionStrings__Test` to point it
 elsewhere; otherwise it derives the test connection string from the API's user-secrets entry.
 
-730 tests pass:
+739 tests pass:
 
 | File | Tests |
 | --- | --- |
@@ -1020,6 +1023,7 @@ elsewhere; otherwise it derives the test connection string from the API's user-s
 | `ClaimRateLimitingTests.cs` | 1 |
 | `ConnectionStringNormalizerTests.cs` | 11 |
 | `ContentSubmissionTests.cs` | 7 |
+| `ContentClaimTests.cs` | 9 |
 | `DealExpiryTests.cs` | 3 |
 | `DealsTests.cs` | 57 |
 | `DemoContentRemovalTests.cs` | 2 |
@@ -1079,10 +1083,11 @@ cd frontend
 npm test
 ```
 
-92 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
+97 tests cover the staff dashboard's attention filtering, links and hook behaviour, the leaderboard's
 period tabs and its loading and empty states, the report button's lifecycle - filing, the
 duplicate and vanished-target answers it shows as sentences, and cancelling without sending
-anything - plus the claim panel's four answers, the claim queue card, the submission queue card -
+anything - plus the claim panel's four answers, the content claim panel's five answers, the claim
+queue card, the submission queue card -
 the decision it sends, the blockers approval refuses with, and the hand-off to the staff editor -
 the submit screen - the sign-in wall, the three kinds it offers, the actions each standing allows
 and the edit link that reopens a saved draft - the featured strip's

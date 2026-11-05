@@ -32,6 +32,7 @@ public sealed class DealConfiguration : IEntityTypeConfiguration<Deal>
         builder.Property(deal => deal.EndsOn).HasColumnType("date").IsRequired();
 
         builder.Property(deal => deal.IsPublished).HasDefaultValue(false).IsRequired();
+        builder.Property(deal => deal.IsClaimed).HasDefaultValue(false).IsRequired();
 
         builder.Property(deal => deal.CreatedAt)
             .HasColumnType("datetime(6)")

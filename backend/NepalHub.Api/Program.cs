@@ -34,6 +34,7 @@ using NepalHub.Api.Features.Payments;
 using NepalHub.Api.Features.Quiz;
 using NepalHub.Api.Features.Search;
 using NepalHub.Api.Features.Students;
+using NepalHub.Api.Features.Claims;
 using NepalHub.Api.Features.Submissions;
 using NepalHub.Api.Features.Subscriptions;
 
@@ -605,6 +606,10 @@ builder.Services.AddScoped<BusinessVerificationService>();
 // Content's twin of the same pattern: the draft a member sends in, the queue staff settle
 // and the approval that flips it live, committing with their audit line or not at all.
 builder.Services.AddScoped<ContentSubmissionService>();
+
+// Instant claims on published jobs, offers and events: the claim, the hide flag and the
+// poster's audit line commit together on the one request-scoped context.
+builder.Services.AddScoped<ContentClaimService>();
 
 // Plans, entitlement and the request queue, sharing that same request-scoped context for
 // the same reason: a grant and its audit line commit together or not at all.

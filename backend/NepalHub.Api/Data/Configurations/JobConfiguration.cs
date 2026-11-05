@@ -36,6 +36,7 @@ public sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.Property(job => job.ApplicationUrl).HasMaxLength(500).IsRequired();
         builder.Property(job => job.ApplicationDeadline).HasColumnType("date").IsRequired();
         builder.Property(job => job.IsPublished).HasDefaultValue(false).IsRequired();
+        builder.Property(job => job.IsClaimed).HasDefaultValue(false).IsRequired();
 
         builder.Property(job => job.CreatedAt)
             .HasColumnType("datetime(6)")

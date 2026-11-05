@@ -949,6 +949,83 @@ namespace NepalHub.Api.Data.Migrations
                     b.ToTable("calculators", (string)null);
                 });
 
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ClaimantUserId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("claimant_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP(6)");
+
+                    b.Property<Guid?>("DealId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("job_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("review_note");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Pending")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_content_claims");
+
+                    b.HasIndex("ClaimantUserId")
+                        .HasDatabaseName("ix_content_claims_claimant_user_id");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_content_claims_status_created_at");
+
+                    b.HasIndex("DealId", "ClaimantUserId", "Status")
+                        .HasDatabaseName("ix_content_claims_deal_claimant_status");
+
+                    b.HasIndex("EventId", "ClaimantUserId", "Status")
+                        .HasDatabaseName("ix_content_claims_event_claimant_status");
+
+                    b.HasIndex("JobId", "ClaimantUserId", "Status")
+                        .HasDatabaseName("ix_content_claims_job_claimant_status");
+
+                    b.ToTable("content_claims", (string)null);
+                });
+
             modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentSubmission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1126,6 +1203,12 @@ namespace NepalHub.Api.Data.Migrations
                     b.Property<DateOnly>("EndsOn")
                         .HasColumnType("date")
                         .HasColumnName("ends_on");
+
+                    b.Property<bool>("IsClaimed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_claimed");
 
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
@@ -1897,6 +1980,12 @@ namespace NepalHub.Api.Data.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("ends_at");
 
+                    b.Property<bool>("IsClaimed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_claimed");
+
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")
@@ -2086,6 +2175,12 @@ namespace NepalHub.Api.Data.Migrations
                     b.Property<int>("EmploymentType")
                         .HasColumnType("int")
                         .HasColumnName("employment_type");
+
+                    b.Property<bool>("IsClaimed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_claimed");
 
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
@@ -3113,6 +3208,42 @@ namespace NepalHub.Api.Data.Migrations
                         .HasConstraintName("calculators_fk_created_by_user_id");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentClaim", b =>
+                {
+                    b.HasOne("NepalHub.Api.Data.Entities.ApplicationUser", "Claimant")
+                        .WithMany()
+                        .HasForeignKey("ClaimantUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("content_claims_fk_claimant_user_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Deal", "Deal")
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_claims_fk_deal_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_claims_fk_event_id");
+
+                    b.HasOne("NepalHub.Api.Data.Entities.Job", "Job")
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("content_claims_fk_job_id");
+
+                    b.Navigation("Claimant");
+
+                    b.Navigation("Deal");
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Job");
                 });
 
             modelBuilder.Entity("NepalHub.Api.Data.Entities.ContentSubmission", b =>
