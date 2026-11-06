@@ -131,10 +131,11 @@ public sealed record BusinessHoursResponse(
 
 /// <summary>One business in full, for a reader who has opened it.</summary>
 /// <remarks>
-/// <see cref="IsOwner"/> is the one per-visitor field: whether the caller manages this
-/// listing, so the page can offer the owner's editor instead of a claim button. Derived by
-/// comparing the loaded owner id against the caller and stored nowhere, because two readers
-/// of one row must not disagree about who owns it.
+/// <see cref="IsOwner"/> is whether the caller manages this listing; <see cref="HasOwner"/>
+/// and <see cref="HasPendingClaim"/> drive the claim panel's three states (claimable,
+/// someone has claimed, already has an owner) without a second request. Accepted listings
+/// are hidden from this endpoint entirely, so HasOwner is typically a pre-accept owner or
+/// a registration-born owner.
 /// </remarks>
 public sealed record BusinessDetailResponse(
     Guid Id,
@@ -152,7 +153,9 @@ public sealed record BusinessDetailResponse(
     bool? IsOpenNow,
     IReadOnlyList<BusinessHoursResponse> OpeningHours,
     DateTime UpdatedAt,
-    bool IsOwner);
+    bool IsOwner,
+    bool HasOwner,
+    bool HasPendingClaim);
 
 /// <summary>
 /// The staff list row. Drafts are included here, which is the entire difference from the public

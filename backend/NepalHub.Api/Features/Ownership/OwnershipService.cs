@@ -23,8 +23,14 @@ public enum ClaimSubmitStatus
     /// <summary>The caller is already the owner.</summary>
     AlreadyOwner,
 
-    /// <summary>The caller has a claim still waiting in the queue for this listing.</summary>
+    /// <summary>The caller has an active claim on this listing.</summary>
     AlreadyClaimed,
+
+    /// <summary>Another person already holds an active claim on this listing.</summary>
+    AlreadyTaken,
+
+    /// <summary>The listing has no creator, so there is nobody to hand the claim to.</summary>
+    NoPoster,
 }
 
 public enum ClaimReviewStatus
@@ -53,19 +59,21 @@ public sealed record ClaimReviewOutcome(
     IReadOnlyList<FieldError>? Errors = null);
 
 /// <summary>
-/// Ownership of a listing: claiming one as a member, and the staff queue that decides.
+/// Ownership of a listing: claiming one as a member, and the legacy staff queue that
+/// still decides rows filed before the instant-claim flow.
 ///
 /// <para>
-/// A claim grants nothing on its own. The listing only gains an owner when staff approve,
-/// and the approval writes ownership, settles the rival claims, grants the business role and
-/// appends the audit entry in one SaveChanges — so a half-applied approval cannot exist: no
-/// owner without a role, no role without a log line, no log line for something rolled back.
+/// A claim grants nothing on its own. The listing only gains an owner when the poster
+/// accepts (or legacy staff approve), and that decision writes ownership, settles the
+/// rival claims, grants the business role, sets <c>IsClaimed</c> and appends the audit
+/// entry in one SaveChanges — so a half-applied accept cannot exist: no owner without a
+/// role, no role without a log line, no log line for something rolled back.
 /// </para>
 ///
 /// <para>
 /// The claim lookup is scoped to published listings, so this endpoint answers the same 404
 /// for a draft and an unknown slug and cannot be used to discover which listings staff have
-/// not published yet.
+/// not published yet. Filing leaves the listing public; only accept hides it.
 /// </para>
 /// </summary>
 public sealed class OwnershipService(
@@ -75,72 +83,6 @@ public sealed class OwnershipService(
     INepalDateProvider dates)
 {
     // ---------------------------------------------------------------- member side
-
-    internal async Task<ClaimSubmitOutcome> ClaimAsync(
-        Guid claimantUserId,
-        string slug,
-        string? evidence,
-        CancellationToken cancellationToken)
-    {
-        var business = await PublicContentScope.Businesses(dbContext.Businesses)
-            .Where(item => item.Slug == slug)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (business is null)
-        {
-            return new ClaimSubmitOutcome(ClaimSubmitStatus.NotFound);
-        }
-
-        if (business.OwnerUserId == claimantUserId)
-        {
-            return new ClaimSubmitOutcome(ClaimSubmitStatus.AlreadyOwner);
-        }
-
-        if (business.OwnerUserId is not null)
-        {
-            return new ClaimSubmitOutcome(ClaimSubmitStatus.AlreadyOwned);
-        }
-
-        // The one rule the database cannot hold for us: MySQL has no partial unique index, so
-        // "one pending claim per person per listing" is checked here. A rejected claim does not
-        // block a corrected retry, which is exactly why it cannot be a plain unique index either.
-        var hasPendingClaim = await dbContext.BusinessClaims.AnyAsync(
-            claim => claim.BusinessId == business.Id
-                && claim.ClaimantUserId == claimantUserId
-                && claim.Status == BusinessClaimStatus.Pending,
-            cancellationToken);
-
-        if (hasPendingClaim)
-        {
-            return new ClaimSubmitOutcome(ClaimSubmitStatus.AlreadyClaimed);
-        }
-
-        var claim = new BusinessClaim
-        {
-            Id = Guid.NewGuid(),
-            BusinessId = business.Id,
-            ClaimantUserId = claimantUserId,
-            Evidence = Blank(evidence),
-            Status = BusinessClaimStatus.Pending,
-            CreatedAt = dates.UtcNow,
-        };
-
-        dbContext.BusinessClaims.Add(claim);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return new ClaimSubmitOutcome(
-            ClaimSubmitStatus.Created,
-            new ClaimResponse(
-                claim.Id,
-                business.Id,
-                business.Slug,
-                business.Name,
-                claim.Status,
-                claim.Evidence,
-                claim.CreatedAt,
-                claim.ReviewedAt,
-                claim.ReviewNote));
-    }
 
     /// <summary>
     /// Everything the account page needs in one read: the listings this person manages, in any
@@ -263,11 +205,11 @@ public sealed class OwnershipService(
     }
 
     /// <summary>
-    /// Approves a claim: the listing gains an owner, every other pending claim on it is
-    /// settled in the same pass, the claimant gains the business role, and the decision is
-    /// written to the audit log — all by one SaveChanges. Approving a claim for a listing that
-    /// already has a different owner is refused, because ownership moved while the queue sat
-    /// open and the newer fact wins.
+    /// Approves a claim (legacy staff path): the listing gains an owner and hides, every
+    /// other pending claim on it is settled in the same pass, the claimant gains the
+    /// business role, and the decision is written to the audit log — all by one
+    /// SaveChanges. Approving a claim for a listing that already has a different owner is
+    /// refused, because ownership moved while the queue sat open and the newer fact wins.
     /// </summary>
     internal async Task<ClaimReviewOutcome> ApproveAsync(
         Guid claimId,
@@ -309,18 +251,19 @@ public sealed class OwnershipService(
 
         foreach (var rival in rivals)
         {
-            rival.Status = BusinessClaimStatus.Rejected;
+            rival.Status = BusinessClaimStatus.Released;
             rival.ReviewedByUserId = adminUserId;
             rival.ReviewedAt = reviewedAt;
-            rival.ReviewNote = "Another claim on this listing was approved.";
+            rival.ReviewNote = "Another claim on this listing was accepted.";
         }
 
-        claim.Status = BusinessClaimStatus.Approved;
+        claim.Status = BusinessClaimStatus.Accepted;
         claim.ReviewedByUserId = adminUserId;
         claim.ReviewedAt = reviewedAt;
         claim.ReviewNote = Blank(reviewNote);
 
         business.OwnerUserId = claim.ClaimantUserId;
+        business.IsClaimed = true;
 
         // The audit entry is written before the role is granted, not after, so the identity
         // store's save — which shares this request's DbContext — flushes the claim, the
@@ -335,11 +278,12 @@ public sealed class OwnershipService(
             AuditActions.BusinessClaimApproved,
             "business_claim",
             claim.Id.ToString(),
-            before: new { status = nameof(BusinessClaimStatus.Pending), ownerUserId = (Guid?)null },
+            before: new { status = nameof(BusinessClaimStatus.Pending), ownerUserId = (Guid?)null, isClaimed = false },
             after: new
             {
-                status = nameof(BusinessClaimStatus.Approved),
+                status = nameof(BusinessClaimStatus.Accepted),
                 ownerUserId = claim.ClaimantUserId,
+                isClaimed = true,
                 roleGranted = !heldBefore,
                 rivalClaimsRejected = rivals.Count,
             },
@@ -355,7 +299,7 @@ public sealed class OwnershipService(
         return new ClaimReviewOutcome(ClaimReviewStatus.Approved, View(claim));
     }
 
-    /// <summary>Turns one pending claim down, leaving the listing unowned.</summary>
+    /// <summary>Turns one pending claim down, leaving the listing unowned and public.</summary>
     internal async Task<ClaimReviewOutcome> RejectAsync(
         Guid claimId,
         string? reviewNote,
@@ -375,7 +319,7 @@ public sealed class OwnershipService(
             return new ClaimReviewOutcome(ClaimReviewStatus.AlreadyReviewed, View(claim));
         }
 
-        claim.Status = BusinessClaimStatus.Rejected;
+        claim.Status = BusinessClaimStatus.Released;
         claim.ReviewedByUserId = adminUserId;
         claim.ReviewedAt = dates.UtcNow;
         claim.ReviewNote = Blank(reviewNote);
@@ -386,7 +330,7 @@ public sealed class OwnershipService(
             "business_claim",
             claim.Id.ToString(),
             before: new { status = nameof(BusinessClaimStatus.Pending) },
-            after: new { status = nameof(BusinessClaimStatus.Rejected), note = claim.ReviewNote },
+            after: new { status = nameof(BusinessClaimStatus.Released), note = claim.ReviewNote },
             ip);
 
         await dbContext.SaveChangesAsync(cancellationToken);

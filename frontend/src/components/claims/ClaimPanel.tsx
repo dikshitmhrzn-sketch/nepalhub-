@@ -11,6 +11,10 @@ import styles from './ClaimPanel.module.css';
 
 interface ClaimPanelProps {
   slug: string;
+  /** The listing already has an owner — form hidden, report instead. */
+  hasOwner?: boolean;
+  /** Someone has already claimed this listing — form hidden for everyone else. */
+  hasPendingClaim?: boolean;
 }
 
 type Phase = 'idle' | 'form' | 'sending' | 'done';
@@ -18,17 +22,40 @@ type Phase = 'idle' | 'form' | 'sending' | 'done';
 /**
  * A member asserting that the listing in front of them is theirs.
  *
- * The claim never grants access — a moderator decides, and approval is what moves ownership —
- * so this panel's whole job is to file the assertion and say where it went. Anonymous readers
- * get the sentence explaining that an account is needed, because a claim with nobody behind it
- * has no one to review and nothing to stop a flood of them. The four conflicts the API gives
- * each get their own sentence: already managed, already owned, already waiting, gone.
+ * Filing is instant and does not hide the directory row: only the poster's accept moves
+ * ownership and sets IsClaimed. Three states drive what is shown — claimable, someone has
+ * claimed, already has an owner — so a reader never fills in a form the server will refuse.
+ * Anonymous readers get the sentence explaining that an account is needed.
  */
-export function ClaimPanel({ slug }: ClaimPanelProps) {
+export function ClaimPanel({ slug, hasOwner = false, hasPendingClaim = false }: ClaimPanelProps) {
   const { status } = useAuth();
   const [phase, setPhase] = useState<Phase>('idle');
   const [evidence, setEvidence] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  if (hasOwner) {
+    return (
+      <div className={styles.panel}>
+        <p className={styles.heading}>Already has an owner</p>
+        <p className={styles.body}>
+          This listing already has an owner, so it cannot be claimed. If the details are wrong,
+          report the listing instead.
+        </p>
+      </div>
+    );
+  }
+
+  if (hasPendingClaim && phase !== 'done') {
+    return (
+      <div className={styles.panel}>
+        <p className={styles.heading}>Claim already in progress</p>
+        <p className={styles.body}>
+          Someone has claimed this listing and the poster is reviewing it. If the details are
+          wrong, report the listing instead.
+        </p>
+      </div>
+    );
+  }
 
   if (status === 'anonymous') {
     return (
@@ -49,12 +76,12 @@ export function ClaimPanel({ slug }: ClaimPanelProps) {
   if (phase === 'done') {
     return (
       <p className={styles.done} role="status">
-        Your claim is with our staff. Ownership changes only when they approve it — until then
-        nothing about the listing has changed. You can follow it from{' '}
-        <Link to="/my-business" className={styles.signInLink}>
-          My businesses
-        </Link>
-        .
+        Your claim is with the person who posted this listing. The listing stays public until
+        they accept — you can follow it from{' '}
+        <Link to="/account" className={styles.signInLink}>
+          My claims
+        </Link>{' '}
+        on your account page.
       </p>
     );
   }
@@ -64,8 +91,8 @@ export function ClaimPanel({ slug }: ClaimPanelProps) {
       <div className={styles.panel}>
         <p className={styles.heading}>Is this your business?</p>
         <p className={styles.body}>
-          Claim the listing to correct its details and manage its plan. Staff review every claim
-          before ownership changes.
+          Claim the listing to correct its details and manage its plan. The person who posted
+          it sees your name and decides whether to hand it over.
         </p>
         <Button variant="secondary" size="small" onClick={() => setPhase('form')}>
           Claim this listing
@@ -96,7 +123,13 @@ export function ClaimPanel({ slug }: ClaimPanelProps) {
             );
             break;
           case 'already_claimed':
-            setError('You already have a claim waiting on this listing. Staff are reviewing it.');
+            setError('You already have a claim waiting on this listing.');
+            break;
+          case 'already_taken':
+            setError('Someone already claimed this listing.');
+            break;
+          case 'no_poster':
+            setError('This listing has no one to hand the claim to, so it cannot be claimed.');
             break;
           default:
             setError(getErrorMessage(submitError, 'Could not send the claim. Please try again.'));

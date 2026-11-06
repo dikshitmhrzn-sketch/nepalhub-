@@ -33,6 +33,7 @@ public sealed class BusinessConfiguration : IEntityTypeConfiguration<Business>
         builder.Property(business => business.Website).HasMaxLength(500);
         builder.Property(business => business.IsPublished).HasDefaultValue(false).IsRequired();
         builder.Property(business => business.IsVerified).HasDefaultValue(false).IsRequired();
+        builder.Property(business => business.IsClaimed).HasDefaultValue(false).IsRequired();
 
         builder.Property(business => business.VerifiedAt).HasColumnType("datetime(6)");
 

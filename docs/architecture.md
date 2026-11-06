@@ -149,11 +149,13 @@ NepalHub.Api/
     │   ├── ContentSubmissionService.cs         one body behind the request, resubmit,
     │   │                                       approve = the publish rules then publish
     │   └── SubmissionContracts.cs              queue filters, author and staff read models
-    ├── Claims/          instant claims on published jobs, offers and events
+    ├── Claims/          instant claims: jobs/offers/events (hide on file) and businesses (hide on accept)
     │   ├── ContentClaimController.cs            POST jobs|deals|events/{slug}/claim, rate-limited
-    │   ├── AccountContentClaimsController.cs    both account boxes; poster accept and release
+    │   ├── BusinessClaimController.cs           POST businesses/{slug}/claim, rate-limited
+    │   ├── AccountContentClaimsController.cs    both account boxes; poster accept/release (content + business)
     │   ├── ContentClaimService.cs               one active claim, hide via IsClaimed, decisions
-    │   └── ContentClaimContracts.cs             claimant and poster read models
+    │   ├── BusinessClaimService.cs              file/list/accept/release; Accept writes owner + IsClaimed
+    │   └── ContentClaimContracts.cs             ClaimKind, claimant and poster read models
     ├── Payments/        7f: where money is asked for, never stored
     │   ├── PaymentsController.cs               config, checkout, verify, one reference's state
     │   ├── AccountPaymentsController.cs        the payer's own history
@@ -278,15 +280,19 @@ than recounting days, so a badge and the streak shown on the account page cannot
 seven days were consecutive.
 
 **Ownership is asserted, never assigned.** Staff still create, publish and verify every listing —
-the owner column changes what happens *after* publication. A signed-in person files a claim
-(`already_claimed` / `already_owner` are refused in the service, where the reason can be named), and
-the claim grants no access of its own: approval is the single thing that moves `owner_user_id`, and
-it does so by writing the owner, granting the `business` role, settling the rival claims and
-appending `business.claim_approved` to the audit trail in one `SaveChanges`, so a rolled-back approval
-leaves no half-state. The owner's editor is a whitelist of contact-and-hours fields rather than the
-staff editor, because "may edit this listing" and "may publish or verify it" are different grants.
-There is no unique index on (business, claimant): a rejected claimant who corrects their evidence
-must be able to try again, and a database that refuses the second row gives no reason at all.
+the owner column changes what happens *after* publication. A signed-in person files an instant claim
+(`already_claimed` / `already_taken` / `already_owner` / `already_owned` / `no_poster` are refused in
+the service, where the reason can be named); the listing **stays public** while the claim is pending.
+The poster accepts or releases from the account page: **Accept** writes `owner_user_id`, grants the
+`business` role, sets `businesses.is_claimed` so the row leaves every public page, settles rival
+pending claims and appends `business.claim_accepted` in one `SaveChanges`, so a rolled-back accept
+leaves no half-state. **Release** on a pending claim closes it and leaves the listing public; Release
+after Accept is `already_reviewed` because Accept is terminal. The owner's editor is a whitelist of
+contact-and-hours fields rather than the staff editor, because "may edit this listing" and "may
+publish or verify it" are different grants. There is no unique index on (business, claimant): a
+released claimant who corrects their evidence must be able to try again, and a database that refuses
+the second row gives no reason at all. The legacy staff queue at `/admin/claims` is soft-hidden from
+navigation but still settles open rows.
 
 **Registration is the same grant, made from nothing.** `POST /api/account/businesses` creates a
 draft owned by the caller — unpublished, unchecked and 404 on the public site — so the two paths

@@ -36,10 +36,22 @@ function authAs(status: 'authenticated' | 'anonymous' | 'loading') {
   });
 }
 
-function renderPanel() {
-  const router = createMemoryRouter([{ path: '/businesses/:slug', element: <ClaimPanel slug="kath-cafe" /> }], {
-    initialEntries: ['/businesses/kath-cafe'],
-  });
+function renderPanel(props: { hasOwner?: boolean; hasPendingClaim?: boolean } = {}) {
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/businesses/:slug',
+        element: (
+          <ClaimPanel
+            slug="kath-cafe"
+            hasOwner={props.hasOwner ?? false}
+            hasPendingClaim={props.hasPendingClaim ?? false}
+          />
+        ),
+      },
+    ],
+    { initialEntries: ['/businesses/kath-cafe'] },
+  );
 
   render(<RouterProvider router={router} />);
 }
@@ -47,6 +59,7 @@ function renderPanel() {
 describe('ClaimPanel', () => {
   beforeEach(() => {
     authAs('authenticated');
+    vi.mocked(fileClaim).mockReset();
   });
 
   it('tells a signed-out reader that an account is needed, with the way to get one', () => {
@@ -55,6 +68,24 @@ describe('ClaimPanel', () => {
 
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Claim this listing' })).toBeNull();
+  });
+
+  it('hides the form when the listing already has an owner and points at reporting', () => {
+    renderPanel({ hasOwner: true });
+
+    expect(screen.getByText('Already has an owner')).toBeTruthy();
+    expect(screen.getByText(/report the listing instead/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Claim this listing' })).toBeNull();
+    expect(fileClaim).not.toHaveBeenCalled();
+  });
+
+  it('hides the form when someone else has already claimed the listing', () => {
+    renderPanel({ hasPendingClaim: true });
+
+    expect(screen.getByText('Claim already in progress')).toBeTruthy();
+    expect(screen.getByText(/Someone has claimed this listing/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Claim this listing' })).toBeNull();
+    expect(fileClaim).not.toHaveBeenCalled();
   });
 
   it('opens the form, sends the claim against the listing, and confirms on screen', async () => {
@@ -79,7 +110,7 @@ describe('ClaimPanel', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Send claim' }));
 
-    await waitFor(() => expect(screen.getByText(/Your claim is with our staff/u)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Your claim is with the person/u)).toBeTruthy());
     expect(fileClaim).toHaveBeenCalledWith('kath-cafe', 'I run it');
   });
 
@@ -115,9 +146,24 @@ describe('ClaimPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send claim' }));
 
     expect(
-      await screen.findByText('You already have a claim waiting on this listing. Staff are reviewing it.'),
+      await screen.findByText('You already have a claim waiting on this listing.'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send claim' })).toBeTruthy();
+  });
+
+  it('explains a second claimant without offering a form the server would refuse', async () => {
+    vi.mocked(fileClaim).mockRejectedValue(
+      new ApiError(409, 'already_taken', 'Someone already claimed this listing.'),
+    );
+
+    renderPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Claim this listing' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send claim' }));
+
+    expect(
+      await screen.findByText('Someone already claimed this listing.'),
+    ).toBeTruthy();
   });
 
   it('lets the reader back out of the form without sending anything', () => {

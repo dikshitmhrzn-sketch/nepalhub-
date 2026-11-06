@@ -597,6 +597,7 @@ builder.Services.AddScoped<UserAdminService>();
 // claim, the audit entry recording its approval and the ownership change it makes are all
 // tracked by the one AppDbContext of the request.
 builder.Services.AddScoped<OwnershipService>();
+builder.Services.AddScoped<BusinessClaimService>();
 
 // Registration's other half: the request an owner opens, the queue staff settle and the
 // approval that publishes it, sharing that same request-scoped context so the badge, the

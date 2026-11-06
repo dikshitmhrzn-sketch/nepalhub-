@@ -46,14 +46,17 @@ public static class PublicContentScope
             .Where(job => job.ApplicationDeadline >= today);
 
     /// <summary>
-    /// Published and nothing else. There is no expiry rule to pair with it: a restaurant does not
-    /// stop existing because its deadline passed, so the second predicate the job board needs has no
-    /// equivalent here.
+    /// Published listings that have not had a claim accepted. A pending claim does not hide
+    /// the listing — only acceptance does, which is why the flag is set on accept rather
+    /// than on file. There is no expiry rule: a restaurant does not stop existing because
+    /// its deadline passed, so the second predicate the job board needs has no equivalent
+    /// here beyond the claim flag.
     /// </summary>
     public static IQueryable<Business> Businesses(IQueryable<Business> source) =>
         source
             .AsNoTracking()
-            .Where(business => business.IsPublished);
+            .Where(business => business.IsPublished)
+            .Where(business => !business.IsClaimed);
 
     /// <summary>
     /// The end comparison is inclusive because an offer is live through its last day: someone reading

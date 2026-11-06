@@ -1,11 +1,11 @@
 namespace NepalHub.Api.Data.Entities;
 
-/// <summary>Where the claim sits in the queue staff work through.</summary>
+/// <summary>Where the claim sits in the poster's decision (same lifecycle as content claims).</summary>
 public enum BusinessClaimStatus
 {
     Pending,
-    Approved,
-    Rejected,
+    Accepted,
+    Released,
 }
 
 /// <summary>
@@ -13,15 +13,15 @@ public enum BusinessClaimStatus
 ///
 /// <para>
 /// The directory starts as staff-written copy, so ownership is asserted rather than
-/// assigned: somebody who recognises their own business claims it, a moderator decides,
-/// and approval writes <see cref="Business.OwnerUserId"/>. Nothing about the row is
-/// taken on trust before that decision — a claim grants no access of its own.
+/// assigned: somebody who recognises their own business claims it, the poster (or legacy
+/// staff approve) decides, and acceptance writes <see cref="Business.OwnerUserId"/> and
+/// hides the listing. A pending claim leaves the listing public.
 /// </para>
 ///
 /// <para>
-/// No unique index on (business, claimant): a rejected claimant who corrects their
+/// No unique index on (business, claimant): a released claimant who corrects their
 /// evidence should be able to try again, and a database that refuses the second row
-/// would give no reason at all. The one-pending-claim rule is checked in the service,
+/// would give no reason at all. The one-active-claim rule is checked in the service,
 /// where the refusal can be named to the person.
 /// </para>
 /// </summary>
@@ -48,9 +48,9 @@ public sealed class BusinessClaim
 
     public ApplicationUser? ReviewedBy { get; set; }
 
-    /// <summary>The instant staff decided, in UTC like every other written timestamp.</summary>
+    /// <summary>The instant the poster or staff decided, in UTC like every other written timestamp.</summary>
     public DateTime? ReviewedAt { get; set; }
 
-    /// <summary>What staff recorded when deciding, for whoever reads the claim later.</summary>
+    /// <summary>What the decider recorded, for whoever reads the claim later.</summary>
     public string? ReviewNote { get; set; }
 }

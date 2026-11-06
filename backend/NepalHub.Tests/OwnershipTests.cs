@@ -282,7 +282,28 @@ public sealed class ClaimDecisionTests(NepalHubApiFactory factory) : IClassFixtu
         var rivalClient = factory.CreateSignedInClientAsync(rivalEmail);
 
         var winnerClaim = await OwnershipApi.ClaimAsync(new AuthApiClient(winnerClient), business.Slug);
-        var rivalClaim = await OwnershipApi.ClaimAsync(new AuthApiClient(rivalClient), business.Slug);
+
+        // One active claim per listing: a second claimant is refused rather than queued.
+        using var taken = await new AuthApiClient(rivalClient).PostAsync(
+            $"/api/businesses/{business.Slug}/claim", new { evidence = (string?)null });
+        Assert.Equal(HttpStatusCode.Conflict, taken.StatusCode);
+        var takenEnvelope = await taken.Content
+            .ReadFromJsonAsync<ApiEnvelope<object>>(TestJson.Options);
+        Assert.Equal("already_taken", takenEnvelope!.Error!.Code);
+
+        // Legacy multi-pending rows can still exist from before the rule; staff approve settles them.
+        using var seedScope = factory.Services.CreateScope();
+        var seedDb = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var rivalClaim = new BusinessClaim
+        {
+            Id = Guid.NewGuid(),
+            BusinessId = business.Id,
+            ClaimantUserId = await OwnershipApi.UserIdAsync(factory, rivalEmail),
+            Status = BusinessClaimStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+        };
+        seedDb.BusinessClaims.Add(rivalClaim);
+        await seedDb.SaveChangesAsync();
 
         using var moderator = await factory.CreateStaffClientAsync(Roles.Moderator);
         var approved = await new AuthApiClient(moderator).PostForSnapshotAsync(
@@ -301,8 +322,8 @@ public sealed class ClaimDecisionTests(NepalHubApiFactory factory) : IClassFixtu
         // granted, so the queue settles them in the same pass rather than leaving them open.
         var rival = await dbContext.BusinessClaims.AsNoTracking()
             .SingleAsync(item => item.Id == rivalClaim.Id);
-        Assert.Equal(BusinessClaimStatus.Rejected, rival.Status);
-        Assert.Equal("Another claim on this listing was approved.", rival.ReviewNote);
+        Assert.Equal(BusinessClaimStatus.Released, rival.Status);
+        Assert.Equal("Another claim on this listing was accepted.", rival.ReviewNote);
 
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var winner = await userManager.FindByEmailAsync(winnerEmail);
@@ -319,11 +340,12 @@ public sealed class ClaimDecisionTests(NepalHubApiFactory factory) : IClassFixtu
         Assert.Contains(mine.Owned, item => item.Slug == business.Slug);
         Assert.Contains(
             mine.Claims,
-            item => item.Id == winnerClaim.Id && item.Status == BusinessClaimStatus.Approved);
+            item => item.Id == winnerClaim.Id && item.Status == BusinessClaimStatus.Accepted);
 
-        var detail = await winnerApi.GetAsync<OwnershipViews.OwnerFlagView>(
-            $"/api/businesses/{business.Slug}");
-        Assert.True(detail.IsOwner);
+        // Accept hides the listing: the public detail answers the same 404 as a draft,
+        // and ownership is read from the account screen rather than the directory.
+        using var hidden = await winnerApi.GetRawAsync($"/api/businesses/{business.Slug}");
+        Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
 
         // A moderator performed the decision, but only an admin may read the log.
         using var admin = await factory.CreateStaffClientAsync(Roles.Admin);
@@ -334,7 +356,7 @@ public sealed class ClaimDecisionTests(NepalHubApiFactory factory) : IClassFixtu
             audit.Data!.Items,
             item => item.TargetId == winnerClaim.Id.ToString());
         Assert.Equal("business_claim", entry.TargetType);
-        Assert.Contains("Approved", entry.After);
+        Assert.Contains("Accepted", entry.After);
 
         // The note lives on the claim itself; the log line records what changed.
         var decided = await dbContext.BusinessClaims.AsNoTracking()

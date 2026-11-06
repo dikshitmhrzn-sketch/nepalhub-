@@ -109,6 +109,13 @@ public sealed class ContentClaimService(
         return claims.Select(claim => ToMine(claim, SlugOf(claim), TitleOf(claim))).ToList();
     }
 
+    private static ClaimKind ToClaimKind(SubmissionKind kind) => kind switch
+    {
+        SubmissionKind.Job => ClaimKind.Job,
+        SubmissionKind.Event => ClaimKind.Event,
+        _ => ClaimKind.Deal,
+    };
+
     /// <summary>Every claim on a post this person created, pending first, then newest.</summary>
     internal async Task<IReadOnlyList<PostedContentClaimResponse>> ListOnMyPostsAsync(
         Guid posterUserId,
@@ -411,7 +418,7 @@ public sealed class ContentClaimService(
     private static MyContentClaimResponse ToMine(ContentClaim claim, string slug, string title) =>
         new(
             claim.Id,
-            claim.Kind,
+            ToClaimKind(claim.Kind),
             slug,
             title,
             claim.Status,
@@ -426,7 +433,7 @@ public sealed class ContentClaimService(
         string title) =>
         new(
             claim.Id,
-            claim.Kind,
+            ToClaimKind(claim.Kind),
             slug,
             title,
             claim.Claimant?.FullName

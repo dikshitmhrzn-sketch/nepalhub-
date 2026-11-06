@@ -29,8 +29,8 @@ public sealed class BusinessClaimConfiguration : IEntityTypeConfiguration<Busine
 
         builder.Property(claim => claim.ReviewedAt).HasColumnType("datetime(6)");
 
-        // An approval writes ownership onto the listing, so the listing must outlive the
-        // claim: the record of who was approved is worth keeping even once the row that
+        // An accepted claim writes ownership onto the listing, so the listing must outlive the
+        // claim: the record of who was accepted is worth keeping even once the row that
         // proved it is no longer the subject of anything.
         builder.HasOne(claim => claim.Business)
             .WithMany()

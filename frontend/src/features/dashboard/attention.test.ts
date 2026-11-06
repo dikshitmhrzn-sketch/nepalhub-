@@ -111,7 +111,6 @@ describe('attentionSections', () => {
       '/admin/deals',
       '/admin/events',
       '/admin/reports',
-      '/admin/claims',
       '/admin/verifications',
       '/admin/submissions',
       '/admin/subscription-requests',
@@ -137,12 +136,6 @@ describe('attentionSections', () => {
     expect(sections[0]!.rows).toEqual([
       { key: 'openReports', label: 'Open reports', count: 2, to: '/admin/reports' },
       {
-        key: 'pendingClaims',
-        label: 'Ownership claims waiting',
-        count: 3,
-        to: '/admin/claims',
-      },
-      {
         key: 'subscriptionRequests',
         label: 'Plan requests waiting',
         count: 4,
@@ -154,7 +147,8 @@ describe('attentionSections', () => {
   it('drops a queue row with nothing waiting while keeping the other', () => {
     const sections = attentionSections(summaryWith({ pendingClaims: 1 }));
 
-    expect(sections[0]!.rows.map((row) => row.key)).toEqual(['pendingClaims']);
+    // The claims queue is soft-hidden: a pending count alone never surfaces a link to it.
+    expect(sections).toEqual([]);
   });
 
   it('sends every decision row to a page the quick links offer', () => {

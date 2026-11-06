@@ -76,6 +76,12 @@ export interface BusinessDetail extends Omit<BusinessSummary, 'createdAt'> {
   website: string | null;
   openingHours: BusinessHours[];
   updatedAt: string;
+  /** Whether the caller manages this listing (never widens what is visible). */
+  isOwner: boolean;
+  /** Whether the listing already has an owner — hides the claim form. */
+  hasOwner: boolean;
+  /** Whether a claim is already pending — hides the claim form for everyone else. */
+  hasPendingClaim: boolean;
 }
 
 /** The staff list row, which shows drafts as well as live listings. */

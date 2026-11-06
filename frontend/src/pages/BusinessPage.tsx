@@ -228,9 +228,15 @@ export function BusinessPage() {
         </div>
         {/*
           Ownership is asserted, never assumed: a reader who recognises their own business
-          claims it here, and staff decide. The panel never grants access — it only files.
+          claims it here, and the poster decides. The panel never grants access — it only
+          files. hasOwner / hasPendingClaim hide the form so nobody fills in a claim the
+          server will refuse.
         */}
-        <ClaimPanel slug={detail.slug} />
+        <ClaimPanel
+          slug={detail.slug}
+          hasOwner={detail.hasOwner}
+          hasPendingClaim={detail.hasPendingClaim}
+        />
         <ReportButton targetType="Business" targetId={detail.id} />
       </article>
     </Container>

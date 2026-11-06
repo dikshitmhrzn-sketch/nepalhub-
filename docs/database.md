@@ -17,9 +17,11 @@ confirmation or reset link is an ASP.NET Core Identity data-protector token carr
 purpose and expiry, so the only columns involved are the ones Identity already owns
 (`users.email_confirmed` behind `EmailConfirmed`); the per-address send quiet window lives in
 memory, which is the whole one-host-one-process deployment model; and mail itself is a log line,
-a file pair or a remote relay rather than rows. Nineteen migrations remain the whole schema — the
-seventeenth adds `data_protection_keys` for the key ring, the eighteenth `content_submissions`, and
-the nineteenth `content_claims` plus the `is_claimed` flags.
+a file pair or a remote relay rather than rows. Twenty migrations remain the whole schema — the
+seventeenth adds `data_protection_keys` for the key ring, the eighteenth `content_submissions`,
+the nineteenth `content_claims` plus the `is_claimed` flags on jobs/events/deals, and the
+twentieth `businesses.is_claimed` plus the business-claim status rename to
+`Pending` / `Accepted` / `Released`.
 
 ## Local instance
 
@@ -657,20 +659,30 @@ asserted and decided rather than handed out — nothing about a filed claim is t
 | `business_id` | `char(36)` | FK → `businesses`, `ON DELETE CASCADE` |
 | `claimant_user_id` | `char(36)` | FK → `users`, `ON DELETE CASCADE` — a deleted account takes its claims with it |
 | `evidence` | `varchar(500)` nullable | How the claimant is connected to the listing, in their own words |
-| `status` | `varchar(20)` | `BusinessClaimStatus` by name: `Pending` (default), `Approved`, `Rejected` |
+| `status` | `varchar(20)` | `BusinessClaimStatus` by name: `Pending` (default), `Accepted`, `Released` |
 | `created_at` | `datetime(6)` | Defaults to `CURRENT_TIMESTAMP(6)` |
 | `reviewed_by_user_id` | `char(36)` nullable | FK → `users`, `ON DELETE SET NULL` — deleting a moderator must not re-open who owns a listing |
-| `reviewed_at` | `datetime(6)` nullable | The instant staff decided |
-| `review_note` | `varchar(500)` | What staff recorded when deciding. Lives on the claim row, not in the audit `after` |
+| `reviewed_at` | `datetime(6)` nullable | The instant the poster (or legacy staff) decided |
+| `review_note` | `varchar(500)` | What the decider recorded. Lives on the claim row, not in the audit `after` |
 
-**No unique index on (business, claimant).** A rejected claimant who corrects their evidence
-should be able to try again, and a database that refuses the second row would give no reason at
-all. The one-pending-claim rule is checked in the service, where the refusal can be named
-(`already_claimed`) alongside `already_owner` and `already_owned`.
+**No unique index on (business, claimant).** A released claimant who corrects their evidence
+should be able to try again, and a database that refused the second row would give no reason at
+all. The one-active-claim rule is checked in the service, where the refusal can be named
+(`already_claimed` / `already_taken`) alongside `already_owner`, `already_owned` and `no_poster`.
 
-Approval is the only thing that moves `owner_user_id`: it settles the rival claims, grants the
-`business` role and writes `business.claim_approved` to the audit trail in the same `SaveChanges`.
-A filed claim grants no access of its own.
+**Instant claim, poster decides.** Filing leaves the listing public; only Accept moves
+`owner_user_id`, sets `businesses.is_claimed`, grants the `business` role and appends
+`business.claim_accepted` — all in one `SaveChanges`. Release on a pending claim closes it and
+leaves the listing public; Release after Accept is refused (`already_reviewed`) because Accept
+is terminal. The legacy staff queue (`/api/admin/business-claims`) still settles open rows with
+`business.claim_approved` / `business.claim_rejected` and the same rival settlement.
+
+### `businesses.is_claimed`
+
+Added by `20261106061941_AddBusinessIsClaimedAndClaimStatusRename`. True once a claim has been
+accepted (and backfilled for pre-existing owners). `PublicContentScope` filters on it for every
+list, detail and global-search read. A pending claim does **not** set the flag — the directory
+row stays public until Accept.
 
 Indexes: `ix_business_claims_status_created_at` (the queue: pending first, newest first) and
 `ix_business_claims_business_claimant_status` (has this person already asked about this listing).

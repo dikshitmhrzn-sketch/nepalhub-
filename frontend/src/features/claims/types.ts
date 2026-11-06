@@ -1,10 +1,10 @@
 /**
  * Mirrors the content-claim contracts exposed by the ASP.NET Core API: claiming a
- * published job, offer or event, the claimant's own list, and the poster's decision.
+ * published job, offer, event or business, the claimant's own list, and the poster's decision.
  */
 
-/** Which kind of post a content claim is against. The API serialises these by name. */
-export type ContentClaimKind = 'Job' | 'Event' | 'Deal';
+/** Which kind of post a claim is against. The API serialises these by name. */
+export type ContentClaimKind = 'Job' | 'Event' | 'Deal' | 'Business';
 
 /** Where a content claim sits in the poster's decision. */
 export type ContentClaimStatus = 'Pending' | 'Accepted' | 'Released';
@@ -38,6 +38,7 @@ export const contentClaimKindLabels: Record<ContentClaimKind, string> = {
   Job: 'Job',
   Event: 'Event',
   Deal: 'Offer',
+  Business: 'Business',
 };
 
 export const contentClaimStatusLabels: Record<ContentClaimStatus, string> = {
@@ -53,6 +54,8 @@ export function claimPathFor(kind: ContentClaimKind): string {
       return 'jobs';
     case 'Event':
       return 'events';
+    case 'Business':
+      return 'businesses';
     default:
       return 'deals';
   }

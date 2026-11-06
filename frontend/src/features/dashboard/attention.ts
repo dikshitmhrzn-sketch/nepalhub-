@@ -38,7 +38,7 @@ export const quickLinks: QuickLink[] = [
   { key: 'deals', label: 'Manage offers', to: '/admin/deals' },
   { key: 'events', label: 'Manage events', to: '/admin/events' },
   { key: 'reports', label: 'Open the report queue', to: '/admin/reports' },
-  { key: 'claims', label: 'Open the claims queue', to: '/admin/claims' },
+  // Claims queue soft-hidden: poster accept/release owns the flow; legacy rows stay at the URL.
   { key: 'verifications', label: 'Open the verification queue', to: '/admin/verifications' },
   { key: 'submissions', label: 'Open the submission queue', to: '/admin/submissions' },
   { key: 'subscriptionRequests', label: 'Open plan requests', to: '/admin/subscription-requests' },
@@ -63,7 +63,6 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
     staleWhilePublished,
     unverifiedBusinesses,
     openReports,
-    pendingClaims,
     pendingVerifications,
     pendingSubmissions,
     subscriptionRequests,
@@ -129,12 +128,7 @@ export function attentionSections(summary: DashboardSummary): AttentionSection[]
 
   const reportRows: AttentionRow[] = [
     { key: 'openReports', label: 'Open reports', count: openReports, to: quickLinkTargets.reports },
-    {
-      key: 'pendingClaims',
-      label: 'Ownership claims waiting',
-      count: pendingClaims,
-      to: quickLinkTargets.claims,
-    },
+    // pendingClaims is soft-hidden with the staff queue: posters decide on the account page.
     {
       key: 'pendingVerifications',
       label: 'Listings waiting to be verified',

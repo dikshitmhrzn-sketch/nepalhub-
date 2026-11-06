@@ -4,6 +4,18 @@ using NepalHub.Api.Data.Entities;
 
 namespace NepalHub.Api.Features.Claims;
 
+/// <summary>
+/// Which listing a claim is against, for the account page's two boxes. Content claims
+/// map from <see cref="SubmissionKind"/>; business claims use <see cref="Business"/>.
+/// </summary>
+public enum ClaimKind
+{
+    Job,
+    Event,
+    Deal,
+    Business,
+}
+
 /// <summary>How a content claim ended when the poster decided.</summary>
 public enum ContentClaimDecisionStatus
 {
@@ -27,7 +39,7 @@ public sealed record ContentClaimDecisionOutcome(
 /// </summary>
 public sealed record MyContentClaimResponse(
     Guid Id,
-    SubmissionKind Kind,
+    ClaimKind Kind,
     string Slug,
     string Title,
     ContentClaimStatus Status,
@@ -42,7 +54,7 @@ public sealed record MyContentClaimResponse(
 /// </summary>
 public sealed record PostedContentClaimResponse(
     Guid Id,
-    SubmissionKind Kind,
+    ClaimKind Kind,
     string Slug,
     string Title,
     string ClaimantName,

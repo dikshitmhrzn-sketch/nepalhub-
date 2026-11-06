@@ -199,7 +199,17 @@ public sealed class BusinessService(
                 .ThenInclude(district => district!.Province)
             .FirstOrDefaultAsync(cancellationToken);
 
-        return business is null ? null : ToDetailResponse(business, now, viewerId);
+        if (business is null)
+        {
+            return null;
+        }
+
+        var hasPendingClaim = await dbContext.BusinessClaims.AsNoTracking()
+            .AnyAsync(
+                claim => claim.BusinessId == business.Id && claim.Status == BusinessClaimStatus.Pending,
+                cancellationToken);
+
+        return ToDetailResponse(business, now, viewerId, hasPendingClaim);
     }
 
     /// <summary>
@@ -1350,7 +1360,11 @@ public sealed class BusinessService(
         IsOpenNow(business, now),
         business.CreatedAt);
 
-    private static BusinessDetailResponse ToDetailResponse(Business business, DateTime now, Guid? viewerId) => new(
+    private static BusinessDetailResponse ToDetailResponse(
+        Business business,
+        DateTime now,
+        Guid? viewerId,
+        bool hasPendingClaim) => new(
         business.Id,
         business.Slug,
         business.Name,
@@ -1366,7 +1380,9 @@ public sealed class BusinessService(
         IsOpenNow(business, now),
         ToHoursResponses(business),
         business.UpdatedAt,
-        viewerId is not null && business.OwnerUserId == viewerId);
+        viewerId is not null && business.OwnerUserId == viewerId,
+        business.OwnerUserId is not null,
+        hasPendingClaim);
 
     /// <summary>
     /// Hours as an ordered week, always Sunday first, whether or not the business listed that day.

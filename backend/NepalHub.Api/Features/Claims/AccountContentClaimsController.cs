@@ -6,8 +6,9 @@ using NepalHub.Api.Data.Entities;
 namespace NepalHub.Api.Features.Claims;
 
 /// <summary>
-/// The account page's two claim boxes: every claim this person filed, and every claim on a
-/// post they created — plus accept and release for the poster's side.
+/// The account page's two claim boxes: every claim this person filed (jobs, offers,
+/// events and businesses), and every claim on a post they created — plus accept and
+/// release for the poster's side.
 ///
 /// <para>
 /// Signed in only, no role. Every read is scoped to the caller (claimant or poster) and
@@ -19,6 +20,7 @@ namespace NepalHub.Api.Features.Claims;
 [Produces("application/json")]
 public sealed class AccountContentClaimsController(
     ContentClaimService claimService,
+    BusinessClaimService businessClaimService,
     UserManager<ApplicationUser> userManager) : ControllerBase
 {
     /// <summary>Both account boxes in one read: claims filed, and claims on posts created.</summary>
@@ -35,8 +37,16 @@ public sealed class AccountContentClaimsController(
             return SessionInvalid();
         }
 
-        var mine = await claimService.ListMineAsync(user.Id, cancellationToken);
-        var onMyPosts = await claimService.ListOnMyPostsAsync(user.Id, cancellationToken);
+        var mine = (await claimService.ListMineAsync(user.Id, cancellationToken))
+            .Concat(await businessClaimService.ListMineAsync(user.Id, cancellationToken))
+            .OrderByDescending(item => item.CreatedAt)
+            .ToList();
+
+        var onMyPosts = (await claimService.ListOnMyPostsAsync(user.Id, cancellationToken))
+            .Concat(await businessClaimService.ListOnMyPostsAsync(user.Id, cancellationToken))
+            .OrderByDescending(item => item.Status == ContentClaimStatus.Pending)
+            .ThenByDescending(item => item.CreatedAt)
+            .ToList();
 
         return Ok(ApiResponse<ContentClaimsOverview>.Ok(
             new ContentClaimsOverview(mine, onMyPosts)));
@@ -56,7 +66,10 @@ public sealed class AccountContentClaimsController(
             return SessionInvalid();
         }
 
-        var claims = await claimService.ListMineAsync(user.Id, cancellationToken);
+        var claims = (await claimService.ListMineAsync(user.Id, cancellationToken))
+            .Concat(await businessClaimService.ListMineAsync(user.Id, cancellationToken))
+            .OrderByDescending(item => item.CreatedAt)
+            .ToList();
 
         return Ok(ApiResponse<IReadOnlyList<MyContentClaimResponse>>.Ok(claims));
     }
@@ -75,7 +88,11 @@ public sealed class AccountContentClaimsController(
             return SessionInvalid();
         }
 
-        var claims = await claimService.ListOnMyPostsAsync(user.Id, cancellationToken);
+        var claims = (await claimService.ListOnMyPostsAsync(user.Id, cancellationToken))
+            .Concat(await businessClaimService.ListOnMyPostsAsync(user.Id, cancellationToken))
+            .OrderByDescending(item => item.Status == ContentClaimStatus.Pending)
+            .ThenByDescending(item => item.CreatedAt)
+            .ToList();
 
         return Ok(ApiResponse<IReadOnlyList<PostedContentClaimResponse>>.Ok(claims));
     }
@@ -104,6 +121,30 @@ public sealed class AccountContentClaimsController(
         CancellationToken cancellationToken) =>
         await DecideAsync(id, accept: false, request, cancellationToken);
 
+    /// <summary>Poster accepts a business claim: owner + role + IsClaimed. Business rows share the posted-claims id space only by kind — use the business-specific routes.</summary>
+    [HttpPost("api/account/business-claims/{id:guid}/accept")]
+    [ProducesResponseType<ApiResponse<PostedContentClaimResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<PostedContentClaimResponse>>> AcceptBusiness(
+        Guid id,
+        ReviewContentClaimRequest request,
+        CancellationToken cancellationToken) =>
+        await DecideBusinessAsync(id, accept: true, request, cancellationToken);
+
+    /// <summary>Poster releases a pending business claim; listing stays public. Not allowed after Accept.</summary>
+    [HttpPost("api/account/business-claims/{id:guid}/release")]
+    [ProducesResponseType<ApiResponse<PostedContentClaimResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiResponse<object>>(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ApiResponse<PostedContentClaimResponse>>> ReleaseBusiness(
+        Guid id,
+        ReviewContentClaimRequest request,
+        CancellationToken cancellationToken) =>
+        await DecideBusinessAsync(id, accept: false, request, cancellationToken);
+
     private async Task<ActionResult<ApiResponse<PostedContentClaimResponse>>> DecideAsync(
         Guid id,
         bool accept,
@@ -121,9 +162,34 @@ public sealed class AccountContentClaimsController(
             ? await claimService.AcceptAsync(id, user.Id, request.ReviewNote, cancellationToken)
             : await claimService.ReleaseAsync(id, user.Id, request.ReviewNote, cancellationToken);
 
-        return outcome.Status switch
+        return MapDecision(outcome);
+    }
+
+    private async Task<ActionResult<ApiResponse<PostedContentClaimResponse>>> DecideBusinessAsync(
+        Guid id,
+        bool accept,
+        ReviewContentClaimRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await userManager.GetUserAsync(User);
+
+        if (user is null)
         {
-            ContentClaimDecisionStatus.Accepted => Ok(
+            return SessionInvalid();
+        }
+
+        var outcome = accept
+            ? await businessClaimService.AcceptAsync(id, user.Id, request.ReviewNote, cancellationToken)
+            : await businessClaimService.ReleaseAsync(id, user.Id, request.ReviewNote, cancellationToken);
+
+        return MapDecision(outcome);
+    }
+
+    private ActionResult<ApiResponse<PostedContentClaimResponse>> MapDecision(
+        ContentClaimDecisionOutcome outcome) =>
+        outcome.Status switch
+        {
+            ContentClaimDecisionStatus.Accepted or ContentClaimDecisionStatus.Released => Ok(
                 ApiResponse<PostedContentClaimResponse>.Ok(outcome.Claim!)),
 
             ContentClaimDecisionStatus.NotFound => NotFound(ApiResponse<object>.Fail(
@@ -136,7 +202,6 @@ public sealed class AccountContentClaimsController(
                     "already_reviewed",
                     "That claim has already been decided."))),
         };
-    }
 
     private ActionResult SessionInvalid() => Unauthorized(ApiResponse<object>.Fail(
         new ApiError("session_invalid", "The session is no longer valid.")));

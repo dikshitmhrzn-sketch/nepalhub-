@@ -554,6 +554,12 @@ namespace NepalHub.Api.Data.Migrations
                         .HasColumnType("varchar(254)")
                         .HasColumnName("email");
 
+                    b.Property<bool>("IsClaimed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_claimed");
+
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("tinyint(1)")

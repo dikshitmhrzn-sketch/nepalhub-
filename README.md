@@ -247,6 +247,10 @@ content tables it points at.
 The nineteenth, `20261105152010_AddContentClaims`, creates `content_claims` and gives `jobs`,
 `events` and `deals` their `is_claimed` flag — the instant claim a signed-in member files on a
 published post, which hides it from every public read until the poster accepts or releases.
+The twentieth, `20261106061941_AddBusinessIsClaimedAndClaimStatusRename`, gives `businesses` its
+own `is_claimed` flag (set on Accept, not on file) and renames the business-claim statuses to
+`Pending` / `Accepted` / `Released`, migrating any historical `Approved` → `Accepted` and
+`Rejected` → `Released`.
 
 The design-time factory reads `ConnectionStrings__Default` from the environment and falls back to a
 passwordless local default, so `dotnet ef database update` needs that variable set (or the API's
@@ -741,10 +745,12 @@ adding a second approval path (see **Payments** below).
 
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
-| `POST /api/businesses/{slug}/claim` | required | File a claim with up to 500 chars of evidence; `409 already_owner` / `already_claimed` / `already_owned`; 10/hour per IP |
-| `GET /api/admin/business-claims` | `staff-only` | The queue: pending first, `status` filter |
-| `POST /api/admin/business-claims/{id}/approve` | `staff-only` | Writes the owner, grants `business`, settles rival claims, audits — one save |
-| `POST /api/admin/business-claims/{id}/reject` | `staff-only` | Closes it with an optional review note, recorded on the claim row |
+| `POST /api/businesses/{slug}/claim` | required | Instant claim with up to 500 chars of evidence; listing stays public; `409 already_owner` / `already_claimed` / `already_taken` / `already_owned` / `no_poster`; 10/hour per IP |
+| `POST /api/account/business-claims/{id}/accept` | required | Poster accepts: owner + `business` role + `IsClaimed` (listing hides); `404 claim_not_found`; `409 already_reviewed` |
+| `POST /api/account/business-claims/{id}/release` | required | Poster releases a pending claim; listing stays public; not allowed after Accept (`already_reviewed`) |
+| `GET /api/admin/business-claims` | `staff-only` | Legacy queue (soft-hidden from nav): pending first, `status` filter |
+| `POST /api/admin/business-claims/{id}/approve` | `staff-only` | Legacy: writes the owner, grants `business`, settles rival claims, audits — one save |
+| `POST /api/admin/business-claims/{id}/reject` | `staff-only` | Legacy: closes it with an optional review note, recorded on the claim row |
 | `GET /api/account/businesses` | required | The listings this account owns, plus its own claims and verification requests in flight |
 | `GET`/`PUT /api/account/businesses/{slug}` | required | The owner's read and save: contact details, description and hours always, and slug, name, category and district while the listing is a draft; never publish or verify |
 | `POST /api/account/businesses` | required | Register a listing of one's own: born owned, unpublished and unchecked; `409 slug_taken`; 10/hour per IP |
@@ -761,20 +767,19 @@ adding a second approval path (see **Payments** below).
 | `POST`/`DELETE /api/events/{slug}/booking` | required | Take or release 1–4 places, 20/hour per IP, only before the event starts |
 | `GET /api/admin/events/{id}/bookings` | `staff-only` | The attendee list |
 
-**A claim grants nothing; approval is the single thing that moves ownership.** Staff still create,
-publish and verify every listing — filing a claim only puts a row in the queue
-(`GET /api/admin/business-claims`, staff-only, pending first and newest first). Approving writes
-`businesses.owner_user_id`, grants the `business` role (effective at the next sign-in, because role
-claims live in the cookie), rejects the rival claims for the same listing and appends
-`business.claim_approved` to the audit trail — all in one `SaveChanges`, so a rolled-back approval
-leaves no half-owner. There is no unique index on (business, claimant): a rejected claimant who
-corrects their evidence can try again, and the service names each refusal rather than the database
-swallowing the row. The owner's screen is `/my-business` — a list of owned listings beside the
-claims and verification requests in flight, a form to register a listing of one's own, and an
-editor whose whitelist is contact details and hours plus, while the listing is a draft, the
-slug, name, category and district it will be published under. The claim panel on a listing page
-shows the person's own state (filed, approved, rejected) rather than a button that would be
-refused.
+**Instant claim; the poster decides.** Staff still create, publish and verify every listing.
+A signed-in member files a claim (`POST /api/businesses/{slug}/claim`); the listing **stays
+public** while the claim is pending. The poster sees name and email on the account page and
+accepts or releases via `/api/account/business-claims/{id}/accept|release`. **Accept** writes
+`businesses.owner_user_id`, grants the `business` role (effective at the next sign-in), sets
+`businesses.is_claimed` so the row leaves every public page, settles any rival pending claims,
+and appends `business.claim_accepted` — all in one `SaveChanges`. **Release** on a pending
+claim closes it and leaves the listing public; Release after Accept is refused
+(`already_reviewed`) because Accept is terminal. One active claim per listing is checked in
+the service (`already_claimed` / `already_taken`); released claimants may try again. The
+legacy staff queue at `/admin/claims` is soft-hidden from navigation but still settles open
+rows. The claim panel on a listing page shows claimable / someone has claimed / already has
+an owner rather than a button the server would refuse. The owner's screen is `/my-business`.
 
 **Registration is authorship, not publication.** `POST /api/account/businesses` creates a row
 owned by the caller, unpublished and unchecked, answering 404 on the public site exactly as a

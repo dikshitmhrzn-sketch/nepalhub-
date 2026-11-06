@@ -37,6 +37,15 @@ public static class AuditActions
 
     public const string BusinessClaimRejected = "business.claim_rejected";
 
+    /// <summary>A member filed an instant claim on a published listing; the listing stays public.</summary>
+    public const string BusinessClaimed = "business.claimed";
+
+    /// <summary>The poster accepted a business claim; the listing hides and gains an owner.</summary>
+    public const string BusinessClaimAccepted = "business.claim_accepted";
+
+    /// <summary>The poster released a business claim; the listing stays or becomes public again.</summary>
+    public const string BusinessClaimReleased = "business.claim_released";
+
     public const string BusinessVerificationApproved = "business.verification_approved";
 
     public const string BusinessVerificationRejected = "business.verification_rejected";

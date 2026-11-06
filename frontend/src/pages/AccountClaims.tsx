@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { StateMessage } from '@/components/ui/StateMessage';
 import {
+  acceptBusinessClaim,
   acceptContentClaim,
+  releaseBusinessClaim,
   releaseContentClaim,
 } from '@/features/claims/api';
 import {
@@ -36,7 +38,14 @@ export function AccountClaims({ overview, onChanged }: AccountClaimsProps) {
     setDecisionError(null);
 
     try {
-      if (decision === 'accept') {
+      // Business claims use their own routes: Accept also writes ownership and the role.
+      if (claim.kind === 'Business') {
+        if (decision === 'accept') {
+          await acceptBusinessClaim(claim.id, null);
+        } else {
+          await releaseBusinessClaim(claim.id, null);
+        }
+      } else if (decision === 'accept') {
         await acceptContentClaim(claim.id, null);
       } else {
         await releaseContentClaim(claim.id, null);

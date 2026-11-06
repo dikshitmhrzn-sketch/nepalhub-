@@ -32,7 +32,8 @@ const navigation: NavigationItem[] = [
   { label: 'Submit', to: '/submit', requiresAuth: true },
   { label: 'Dashboard', to: '/admin', requiresStaff: true },
   { label: 'Report queue', to: '/admin/reports', requiresStaff: true },
-  { label: 'Ownership claims', to: '/admin/claims', requiresStaff: true },
+  // Ownership claims are soft-hidden: instant poster decisions own the flow now; the
+  // staff queue page stays reachable by URL for any legacy rows still open.
   { label: 'Verification queue', to: '/admin/verifications', requiresStaff: true },
   { label: 'Submission queue', to: '/admin/submissions', requiresStaff: true },
   { label: 'Manage calculators', to: '/admin/calculators', requiresStaff: true },

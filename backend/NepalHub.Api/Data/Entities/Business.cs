@@ -5,8 +5,8 @@ namespace NepalHub.Api.Data.Entities;
 /// identically; a table per category would mean a copy of every query and a client that has to
 /// guess which one to ask.
 ///
-/// Staff publish the copy, and an owner account is attached afterwards by approving a claim:
-/// the row records who a staff member checked it as, and whoever's claim was approved becomes
+/// Staff publish the copy, and an owner account is attached afterwards when a claim is
+/// accepted: the row records who a staff member checked it as, and the claimant becomes
 /// <see cref="OwnerUserId"/>. Null forever on a listing nobody has claimed, which is normal.
 /// </summary>
 public sealed class Business
@@ -87,6 +87,13 @@ public sealed class Business
     public bool IsVerified { get; set; }
 
     /// <summary>
+    /// Whether an accepted claim has taken this listing off the public pages. Filing a claim
+    /// does <em>not</em> set it — a pending claim leaves the listing visible — and only the
+    /// poster's accept does, matching the job board. Release clears it again.
+    /// </summary>
+    public bool IsClaimed { get; set; }
+
+    /// <summary>
     /// When the listing was last checked, or null while it is unchecked. Stored so the staff list
     /// can show how stale a verified listing has become.
     /// </summary>
@@ -101,9 +108,9 @@ public sealed class Business
     public ApplicationUser? CreatedByUser { get; set; }
 
     /// <summary>
-    /// Whoever owns the listing, set when staff approve their claim. Nullable and set null on
-    /// delete: losing the owner's account must not take the listing, which readers already plan
-    /// around, with it.
+    /// Whoever owns the listing, set when their claim is accepted (poster or legacy staff
+    /// approve). Nullable and set null on delete: losing the owner's account must not take the
+    /// listing, which readers already plan around, with it.
     /// </summary>
     public Guid? OwnerUserId { get; set; }
 

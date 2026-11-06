@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NepalHub.Api.Data;
 using NepalHub.Api.Data.Entities;
 using NepalHub.Api.Features.Auth;
+using NepalHub.Api.Features.Claims;
 
 namespace NepalHub.Tests;
 
@@ -13,7 +14,7 @@ internal static class ContentClaimViews
 {
     internal sealed record MyClaimView(
         Guid Id,
-        SubmissionKind Kind,
+        ClaimKind Kind,
         string Slug,
         string Title,
         ContentClaimStatus Status,
@@ -24,7 +25,7 @@ internal static class ContentClaimViews
 
     internal sealed record PostedClaimView(
         Guid Id,
-        SubmissionKind Kind,
+        ClaimKind Kind,
         string Slug,
         string Title,
         string ClaimantName,
@@ -125,6 +126,15 @@ internal static class ContentClaimApi
             $"/api/account/posted-claims/{claimId}/{decision}",
             new { reviewNote });
 
+    internal static async Task<HttpResponseMessage> DecideBusinessAsync(
+        AuthApiClient poster,
+        Guid claimId,
+        string decision,
+        string? reviewNote = null) =>
+        await poster.PostAsync(
+            $"/api/account/business-claims/{claimId}/{decision}",
+            new { reviewNote });
+
     internal static async Task<T> ReadAsync<T>(HttpResponseMessage response)
     {
         var envelope = await response.Content
@@ -167,7 +177,7 @@ public sealed class ContentClaimTests(NepalHubApiFactory factory) : IClassFixtur
         var claimantEmail = TestData.UniqueEmail("content-claimant");
         var claimant = new AuthApiClient(factory.CreateSignedInClientAsync(claimantEmail));
         var claim = await ContentClaimApi.FileAsync(claimant, "jobs", slug, note: "I am the employer");
-        Assert.Equal(SubmissionKind.Job, claim.Kind);
+        Assert.Equal(ClaimKind.Job, claim.Kind);
         Assert.Equal(ContentClaimStatus.Pending, claim.Status);
         Assert.Equal("I am the employer", claim.Note);
         Assert.Equal(slug, claim.Slug);
@@ -318,10 +328,10 @@ public sealed class ContentClaimTests(NepalHubApiFactory factory) : IClassFixtur
             factory.CreateSignedInClientAsync(TestData.UniqueEmail("content-kinds")));
 
         var dealClaim = await ContentClaimApi.FileAsync(claimant, "deals", dealSlug);
-        Assert.Equal(SubmissionKind.Deal, dealClaim.Kind);
+        Assert.Equal(ClaimKind.Deal, dealClaim.Kind);
 
         var eventClaim = await ContentClaimApi.FileAsync(claimant, "events", eventSlug);
-        Assert.Equal(SubmissionKind.Event, eventClaim.Kind);
+        Assert.Equal(ClaimKind.Event, eventClaim.Kind);
 
         using var reader = factory.CreateClient();
         using var dealGone = await reader.GetAsync($"/api/deals/{dealSlug}");
